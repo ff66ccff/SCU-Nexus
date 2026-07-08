@@ -1,0 +1,8 @@
+build/
+out/
+.vs/
+.qtcreator/
+*.user
+*.sqlite
+*.db
+build*
