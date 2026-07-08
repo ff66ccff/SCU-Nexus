@@ -1,112 +1,181 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import "components"
+import "styles"
 
 Rectangle {
     id: root
-    color: "#f5f5f5"
+
+    color: Theme.background
 
     property var navItems: [
-        { name: "课表", route: "Schedule", icon: "📅" },
-        { name: "校历", route: "AcademicCalendar", icon: "📆" },
-        { name: "考表", route: "ExamPlan", icon: "📝" },
-        { name: "成绩", route: "Grades", icon: "📊" },
-        { name: "设置", route: "Settings", icon: "⚙️" }
+        { name: "课表", route: "Schedule", icon: "课" },
+        { name: "校历", route: "AcademicCalendar", icon: "历" },
+        { name: "考表", route: "ExamPlan", icon: "考" },
+        { name: "成绩", route: "Grades", icon: "绩" },
+        { name: "设置", route: "Settings", icon: "设" }
     ]
+
+    Connections {
+        target: appController
+        function onSessionExpired(message) {
+            toastManager.show(message, "error")
+            router.navigate("Login")
+        }
+    }
 
     RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        // 左侧导航栏
         Rectangle {
-            id: navPanel
-            width: 180
+            Layout.preferredWidth: Theme.navWidth
             Layout.fillHeight: true
-            color: "#ffffff"
-            border {
-                color: "#e0e0e0"
-                width: 1
-            }
+            color: Theme.surface
+            border.color: Theme.border
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 12
-                spacing: 4
+                anchors.margins: 14
+                spacing: 8
 
-                Rectangle {
+                ColumnLayout {
                     Layout.fillWidth: true
-                    height: 50
-                    color: "transparent"
+                    spacing: 2
+
                     Text {
-                        anchors.centerIn: parent
                         text: "SCU Nexus"
                         font.pixelSize: 18
-                        font.bold: true
-                        color: "#1976d2"
+                        font.weight: Theme.weightStrong
+                        color: Theme.text
+                    }
+
+                    Text {
+                        text: "校园学习工作台"
+                        font.pixelSize: Theme.fontCaption
+                        color: Theme.mutedText
                     }
                 }
 
                 Rectangle {
                     Layout.fillWidth: true
                     height: 1
-                    color: "#e0e0e0"
-                    Layout.bottomMargin: 8
+                    color: Theme.border
+                    Layout.topMargin: 6
+                    Layout.bottomMargin: 4
                 }
 
                 Repeater {
                     model: navItems
                     delegate: Rectangle {
+                        id: navItem
                         Layout.fillWidth: true
                         height: 40
-                        radius: 6
-                        color: {
-                            if (router.currentRoute === modelData.route)
-                                return "#e3f2fd"
-                            return mouseArea.containsMouse ? "#f5f5f5" : "transparent"
+                        radius: Theme.smallRadius
+                        readonly property bool active: router.currentRoute === modelData.route
+                        color: navItem.active
+                               ? Theme.primarySoft
+                               : (navMouse.containsMouse ? Theme.control : "transparent")
+
+                        // Active indicator: a left accent bar encodes the current page.
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 3
+                            height: parent.height - 12
+                            radius: 1.5
+                            color: Theme.primary
+                            visible: navItem.active
                         }
+
                         RowLayout {
                             anchors.fill: parent
                             anchors.leftMargin: 12
+                            anchors.rightMargin: 8
                             spacing: 10
-                            Text {
-                                text: modelData.icon
-                                font.pixelSize: 18
+
+                            Rectangle {
+                                width: 24
+                                height: 24
+                                radius: 12
+                                color: navItem.active ? Theme.primary : Theme.control
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: modelData.icon
+                                    font.pixelSize: Theme.fontCaption
+                                    font.weight: Theme.weightStrong
+                                    color: navItem.active ? "white" : Theme.mutedText
+                                }
                             }
+
                             Text {
+                                Layout.fillWidth: true
                                 text: modelData.name
-                                font.pixelSize: 14
-                                color: router.currentRoute === modelData.route ? "#1976d2" : "#333333"
-                                font.weight: router.currentRoute === modelData.route ? Font.Bold : Font.Normal
+                                font.pixelSize: Theme.fontBody
+                                font.weight: navItem.active ? Theme.weightStrong : Theme.weightNormal
+                                color: navItem.active ? Theme.primary : Theme.text
+                                elide: Text.ElideRight
                             }
                         }
+
                         MouseArea {
-                            id: mouseArea
+                            id: navMouse
                             anchors.fill: parent
                             hoverEnabled: true
-                            onClicked: {
-                                router.navigate(modelData.route)
-                            }
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: router.navigate(modelData.route)
                         }
                     }
                 }
 
                 Item { Layout.fillHeight: true }
 
-                Text {
-                    text: "v0.1.0"
-                    font.pixelSize: 11
-                    color: "#999999"
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.bottomMargin: 8
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 58
+                    radius: Theme.cardRadius
+                    color: Theme.surfaceMuted
+                    border.color: Theme.border
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 8
+
+                        Rectangle {
+                            width: 9
+                            height: 9
+                            radius: 4.5
+                            color: appController.loggedIn ? Theme.success : Theme.placeholder
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 1
+
+                            Text {
+                                text: appController.loggedIn ? "已登录" : "未登录"
+                                font.pixelSize: Theme.fontLabel
+                                color: Theme.text
+                            }
+
+                            Text {
+                                text: "v" + appController.appVersion
+                                font.pixelSize: Theme.fontMicro
+                                color: Theme.mutedText
+                            }
+                        }
+                    }
                 }
             }
         }
-        // 右侧内容区
+
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#f5f5f5"
+            color: Theme.background
 
             ColumnLayout {
                 anchors.fill: parent
@@ -114,73 +183,84 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    height: 50
-                    color: "#ffffff"
-                    border {
-                        color: "#e0e0e0"
-                        width: 1
-                    }
+                    height: Theme.topBarHeight
+                    color: Theme.surface
+                    border.color: Theme.border
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 20
-                        anchors.rightMargin: 20
+                        anchors.leftMargin: Theme.pagePadding
+                        anchors.rightMargin: Theme.pagePadding
+                        spacing: 10
 
-                        Text {
-                            text: getRouteTitle(router.currentRoute)
-                            font.pixelSize: 18
-                            font.bold: true
-                            color: "#333333"
-                            Layout.fillWidth: true
+                        IconButton {
+                            visible: router.canGoBack
+                            text: "‹"
+                            tooltip: "返回"
+                            onClicked: router.goBack()
                         }
 
-                        RowLayout {
-                            spacing: 8
-                            Rectangle {
-                                width: 8
-                                height: 8
-                                radius: 4
-                                color: appController.loggedIn ? "#4CAF50" : "#bdbdbd"
-                            }
-                            Text {
-                                text: appController.loggedIn ? "已登录" : "未登录"
-                                font.pixelSize: 12
-                                color: "#666666"
-                            }
+                        Text {
+                            Layout.fillWidth: true
+                            text: router.routeTitle
+                            font.pixelSize: Theme.fontTitle
+                            font.weight: Theme.weightStrong
+                            color: Theme.text
+                            elide: Text.ElideRight
+                        }
+
+                        IconButton {
+                            text: "↻"
+                            tooltip: "刷新当前页面"
+                            onClicked: toastManager.show("刷新入口已预留，等待业务 ViewModel 接入。")
+                        }
+
+                        AppButton {
+                            text: appController.loggedIn ? "账户" : "登录"
+                            type: "secondary"
+                            onClicked: router.navigate(appController.loggedIn ? "Settings" : "Login")
                         }
                     }
                 }
 
-                Loader {
-                    id: pageLoader
+                Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    source: getPageSource(router.currentRoute)
+
+                    Loader {
+                        id: pageLoader
+                        anchors.fill: parent
+                        source: protectedRouteBlocked(router.currentRoute)
+                                ? ""
+                                : pageSource(router.currentRoute)
+                    }
+
+                    LoginRequiredView {
+                        anchors.fill: parent
+                        visible: protectedRouteBlocked(router.currentRoute)
+                        message: router.currentRoute === "ExamPlan"
+                                 ? "考表查询需要登录教务系统"
+                                 : "教务成绩需要登录教务系统"
+                        onLoginRequested: router.navigate("Login")
+                    }
                 }
             }
         }
     }
-    function getRouteTitle(route) {
-        var titles = {
-            "Schedule": "课表管理",
-            "AcademicCalendar": "校历查询",
-            "ExamPlan": "考表查询",
-            "Grades": "教务成绩",
-            "Settings": "设置",
-            "Login": "登录"
-        }
-        return titles[route] || "SCU Nexus"
+
+    ToastHost { }
+
+    function protectedRouteBlocked(route) {
+        return !appController.loggedIn && (route === "ExamPlan" || route === "Grades")
     }
 
-    function getPageSource(route) {
-        var sources = {
-            "Schedule": "qrc:/qml/pages/SchedulePagePlaceholder.qml",
-            "AcademicCalendar": "qrc:/qml/pages/AcademicCalendarPagePlaceholder.qml",
-            "ExamPlan": "qrc:/qml/pages/ExamPlanPagePlaceholder.qml",
-            "Grades": "qrc:/qml/pages/GradesPagePlaceholder.qml",
-            "Settings": "qrc:/qml/SettingsPage.qml",
-            "Login": "qrc:/qml/LoginPage.qml"
-        }
-        return sources[route] || ""
+    function pageSource(route) {
+        if (route === "Schedule") return "qrc:/SCU_Nexus/qml/pages/SchedulePagePlaceholder.qml"
+        if (route === "AcademicCalendar") return "qrc:/SCU_Nexus/qml/pages/AcademicCalendarPagePlaceholder.qml"
+        if (route === "ExamPlan") return "qrc:/SCU_Nexus/qml/pages/ExamPlanPagePlaceholder.qml"
+        if (route === "Grades") return "qrc:/SCU_Nexus/qml/pages/GradesPagePlaceholder.qml"
+        if (route === "Settings") return "qrc:/SCU_Nexus/qml/SettingsPage.qml"
+        if (route === "Login") return "qrc:/SCU_Nexus/qml/LoginPage.qml"
+        return "qrc:/SCU_Nexus/qml/pages/SchedulePagePlaceholder.qml"
     }
 }

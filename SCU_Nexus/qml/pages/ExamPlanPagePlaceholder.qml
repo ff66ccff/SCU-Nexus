@@ -1,32 +1,25 @@
 import QtQuick 2.15
-import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
+import "../components"
+import "../styles"
 
-Rectangle {
-    color: "transparent"
+Item {
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: Theme.pagePadding
+        spacing: Theme.sectionGap
 
-    Column {
-        anchors.centerIn: parent
-        spacing: 12
-
-        Text {
-            text: "📝"
-            font.pixelSize: 48
-            anchors.horizontalCenter: parent.horizontalCenter
+        ModuleHeader {
+            Layout.fillWidth: true
+            title: "考表查询"
+            subtitle: "B 提供结构化考表数据，D 负责排序、缓存和展示。"
         }
 
-        Text {
-            text: "考表查询"
-            font.pixelSize: 24
-            font.bold: true
-            color: "#333333"
-            anchors.horizontalCenter: parent.horizontalCenter
-        }
-
-        Text {
-            text: "待 D 同学实现"
-            font.pixelSize: 14
-            color: "#999999"
-            anchors.horizontalCenter: parent.horizontalCenter
+        DataTable {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            columns: ["课程", "日期", "时间", "地点", "座位"]
+            rows: []
         }
     }
 }

@@ -30,12 +30,14 @@ public:
     bool canGoBack() const { return !m_stack.isEmpty(); }
 
     Q_INVOKABLE void navigate(const QString& route);
+    Q_INVOKABLE void replace(const QString& route);
     Q_INVOKABLE void goBack();
 
 signals:
     void routeChanged();
 
 private:
+    bool routeFromString(const QString& route, AppRoute* outRoute) const;
     QString routeToString(AppRoute route) const;
 
     AppRoute m_currentRoute = AppRoute::Schedule;

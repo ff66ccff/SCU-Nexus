@@ -1,10 +1,8 @@
-<<<<<<< HEAD
 team_work_assignment.md
 产品详细设计与架构设计说明书模板v5.docx
 需求分析与产品初步设计说明书模板v4.docx
 /Bugaoshan
-=======
-<<<<<<< HEAD
+
 build/
 out/
 .vs/
@@ -13,7 +11,7 @@ out/
 *.sqlite
 *.db
 build*
-=======
+
 # C++ objects and libs
 *.slo
 *.lo
@@ -45,7 +43,6 @@ ui_*.h
 *.jsc
 Makefile*
 *build-*
-build/
 *.qm
 *.prl
 *.qmlls.ini
@@ -73,5 +70,3 @@ compile_commands.json
 01-team-work-overview.md
 02-feature-implementation-details.md
 SCU_Nexus/importedcontent/README.md
->>>>>>> 604b4a8d99d189678375832ac66cb0aaa2a9ad36
->>>>>>> person-d

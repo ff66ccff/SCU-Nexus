@@ -1,32 +1,25 @@
 import QtQuick 2.15
-import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
+import "../components"
+import "../styles"
 
-Rectangle {
-    color: "transparent"
+Item {
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: Theme.pagePadding
+        spacing: Theme.sectionGap
 
-    Column {
-        anchors.centerIn: parent
-        spacing: 12
-
-        Text {
-            text: "📊"
-            font.pixelSize: 48
-            anchors.horizontalCenter: parent.horizontalCenter
+        ModuleHeader {
+            Layout.fillWidth: true
+            title: "教务成绩"
+            subtitle: "B 返回原始 JSON，D 负责成绩模型、统计、缓存和页面状态。"
         }
 
-        Text {
-            text: "教务成绩"
-            font.pixelSize: 24
-            font.bold: true
-            color: "#333333"
-            anchors.horizontalCenter: parent.horizontalCenter
-        }
-
-        Text {
-            text: "待 D 同学实现"
-            font.pixelSize: 14
-            color: "#999999"
-            anchors.horizontalCenter: parent.horizontalCenter
+        DataTable {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            columns: ["课程", "成绩", "学分", "绩点", "类型"]
+            rows: []
         }
     }
 }

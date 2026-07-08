@@ -1,150 +1,207 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import "components"
+import "styles"
 
-Rectangle {
-    color: "transparent"
+Item {
+    id: root
+
+    property string pendingAction: ""
 
     ScrollView {
         anchors.fill: parent
-        anchors.margins: 20
         contentWidth: availableWidth
         clip: true
 
         ColumnLayout {
             width: parent.width
-            spacing: 16
+            spacing: Theme.sectionGap
 
-            Text {
-                text: "设置"
-                font.pixelSize: 20
-                font.bold: true
-                color: "#333333"
+            ModuleHeader {
+                Layout.fillWidth: true
+                Layout.margins: Theme.pagePadding
+                Layout.bottomMargin: 0
+                title: "设置"
+                subtitle: "账户、缓存、外观和版本信息。"
             }
 
-            // ========== 登录状态卡片 ==========
-            GroupBox {
-                title: "账户"
+            Rectangle {
                 Layout.fillWidth: true
+                Layout.leftMargin: Theme.pagePadding
+                Layout.rightMargin: Theme.pagePadding
+                implicitHeight: accountColumn.implicitHeight + 32
+                radius: Theme.cardRadius
+                color: Theme.surface
+                border.color: Theme.border
 
-                RowLayout {
-                    width: parent.width
+                ColumnLayout {
+                    id: accountColumn
+                    anchors.fill: parent
+                    anchors.margins: 16
+                    spacing: 12
 
-                    ColumnLayout {
-                        spacing: 4
+                    SectionHeader {
+                        Layout.fillWidth: true
+                        title: "账户"
+                        description: appController.loggedIn ? "当前已登录统一身份认证。" : "登录后可查询考表和教务成绩。"
+                    }
+
+                    RowLayout {
                         Layout.fillWidth: true
 
                         Text {
+                            Layout.fillWidth: true
                             text: appController.loggedIn ? "已登录" : "未登录"
-                            font.pixelSize: 14
-                            color: appController.loggedIn ? "#4CAF50" : "#999999"
+                            font.pixelSize: Theme.fontBody
+                            color: Theme.text
                         }
 
-                        Text {
-                            text: appController.loggedIn ? "点击退出登录" : "点击登录账号"
-                            font.pixelSize: 12
-                            color: "#999999"
-                            visible: true
-                        }
-                    }
-
-                    Button {
-                        text: appController.loggedIn ? "退出登录" : "去登录"
-                        onClicked: {
-                            if (appController.loggedIn) {
-                                appController.setLoginState(false)
-                            } else {
-                                router.navigate("Login")
+                        AppButton {
+                            text: appController.loggedIn ? "退出登录" : "去登录"
+                            type: appController.loggedIn ? "danger" : "primary"
+                            onClicked: {
+                                if (appController.loggedIn) {
+                                    pendingAction = "logout"
+                                    confirmDialog.title = "退出登录"
+                                    confirmDialog.message = "确定要退出当前账号吗？"
+                                    confirmDialog.confirmText = "退出"
+                                    confirmDialog.type = "danger"
+                                    confirmDialog.open()
+                                } else {
+                                    router.navigate("Login")
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // ========== 数据管理 ==========
-            GroupBox {
-                title: "数据管理"
+            Rectangle {
                 Layout.fillWidth: true
+                Layout.leftMargin: Theme.pagePadding
+                Layout.rightMargin: Theme.pagePadding
+                implicitHeight: dataColumn.implicitHeight + 32
+                radius: Theme.cardRadius
+                color: Theme.surface
+                border.color: Theme.border
 
                 ColumnLayout {
-                    width: parent.width
-                    spacing: 8
+                    id: dataColumn
+                    anchors.fill: parent
+                    anchors.margins: 16
+                    spacing: 12
 
-                    Button {
-                        text: "清除课表缓存"
+                    SectionHeader {
                         Layout.fillWidth: true
-                        onClicked: {
-                            console.log("清除课表缓存")
-                        }
+                        title: "数据管理"
+                        description: "实际清理动作由 C/D 对应 ViewModel 接入。"
                     }
 
-                    Button {
-                        text: "清除查询缓存"
+                    RowLayout {
                         Layout.fillWidth: true
-                        onClicked: {
-                            console.log("清除查询缓存")
+                        spacing: 10
+
+                        AppButton {
+                            text: "清除课表缓存"
+                            type: "secondary"
+                            onClicked: openDangerConfirm("clearSchedule", "清除课表缓存", "确定要清除本地课表缓存吗？")
                         }
-                    }
-                }
-            }
 
-            // ========== 主题设置 ==========
-            GroupBox {
-                title: "外观"
-                Layout.fillWidth: true
-
-                RowLayout {
-                    width: parent.width
-                    spacing: 8
-
-                    Button {
-                        text: "浅色"
-                        Layout.fillWidth: true
-                        onClicked: {
-                            console.log("切换到浅色主题")
-                        }
-                    }
-
-                    Button {
-                        text: "深色"
-                        Layout.fillWidth: true
-                        onClicked: {
-                            console.log("切换到深色主题")
-                        }
-                    }
-
-                    Button {
-                        text: "跟随系统"
-                        Layout.fillWidth: true
-                        onClicked: {
-                            console.log("跟随系统主题")
+                        AppButton {
+                            text: "清除查询缓存"
+                            type: "secondary"
+                            onClicked: openDangerConfirm("clearQuery", "清除查询缓存", "确定要清除考表、成绩等查询缓存吗？")
                         }
                     }
                 }
             }
 
-            // ========== 关于 ==========
-            GroupBox {
-                title: "关于"
+            Rectangle {
                 Layout.fillWidth: true
+                Layout.leftMargin: Theme.pagePadding
+                Layout.rightMargin: Theme.pagePadding
+                implicitHeight: appearanceColumn.implicitHeight + 32
+                radius: Theme.cardRadius
+                color: Theme.surface
+                border.color: Theme.border
+
+                ColumnLayout {
+                    id: appearanceColumn
+                    anchors.fill: parent
+                    anchors.margins: 16
+                    spacing: 12
+
+                    SectionHeader {
+                        Layout.fillWidth: true
+                        title: "外观"
+                        description: "主题设置统一由 ThemeManager 输出。"
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        AppButton { text: "跟随系统"; type: themeManager.mode === "system" ? "primary" : "secondary"; onClicked: themeManager.setMode("system") }
+                        AppButton { text: "浅色"; type: themeManager.mode === "light" ? "primary" : "secondary"; onClicked: themeManager.setMode("light") }
+                        AppButton { text: "深色"; type: themeManager.mode === "dark" ? "primary" : "secondary"; onClicked: themeManager.setMode("dark") }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: Theme.pagePadding
+                Layout.rightMargin: Theme.pagePadding
+                implicitHeight: 58
+                radius: Theme.cardRadius
+                color: Theme.surface
+                border.color: Theme.border
 
                 RowLayout {
-                    width: parent.width
+                    anchors.fill: parent
+                    anchors.margins: 16
 
                     Text {
                         text: "版本"
-                        font.pixelSize: 14
-                        color: "#666666"
+                        font.pixelSize: Theme.fontBody
+                        color: Theme.mutedText
                     }
 
                     Text {
-                        text: "v0.1.0"
-                        font.pixelSize: 14
-                        color: "#333333"
                         Layout.fillWidth: true
+                        text: "v" + appController.appVersion
+                        font.pixelSize: Theme.fontBody
+                        color: Theme.text
+                        horizontalAlignment: Text.AlignRight
                     }
                 }
             }
         }
+    }
+
+    AppDialog {
+        id: confirmDialog
+        anchors.centerIn: parent
+        onConfirmed: {
+            if (pendingAction === "logout") {
+                appController.authViewModel.logout()
+                toastManager.show("已退出登录")
+            } else if (pendingAction === "clearSchedule") {
+                toastManager.show("清除课表缓存接口已预留")
+            } else if (pendingAction === "clearQuery") {
+                toastManager.show("清除查询缓存接口已预留")
+            }
+            pendingAction = ""
+        }
+    }
+
+    function openDangerConfirm(action, title, message) {
+        pendingAction = action
+        confirmDialog.title = title
+        confirmDialog.message = message
+        confirmDialog.confirmText = "清除"
+        confirmDialog.type = "danger"
+        confirmDialog.open()
     }
 }
