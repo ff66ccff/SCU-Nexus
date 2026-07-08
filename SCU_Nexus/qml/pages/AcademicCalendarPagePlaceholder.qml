@@ -1,32 +1,32 @@
 import QtQuick 2.15
-import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
+import "../components"
+import "../styles"
 
-Rectangle {
-    color: "transparent"
+Item {
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: Theme.pagePadding
+        spacing: Theme.sectionGap
 
-    Column {
-        anchors.centerIn: parent
-        spacing: 12
-
-        Text {
-            text: "📆"
-            font.pixelSize: 48
-            anchors.horizontalCenter: parent.horizontalCenter
+        ModuleHeader {
+            Layout.fillWidth: true
+            title: "校历查询"
+            subtitle: "校历查询不要求登录，页面与抓取逻辑由 D 接入。"
         }
 
-        Text {
-            text: "校历查询"
-            font.pixelSize: 24
-            font.bold: true
-            color: "#333333"
-            anchors.horizontalCenter: parent.horizontalCenter
-        }
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            radius: Theme.cardRadius
+            color: Theme.surface
+            border.color: Theme.border
 
-        Text {
-            text: "待 D 同学实现"
-            font.pixelSize: 14
-            color: "#999999"
-            anchors.horizontalCenter: parent.horizontalCenter
+            EmptyView {
+                anchors.fill: parent
+                title: "校历页面待接入"
+                description: "这里不会显示登录提示；D 接入公开校历数据后替换此占位页。"
+            }
         }
     }
 }

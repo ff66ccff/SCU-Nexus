@@ -9,5 +9,11 @@ ToastManager::ToastManager(QObject *parent)
 
 void ToastManager::showMsg(QString str)
 {
-    qDebug() << str;
+    show(str);
+}
+
+void ToastManager::show(const QString& message, const QString& level)
+{
+    qDebug() << "toast" << level << message;
+    emit toastRequested(message, level);
 }

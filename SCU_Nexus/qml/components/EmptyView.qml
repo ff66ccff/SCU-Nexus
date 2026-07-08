@@ -1,45 +1,62 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
+import "../styles"
 
-Rectangle {
+Item {
     id: root
-    color: "transparent"
 
     property string title: "暂无数据"
     property string description: ""
     property string actionText: ""
     signal actionTriggered()
 
-    Column {
+    ColumnLayout {
         anchors.centerIn: parent
+        width: Math.min(parent.width - 40, 360)
         spacing: 12
 
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: "📭"
-            font.pixelSize: 48
+        Rectangle {
+            Layout.alignment: Qt.AlignHCenter
+            width: 48
+            height: 48
+            radius: 24
+            color: Theme.control
+            border.color: Theme.border
+
+            Text {
+                anchors.centerIn: parent
+                text: "—"
+                font.pixelSize: 24
+                color: Theme.mutedText
+            }
         }
 
         Text {
-            anchors.horizontalCenter: parent.horizontalCenter
+            Layout.fillWidth: true
             text: root.title
             font.pixelSize: 18
-            font.bold: true
-            color: "#333333"
+            font.weight: Font.DemiBold
+            color: Theme.text
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
         }
 
         Text {
-            anchors.horizontalCenter: parent.horizontalCenter
+            Layout.fillWidth: true
             text: root.description
-            font.pixelSize: 14
-            color: "#999999"
-            visible: root.description !== ""
+            font.pixelSize: 13
+            color: Theme.mutedText
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
+            visible: root.description.length > 0
         }
 
-        Button {
-            anchors.horizontalCenter: parent.horizontalCenter
+        AppButton {
+            Layout.alignment: Qt.AlignHCenter
+            visible: root.actionText.length > 0
             text: root.actionText
-            visible: root.actionText !== ""
+            type: "secondary"
             onClicked: root.actionTriggered()
         }
     }

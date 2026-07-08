@@ -2,147 +2,168 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "components"
+import "styles"
 
-Rectangle {
+Item {
     id: root
-    color: "#f5f5f5"
 
-    ColumnLayout {
-        anchors.centerIn: parent
-        width: 360
-        spacing: 16
+    property var auth: appController.authViewModel
 
-        Text {
-            text: "SCU Nexus"
-            font.pixelSize: 28
-            font.bold: true
-            color: "#1976d2"
-            Layout.alignment: Qt.AlignHCenter
-            Layout.bottomMargin: 12
+    Component.onCompleted: auth.fetchCaptcha()
+
+    Connections {
+        target: auth
+        function onLoginSucceeded() {
+            toastManager.show("登录成功")
+            router.goBack()
         }
-
-        Rectangle {
-            Layout.fillWidth: true
-            height: 40
-            color: "#ffebee"
-            radius: 4
-            visible: false
-
-            Text {
-                anchors.centerIn: parent
-                text: "登录失败，请检查账号密码"
-                font.pixelSize: 13
-                color: "#c62828"
-            }
+        function onLoginFailed(message) {
+            captchaField.text = ""
+            toastManager.show(message, "error")
+            auth.fetchCaptcha()
         }
+    }
+
+    ScrollView {
+        anchors.fill: parent
+        contentWidth: availableWidth
+        clip: true
 
         ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 4
+            width: Math.min(parent.width - Theme.pagePadding * 2, 460)
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: 44
+            spacing: 16
 
-            Text {
-                text: "学号 / 账号"
-                font.pixelSize: 14
-                color: "#333333"
-            }
-
-            AppTextField {
+            ModuleHeader {
                 Layout.fillWidth: true
-                label: "请输入学号"
-                placeholderText: "请输入学号"
-            }
-        }
-
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 4
-
-            Text {
-                text: "密码"
-                font.pixelSize: 14
-                color: "#333333"
+                title: "登录统一身份认证"
+                subtitle: "验证码由用户手动输入；密码加密与真实登录流程由 Person B 服务层接入。"
             }
 
-            AppTextField {
+            Rectangle {
                 Layout.fillWidth: true
-                label: "请输入密码"
-                placeholderText: "请输入密码"
-                passwordMode: true
-            }
-        }
+                radius: Theme.cardRadius
+                color: Theme.surface
+                border.color: Theme.border
+                implicitHeight: formColumn.implicitHeight + 36
 
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 12
+                ColumnLayout {
+                    id: formColumn
+                    anchors.fill: parent
+                    anchors.margins: 18
+                    spacing: 14
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 4
+                    ErrorView {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: auth.errorMessage.length > 0 ? 94 : 0
+                        visible: auth.errorMessage.length > 0
+                        title: "登录提示"
+                        message: auth.errorMessage
+                        canRetry: false
+                    }
 
-                Text {
-                    text: "验证码"
-                    font.pixelSize: 14
-                    color: "#333333"
-                }
+                    AppTextField {
+                        id: usernameField
+                        Layout.fillWidth: true
+                        label: "学号 / 账号"
+                        placeholderText: "请输入学号"
+                        clearable: true
+                        readOnly: auth.loading
+                    }
 
-                AppTextField {
-                    Layout.fillWidth: true
-                    label: "请输入验证码"
-                    placeholderText: "请输入验证码"
-                }
-            }
+                    AppTextField {
+                        id: passwordField
+                        Layout.fillWidth: true
+                        label: "密码"
+                        placeholderText: "请输入密码"
+                        passwordMode: true
+                        readOnly: auth.loading
+                    }
 
-            ColumnLayout {
-                spacing: 4
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
 
-                Text {
-                    text: " "
-                    font.pixelSize: 14
-                    visible: false
-                }
+                        AppTextField {
+                            id: captchaField
+                            Layout.fillWidth: true
+                            label: "验证码"
+                            placeholderText: "请输入验证码"
+                            clearable: true
+                            readOnly: auth.loading || auth.captchaLoading
+                            onAccepted: loginButton.clicked()
+                        }
 
-                Rectangle {
-                    width: 100
-                    height: 40
-                    color: "#e0e0e0"
-                    radius: 4
+                        Rectangle {
+                            Layout.preferredWidth: 132
+                            Layout.preferredHeight: 66
+                            Layout.alignment: Qt.AlignBottom
+                            radius: Theme.smallRadius
+                            color: Theme.control
+                            border.color: Theme.border
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: "验证码"
-                        font.pixelSize: 12
-                        color: "#666666"
+                            Image {
+                                anchors.fill: parent
+                                anchors.margins: 6
+                                source: auth.captchaImageUrl
+                                cache: false
+                                fillMode: Image.PreserveAspectFit
+                                visible: auth.captchaImageUrl.toString().length > 0
+                            }
+
+                            LoadingView {
+                                anchors.fill: parent
+                                compact: true
+                                text: ""
+                                visible: auth.captchaLoading
+                            }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "验证码"
+                                font.pixelSize: 13
+                                color: Theme.mutedText
+                                visible: !auth.captchaLoading && auth.captchaImageUrl.toString().length === 0
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        AppButton {
+                            text: "刷新验证码"
+                            type: "secondary"
+                            busy: auth.captchaLoading
+                            onClicked: {
+                                captchaField.text = ""
+                                auth.fetchCaptcha()
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        AppButton {
+                            id: loginButton
+                            text: "登录"
+                            busy: auth.loading
+                            enabled: !auth.loading
+                                     && !auth.captchaLoading
+                                     && auth.captchaImageUrl.toString().length > 0
+                            onClicked: auth.login(usernameField.text, passwordField.text, captchaField.text)
+                        }
                     }
                 }
             }
-        }
 
-        Button {
-            text: "刷新验证码"
-            flat: true
-            Layout.alignment: Qt.AlignRight
-            font.pixelSize: 12
-            onClicked: {
-                console.log("刷新验证码")
-            }
-        }
-
-        AppButton {
-            Layout.fillWidth: true
-            text: "登录"
-            type: "primary"
-            Layout.topMargin: 8
-            onClicked: {
-                console.log("登录点击")
-            }
-        }
-
-        Button {
-            text: "← 返回"
-            flat: true
-            Layout.alignment: Qt.AlignHCenter
-            onClicked: {
-                router.goBack()
+            AppButton {
+                Layout.alignment: Qt.AlignHCenter
+                text: "返回"
+                type: "ghost"
+                onClicked: router.goBack()
             }
         }
     }

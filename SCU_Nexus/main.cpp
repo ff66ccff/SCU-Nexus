@@ -5,6 +5,8 @@
 
 #include "src/app/AppController.h"
 #include "src/app/Router.h"
+#include "src/app/ThemeManager.h"
+#include "src/app/ToastManager.h"
 
 int main(int argc, char *argv[])
 {
@@ -14,17 +16,20 @@ int main(int argc, char *argv[])
     app.setApplicationName("SCU_Nexus");
     app.setApplicationVersion("0.1.0");
 
-    QQuickStyle::setStyle("Material");
+    QQuickStyle::setStyle("Fusion");
 
-    // 创建核心对象
     AppController appController;
     Router router;
+    ThemeManager themeManager;
+    ToastManager toastManager;
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("appController", &appController);
     engine.rootContext()->setContextProperty("router", &router);
+    engine.rootContext()->setContextProperty("themeManager", &themeManager);
+    engine.rootContext()->setContextProperty("toastManager", &toastManager);
 
-    const QUrl url("qrc:/qml/App.qml");
+    const QUrl url("qrc:/SCU_Nexus/qml/App.qml");
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
                      &app, [url](QObject *obj, const QUrl &objUrl) {
                          if (!obj && url == objUrl)

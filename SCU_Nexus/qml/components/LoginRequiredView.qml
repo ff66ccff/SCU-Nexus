@@ -1,32 +1,47 @@
 import QtQuick 2.15
-import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
+import "../styles"
 
-Rectangle {
+Item {
     id: root
-    color: "transparent"
 
     property string message: "请先登录后查看"
     signal loginRequested()
 
-    Column {
+    ColumnLayout {
         anchors.centerIn: parent
+        width: Math.min(parent.width - 40, 360)
         spacing: 12
 
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: "🔒"
-            font.pixelSize: 48
+        Rectangle {
+            Layout.alignment: Qt.AlignHCenter
+            width: 48
+            height: 48
+            radius: 24
+            color: Theme.control
+            border.color: Theme.border
+
+            Text {
+                anchors.centerIn: parent
+                text: "登录"
+                font.pixelSize: 13
+                font.weight: Font.DemiBold
+                color: Theme.primary
+            }
         }
 
         Text {
-            anchors.horizontalCenter: parent.horizontalCenter
+            Layout.fillWidth: true
             text: root.message
             font.pixelSize: 16
-            color: "#666666"
+            font.weight: Font.DemiBold
+            color: Theme.text
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
         }
 
-        Button {
-            anchors.horizontalCenter: parent.horizontalCenter
+        AppButton {
+            Layout.alignment: Qt.AlignHCenter
             text: "去登录"
             onClicked: root.loginRequested()
         }

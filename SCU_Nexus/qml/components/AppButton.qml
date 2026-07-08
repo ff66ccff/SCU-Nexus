@@ -1,47 +1,58 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import "../styles"
 
 Button {
     id: root
-    height: 40
 
     property bool busy: false
-    property string type: "primary"  // primary, secondary, danger, ghost
+    property string type: "primary"
+    property string iconText: ""
 
-    text: busy ? "处理中..." : root.text
-
+    implicitHeight: Theme.controlHeight
     enabled: !busy
+    opacity: enabled ? 1 : 0.62
 
-    background: Rectangle {
-        color: {
-            if (!root.enabled) return "#cccccc"
-            switch(root.type) {
-                case "primary": return root.down ? "#0d47a1" : "#1976d2"
-                case "secondary": return root.down ? "#e0e0e0" : "#f5f5f5"
-                case "danger": return root.down ? "#b71c1c" : "#e53935"
-                case "ghost": return "transparent"
-                default: return "#1976d2"
-            }
+    contentItem: Row {
+        spacing: 8
+        anchors.centerIn: parent
+
+        BusyIndicator {
+            width: 16
+            height: 16
+            running: root.busy
+            visible: root.busy
         }
-        radius: 4
-        border.color: root.type === "ghost" ? "#1976d2" : "transparent"
-        border.width: root.type === "ghost" ? 1 : 0
+
+        Text {
+            visible: root.iconText.length > 0 && !root.busy
+            text: root.iconText
+            font.pixelSize: 14
+            color: root.type === "secondary" || root.type === "ghost" ? Theme.primary : "white"
+        }
+
+        Text {
+            text: root.busy ? "处理中..." : root.text
+            font.pixelSize: 14
+            font.weight: Font.DemiBold
+            color: {
+                if (root.type === "secondary") return Theme.text
+                if (root.type === "ghost") return Theme.primary
+                return "white"
+            }
+            verticalAlignment: Text.AlignVCenter
+        }
     }
 
-    contentItem: Text {
-        text: root.text
+    background: Rectangle {
+        radius: Theme.smallRadius
         color: {
-            if (!root.enabled) return "#999999"
-            switch(root.type) {
-                case "primary": return "#ffffff"
-                case "secondary": return "#333333"
-                case "danger": return "#ffffff"
-                case "ghost": return "#1976d2"
-                default: return "#ffffff"
-            }
+            if (root.type === "danger") return root.down ? "#b42318" : Theme.danger
+            if (root.type === "secondary") return root.down ? Theme.controlPressed : Theme.control
+            if (root.type === "ghost") return root.down ? Theme.controlPressed : "transparent"
+            return root.down ? Theme.primaryPressed : Theme.primary
         }
-        font.pixelSize: 14
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
+        border.width: root.type === "secondary" || root.type === "ghost" ? 1 : 0
+        border.color: root.type === "danger" ? Theme.danger : Theme.border
     }
 }

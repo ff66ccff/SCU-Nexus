@@ -22,19 +22,24 @@ QString Router::routeTitle() const
 void Router::navigate(const QString& route)
 {
     AppRoute newRoute;
-    if (route == "Login") newRoute = AppRoute::Login;
-    else if (route == "Schedule") newRoute = AppRoute::Schedule;
-    else if (route == "AcademicCalendar") newRoute = AppRoute::AcademicCalendar;
-    else if (route == "ExamPlan") newRoute = AppRoute::ExamPlan;
-    else if (route == "Grades") newRoute = AppRoute::Grades;
-    else if (route == "Settings") newRoute = AppRoute::Settings;
-    else return;
+    if (!routeFromString(route, &newRoute)) return;
 
     if (m_currentRoute == newRoute) return;
 
     m_stack.append(m_currentRoute);
     m_currentRoute = newRoute;
     m_currentRouteString = route;
+    emit routeChanged();
+}
+
+void Router::replace(const QString& route)
+{
+    AppRoute newRoute;
+    if (!routeFromString(route, &newRoute)) return;
+    if (m_currentRoute == newRoute) return;
+
+    m_currentRoute = newRoute;
+    m_currentRouteString = routeToString(m_currentRoute);
     emit routeChanged();
 }
 
@@ -45,6 +50,19 @@ void Router::goBack()
         m_currentRouteString = routeToString(m_currentRoute);
         emit routeChanged();
     }
+}
+
+bool Router::routeFromString(const QString& route, AppRoute* outRoute) const
+{
+    if (!outRoute) return false;
+    if (route == "Login") *outRoute = AppRoute::Login;
+    else if (route == "Schedule") *outRoute = AppRoute::Schedule;
+    else if (route == "AcademicCalendar") *outRoute = AppRoute::AcademicCalendar;
+    else if (route == "ExamPlan") *outRoute = AppRoute::ExamPlan;
+    else if (route == "Grades") *outRoute = AppRoute::Grades;
+    else if (route == "Settings") *outRoute = AppRoute::Settings;
+    else return false;
+    return true;
 }
 
 QString Router::routeToString(AppRoute route) const
