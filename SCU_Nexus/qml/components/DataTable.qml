@@ -42,8 +42,8 @@ Item {
                                 anchors.fill: parent
                                 anchors.margins: 10
                                 text: modelData
-                                font.pixelSize: 13
-                                font.weight: Font.DemiBold
+                                font.pixelSize: Theme.fontLabel
+                                font.weight: Theme.weightStrong
                                 color: Theme.text
                                 verticalAlignment: Text.AlignVCenter
                                 elide: Text.ElideRight
@@ -72,7 +72,7 @@ Item {
                                     anchors.fill: parent
                                     anchors.margins: 10
                                     text: rowText(modelData, rowDelegate.rowData)
-                                    font.pixelSize: 13
+                                    font.pixelSize: Theme.fontLabel
                                     color: Theme.text
                                     verticalAlignment: Text.AlignVCenter
                                     elide: Text.ElideRight

@@ -27,14 +27,14 @@ Button {
         Text {
             visible: root.iconText.length > 0 && !root.busy
             text: root.iconText
-            font.pixelSize: 14
+            font.pixelSize: Theme.fontBody
             color: root.type === "secondary" || root.type === "ghost" ? Theme.primary : "white"
         }
 
         Text {
             text: root.busy ? "处理中..." : root.text
-            font.pixelSize: 14
-            font.weight: Font.DemiBold
+            font.pixelSize: Theme.fontBody
+            font.weight: Theme.weightStrong
             color: {
                 if (root.type === "secondary") return Theme.text
                 if (root.type === "ghost") return Theme.primary

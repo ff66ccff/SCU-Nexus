@@ -123,7 +123,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: "验证码"
-                                font.pixelSize: 13
+                                font.pixelSize: Theme.fontLabel
                                 color: Theme.mutedText
                                 visible: !auth.captchaLoading && auth.captchaImageUrl.toString().length === 0
                             }

@@ -22,8 +22,8 @@ Item {
             width: 48
             height: 48
             radius: 24
-            color: "#fef3f2"
-            border.color: "#fecdca"
+            color: Theme.dangerSoft
+            border.color: Theme.dangerBorder
 
             Text {
                 anchors.centerIn: parent
@@ -38,7 +38,7 @@ Item {
             Layout.fillWidth: true
             text: root.title
             font.pixelSize: 18
-            font.weight: Font.DemiBold
+            font.weight: Theme.weightStrong
             color: Theme.text
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
@@ -47,7 +47,7 @@ Item {
         Text {
             Layout.fillWidth: true
             text: root.message
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontLabel
             color: Theme.mutedText
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap

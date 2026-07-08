@@ -21,7 +21,7 @@ ColumnLayout {
     Text {
         visible: root.label.length > 0
         text: root.label
-        font.pixelSize: 13
+        font.pixelSize: Theme.fontLabel
         color: Theme.mutedText
     }
 
@@ -29,6 +29,7 @@ ColumnLayout {
         id: field
         Layout.fillWidth: true
         implicitHeight: Theme.controlHeight
+        font.pixelSize: Theme.fontBody
         echoMode: root.passwordMode ? TextInput.Password : TextInput.Normal
         readOnly: root.readOnly
         rightPadding: clearButton.visible ? 34 : 12
@@ -60,7 +61,7 @@ ColumnLayout {
     Text {
         visible: root.errorText.length > 0
         text: root.errorText
-        font.pixelSize: 12
+        font.pixelSize: Theme.fontCaption
         color: Theme.danger
         wrapMode: Text.WordWrap
         Layout.fillWidth: true

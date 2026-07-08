@@ -47,13 +47,13 @@ Rectangle {
                     Text {
                         text: "SCU Nexus"
                         font.pixelSize: 18
-                        font.weight: Font.DemiBold
+                        font.weight: Theme.weightStrong
                         color: Theme.text
                     }
 
                     Text {
                         text: "校园学习工作台"
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontCaption
                         color: Theme.mutedText
                     }
                 }
@@ -69,16 +69,29 @@ Rectangle {
                 Repeater {
                     model: navItems
                     delegate: Rectangle {
+                        id: navItem
                         Layout.fillWidth: true
-                        height: 38
+                        height: 40
                         radius: Theme.smallRadius
-                        color: router.currentRoute === modelData.route
-                               ? (themeManager.dark ? "#123b63" : "#e8f1fb")
+                        readonly property bool active: router.currentRoute === modelData.route
+                        color: navItem.active
+                               ? Theme.primarySoft
                                : (navMouse.containsMouse ? Theme.control : "transparent")
+
+                        // Active indicator: a left accent bar encodes the current page.
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 3
+                            height: parent.height - 12
+                            radius: 1.5
+                            color: Theme.primary
+                            visible: navItem.active
+                        }
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 10
+                            anchors.leftMargin: 12
                             anchors.rightMargin: 8
                             spacing: 10
 
@@ -86,23 +99,23 @@ Rectangle {
                                 width: 24
                                 height: 24
                                 radius: 12
-                                color: router.currentRoute === modelData.route ? Theme.primary : Theme.control
+                                color: navItem.active ? Theme.primary : Theme.control
 
                                 Text {
                                     anchors.centerIn: parent
                                     text: modelData.icon
-                                    font.pixelSize: 12
-                                    font.weight: Font.DemiBold
-                                    color: router.currentRoute === modelData.route ? "white" : Theme.mutedText
+                                    font.pixelSize: Theme.fontCaption
+                                    font.weight: Theme.weightStrong
+                                    color: navItem.active ? "white" : Theme.mutedText
                                 }
                             }
 
                             Text {
                                 Layout.fillWidth: true
                                 text: modelData.name
-                                font.pixelSize: 14
-                                font.weight: router.currentRoute === modelData.route ? Font.DemiBold : Font.Normal
-                                color: router.currentRoute === modelData.route ? Theme.primary : Theme.text
+                                font.pixelSize: Theme.fontBody
+                                font.weight: navItem.active ? Theme.weightStrong : Theme.weightNormal
+                                color: navItem.active ? Theme.primary : Theme.text
                                 elide: Text.ElideRight
                             }
                         }
@@ -144,13 +157,13 @@ Rectangle {
 
                             Text {
                                 text: appController.loggedIn ? "已登录" : "未登录"
-                                font.pixelSize: 13
+                                font.pixelSize: Theme.fontLabel
                                 color: Theme.text
                             }
 
                             Text {
                                 text: "v" + appController.appVersion
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontMicro
                                 color: Theme.mutedText
                             }
                         }
@@ -170,7 +183,7 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    height: 58
+                    height: Theme.topBarHeight
                     color: Theme.surface
                     border.color: Theme.border
 
@@ -190,8 +203,8 @@ Rectangle {
                         Text {
                             Layout.fillWidth: true
                             text: router.routeTitle
-                            font.pixelSize: 20
-                            font.weight: Font.DemiBold
+                            font.pixelSize: Theme.fontTitle
+                            font.weight: Theme.weightStrong
                             color: Theme.text
                             elide: Text.ElideRight
                         }

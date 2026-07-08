@@ -16,7 +16,6 @@ Item {
 
         ColumnLayout {
             width: parent.width
-            anchors.margins: Theme.pagePadding
             spacing: Theme.sectionGap
 
             ModuleHeader {
@@ -54,7 +53,7 @@ Item {
                         Text {
                             Layout.fillWidth: true
                             text: appController.loggedIn ? "已登录" : "未登录"
-                            font.pixelSize: 14
+                            font.pixelSize: Theme.fontBody
                             color: Theme.text
                         }
 
@@ -165,14 +164,14 @@ Item {
 
                     Text {
                         text: "版本"
-                        font.pixelSize: 14
+                        font.pixelSize: Theme.fontBody
                         color: Theme.mutedText
                     }
 
                     Text {
                         Layout.fillWidth: true
                         text: "v" + appController.appVersion
-                        font.pixelSize: 14
+                        font.pixelSize: Theme.fontBody
                         color: Theme.text
                         horizontalAlignment: Text.AlignRight
                     }

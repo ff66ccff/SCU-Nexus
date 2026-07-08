@@ -33,8 +33,8 @@ Dialog {
             Layout.margins: 20
             Layout.bottomMargin: 0
             text: root.title
-            font.pixelSize: 18
-            font.weight: Font.DemiBold
+            font.pixelSize: Theme.fontSection
+            font.weight: Theme.weightStrong
             color: Theme.text
             wrapMode: Text.WordWrap
         }
@@ -44,7 +44,7 @@ Dialog {
             Layout.leftMargin: 20
             Layout.rightMargin: 20
             text: root.message
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontLabel
             color: Theme.mutedText
             wrapMode: Text.WordWrap
         }

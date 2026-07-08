@@ -16,14 +16,14 @@ RowLayout {
 
         Text {
             text: root.label
-            font.pixelSize: 14
+            font.pixelSize: Theme.fontBody
             color: Theme.text
         }
 
         Text {
             visible: root.helperText.length > 0
             text: root.helperText
-            font.pixelSize: 12
+            font.pixelSize: Theme.fontCaption
             color: Theme.mutedText
             wrapMode: Text.WordWrap
             Layout.fillWidth: true

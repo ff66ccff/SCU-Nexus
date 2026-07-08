@@ -53,7 +53,7 @@ Item {
                     anchors.fill: parent
                     anchors.margins: 12
                     text: model.message
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontLabel
                     color: Theme.text
                     wrapMode: Text.WordWrap
                     verticalAlignment: Text.AlignVCenter

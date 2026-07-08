@@ -25,7 +25,7 @@ Item {
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.text
-            font.pixelSize: root.compact ? 12 : 14
+            font.pixelSize: root.compact ? Theme.fontCaption : Theme.fontBody
             color: Theme.mutedText
             visible: root.text.length > 0
         }

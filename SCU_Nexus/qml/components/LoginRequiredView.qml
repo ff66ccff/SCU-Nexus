@@ -24,8 +24,8 @@ Item {
             Text {
                 anchors.centerIn: parent
                 text: "登录"
-                font.pixelSize: 13
-                font.weight: Font.DemiBold
+                font.pixelSize: Theme.fontLabel
+                font.weight: Theme.weightStrong
                 color: Theme.primary
             }
         }
@@ -33,8 +33,8 @@ Item {
         Text {
             Layout.fillWidth: true
             text: root.message
-            font.pixelSize: 16
-            font.weight: Font.DemiBold
+            font.pixelSize: Theme.fontSection
+            font.weight: Theme.weightStrong
             color: Theme.text
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap

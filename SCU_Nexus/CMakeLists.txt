@@ -66,7 +66,6 @@ qt_add_executable(SCU_Nexus
     src/services/api/ZhjwParsers.cpp
     src/services/api/ZhjwApiService.h
     src/services/api/ZhjwApiService.cpp
-    qml.qrc
 )
 
 set_source_files_properties(qml/styles/Theme.qml

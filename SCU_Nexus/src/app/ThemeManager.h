@@ -7,7 +7,7 @@ class ThemeManager : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QString mode READ mode WRITE setMode NOTIFY modeChanged)
-    Q_PROPERTY(bool dark READ dark NOTIFY modeChanged)
+    Q_PROPERTY(bool dark READ dark NOTIFY darkChanged)
 public:
     explicit ThemeManager(QObject *parent = nullptr);
 
@@ -18,9 +18,14 @@ public:
 
 signals:
     void modeChanged();
+    void darkChanged();
 
 private:
+    bool resolveDark() const;
+    void updateDark();
+
     QString m_mode = "system";
+    bool m_dark = false;
 };
 
 #endif // THEMEMANAGER_H

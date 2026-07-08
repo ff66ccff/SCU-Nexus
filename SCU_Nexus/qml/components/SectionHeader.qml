@@ -17,8 +17,8 @@ RowLayout {
         Text {
             Layout.fillWidth: true
             text: root.title
-            font.pixelSize: 16
-            font.weight: Font.DemiBold
+            font.pixelSize: Theme.fontSection
+            font.weight: Theme.weightStrong
             color: Theme.text
         }
 
@@ -26,7 +26,7 @@ RowLayout {
             Layout.fillWidth: true
             visible: root.description.length > 0
             text: root.description
-            font.pixelSize: 12
+            font.pixelSize: Theme.fontCaption
             color: Theme.mutedText
             wrapMode: Text.WordWrap
         }

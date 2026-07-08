@@ -36,7 +36,7 @@ Item {
             Layout.fillWidth: true
             text: root.title
             font.pixelSize: 18
-            font.weight: Font.DemiBold
+            font.weight: Theme.weightStrong
             color: Theme.text
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
@@ -45,7 +45,7 @@ Item {
         Text {
             Layout.fillWidth: true
             text: root.description
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontLabel
             color: Theme.mutedText
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap

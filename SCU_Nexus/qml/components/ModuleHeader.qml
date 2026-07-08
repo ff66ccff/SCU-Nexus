@@ -13,8 +13,8 @@ ColumnLayout {
     Text {
         Layout.fillWidth: true
         text: root.title
-        font.pixelSize: 22
-        font.weight: Font.DemiBold
+        font.pixelSize: Theme.fontTitle
+        font.weight: Theme.weightStrong
         color: Theme.text
     }
 
@@ -22,7 +22,7 @@ ColumnLayout {
         Layout.fillWidth: true
         visible: root.subtitle.length > 0
         text: root.subtitle
-        font.pixelSize: 13
+        font.pixelSize: Theme.fontLabel
         color: Theme.mutedText
         wrapMode: Text.WordWrap
     }
