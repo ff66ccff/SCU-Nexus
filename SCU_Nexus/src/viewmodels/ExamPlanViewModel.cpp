@@ -8,13 +8,13 @@ constexpr auto ExamPlanKey = "exam_plan.latest";
 }
 
 // 构造对象并初始化依赖关系。
-ExamPlanViewModel::ExamPlanViewModel(QueryCacheRepository *cache, MockZhjwApiService *api, QObject *parent)
+ExamPlanViewModel::ExamPlanViewModel(QueryCacheRepository *cache, ZhjwQueryService *api, QObject *parent)
     : QObject(parent),
       m_cache(cache),
       m_api(api)
 {
     if (m_api) {
-        connect(m_api, &MockZhjwApiService::loggedInChanged, this, &ExamPlanViewModel::authChanged);
+        connect(m_api, &ZhjwQueryService::loggedInChanged, this, &ExamPlanViewModel::authChanged);
     }
 }
 
@@ -71,19 +71,35 @@ void ExamPlanViewModel::refresh()
     }
 
     setState(QueryState::Loading);
-    QList<ExamPlanItem> items;
-    for (const QJsonObject &object : m_api->fetchExamPlan()) {
-        items.append(ExamPlanItem::fromJson(object));
-    }
-    sortExamPlanItems(&items);
-    m_exams = items;
-    m_hasCache = true;
-    m_lastUpdated = QDateTime::currentDateTimeUtc();
-    writeCache();
-    emit examsChanged();
-    emit cacheChanged();
-    emit lastUpdatedChanged();
-    setState(m_exams.isEmpty() ? QueryState::Empty : QueryState::Loaded);
+    m_api->fetchExamPlan([this](const QList<ExamPlanItemDto> &dtos, const ApiError &error) {
+        if (error.type != ApiErrorType::Unknown) {
+            setError(error.message);
+            if (m_hasCache) {
+                emit toastRequested(error.message);
+                setState(m_exams.isEmpty() ? QueryState::Empty : QueryState::Loaded);
+            } else {
+                setState(error.type == ApiErrorType::Unauthenticated || error.type == ApiErrorType::SessionExpired
+                    ? QueryState::LoginRequired
+                    : QueryState::Error);
+            }
+            return;
+        }
+
+        QList<ExamPlanItem> items;
+        for (const ExamPlanItemDto &dto : dtos) {
+            items.append(fromDto(dto));
+        }
+        sortExamPlanItems(&items);
+        m_exams = items;
+        m_hasCache = true;
+        m_lastUpdated = QDateTime::currentDateTimeUtc();
+        setError(QString());
+        writeCache();
+        emit examsChanged();
+        emit cacheChanged();
+        emit lastUpdatedChanged();
+        setState(m_exams.isEmpty() ? QueryState::Empty : QueryState::Loaded);
+    });
 }
 
 // 清理本模块缓存并重置相关状态。
@@ -106,6 +122,22 @@ QVariantMap ExamPlanViewModel::examAt(int index) const
         return {};
     }
     return m_exams.at(index).toVariant();
+}
+
+ExamPlanItem ExamPlanViewModel::fromDto(const ExamPlanItemDto &dto) const
+{
+    ExamPlanItem item;
+    item.courseName = dto.courseName;
+    item.week = dto.week;
+    item.date = dto.date;
+    item.weekday = dto.weekday;
+    item.timeRange = dto.timeRange;
+    item.location = dto.location;
+    item.seatNumber = dto.seatNumber;
+    item.ticketNumber = dto.ticketNumber;
+    item.tip = dto.tip;
+    updateExamTemporalFields(&item);
+    return item;
 }
 
 // 更新查询状态并通知界面刷新。

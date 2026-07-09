@@ -3,7 +3,7 @@
 #include "common/QueryState.h"
 #include "models/ExamPlanModels.h"
 #include "repositories/QueryCacheRepository.h"
-#include "services/zhjw/MockZhjwApiService.h"
+#include "services/zhjw/ZhjwQueryService.h"
 
 #include <QDateTime>
 #include <QObject>
@@ -22,7 +22,7 @@ class ExamPlanViewModel : public QObject
     Q_PROPERTY(bool loggedIn READ loggedIn NOTIFY authChanged)
 
 public:
-    explicit ExamPlanViewModel(QueryCacheRepository *cache, MockZhjwApiService *api, QObject *parent = nullptr);
+    explicit ExamPlanViewModel(QueryCacheRepository *cache, ZhjwQueryService *api, QObject *parent = nullptr);
 
     QueryState state() const;
     bool loading() const;
@@ -48,13 +48,14 @@ signals:
     void toastRequested(const QString &message);
 
 private:
+    ExamPlanItem fromDto(const ExamPlanItemDto &dto) const;
     void setState(QueryState state);
     void setError(const QString &message);
     void readCache();
     void writeCache();
 
     QueryCacheRepository *m_cache = nullptr;
-    MockZhjwApiService *m_api = nullptr;
+    ZhjwQueryService *m_api = nullptr;
     QueryState m_state = QueryState::Idle;
     QString m_errorMessage;
     QDateTime m_lastUpdated;

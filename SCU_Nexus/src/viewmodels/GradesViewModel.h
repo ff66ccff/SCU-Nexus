@@ -4,7 +4,7 @@
 #include "models/GradeModels.h"
 #include "repositories/QueryCacheRepository.h"
 #include "services/grades/GradeStatisticsService.h"
-#include "services/zhjw/MockZhjwApiService.h"
+#include "services/zhjw/ZhjwQueryService.h"
 
 #include <QDateTime>
 #include <QObject>
@@ -28,7 +28,7 @@ class GradesViewModel : public QObject
     Q_PROPERTY(bool loggedIn READ loggedIn NOTIFY authChanged)
 
 public:
-    explicit GradesViewModel(QueryCacheRepository *cache, MockZhjwApiService *api, QObject *parent = nullptr);
+    explicit GradesViewModel(QueryCacheRepository *cache, ZhjwQueryService *api, QObject *parent = nullptr);
 
     QueryState schemeState() const;
     QueryState passingState() const;
@@ -69,9 +69,11 @@ private:
     void writeSchemeCache(const QJsonObject &root);
     void writePassingCache(const QJsonObject &root);
     QList<GradeCourseItem> filteredItems(const QList<GradeCourseItem> &items) const;
+    void handleSchemeError(const ApiError &error);
+    void handlePassingError(const ApiError &error);
 
     QueryCacheRepository *m_cache = nullptr;
-    MockZhjwApiService *m_api = nullptr;
+    ZhjwQueryService *m_api = nullptr;
     GradeStatisticsService m_stats;
     QueryState m_schemeState = QueryState::Idle;
     QueryState m_passingState = QueryState::Idle;

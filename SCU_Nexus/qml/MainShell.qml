@@ -259,9 +259,9 @@ Rectangle {
     // 根据当前路由返回对应的 QML 页面资源路径。
     function pageSource(route) {
         if (route === "Schedule") return "qrc:/SCU_Nexus/qml/pages/SchedulePagePlaceholder.qml"
-        if (route === "AcademicCalendar") return "qrc:/SCU_Nexus/qml/pages/AcademicCalendarPagePlaceholder.qml"
-        if (route === "ExamPlan") return "qrc:/SCU_Nexus/qml/pages/ExamPlanPagePlaceholder.qml"
-        if (route === "Grades") return "qrc:/SCU_Nexus/qml/pages/GradesPagePlaceholder.qml"
+        if (route === "AcademicCalendar") return "qrc:/SCU_Nexus/qml/pages/calendar/AcademicCalendarPage.qml"
+        if (route === "ExamPlan") return "qrc:/SCU_Nexus/qml/pages/exam/ExamPlanPage.qml"
+        if (route === "Grades") return "qrc:/SCU_Nexus/qml/pages/grades/GradesPage.qml"
         if (route === "Settings") return "qrc:/SCU_Nexus/qml/SettingsPage.qml"
         if (route === "Login") return "qrc:/SCU_Nexus/qml/LoginPage.qml"
         return "qrc:/SCU_Nexus/qml/pages/SchedulePagePlaceholder.qml"

@@ -9,13 +9,13 @@ constexpr auto PassingKey = "grades.passing_scores";
 }
 
 // 构造对象并初始化依赖关系。
-GradesViewModel::GradesViewModel(QueryCacheRepository *cache, MockZhjwApiService *api, QObject *parent)
+GradesViewModel::GradesViewModel(QueryCacheRepository *cache, ZhjwQueryService *api, QObject *parent)
     : QObject(parent),
       m_cache(cache),
       m_api(api)
 {
     if (m_api) {
-        connect(m_api, &MockZhjwApiService::loggedInChanged, this, &GradesViewModel::authChanged);
+        connect(m_api, &ZhjwQueryService::loggedInChanged, this, &GradesViewModel::authChanged);
     }
 }
 
@@ -81,13 +81,19 @@ void GradesViewModel::refreshSchemeScores()
 
     m_schemeState = QueryState::Loading;
     emit schemeChanged();
-    const QJsonObject root = m_api->fetchSchemeScores();
-    m_scheme = m_stats.parseSchemeScores(root);
-    m_hasSchemeCache = true;
-    m_schemeLastUpdated = QDateTime::currentDateTimeUtc();
-    writeSchemeCache(root);
-    m_schemeState = m_scheme.items.isEmpty() ? QueryState::Empty : QueryState::Loaded;
-    emit schemeChanged();
+    m_api->fetchSchemeScores([this](const QJsonObject &root, const ApiError &error) {
+        if (error.type != ApiErrorType::Unknown) {
+            handleSchemeError(error);
+            return;
+        }
+        m_scheme = m_stats.parseSchemeScores(root);
+        m_hasSchemeCache = true;
+        m_schemeLastUpdated = QDateTime::currentDateTimeUtc();
+        m_schemeError.clear();
+        writeSchemeCache(root);
+        m_schemeState = m_scheme.items.isEmpty() ? QueryState::Empty : QueryState::Loaded;
+        emit schemeChanged();
+    });
 }
 
 // 刷新远端数据并更新缓存状态。
@@ -104,13 +110,19 @@ void GradesViewModel::refreshPassingScores()
 
     m_passingState = QueryState::Loading;
     emit passingChanged();
-    const QJsonObject root = m_api->fetchPassingScores();
-    m_passing = m_stats.parsePassingScores(root);
-    m_hasPassingCache = true;
-    m_passingLastUpdated = QDateTime::currentDateTimeUtc();
-    writePassingCache(root);
-    m_passingState = m_passing.groups.isEmpty() ? QueryState::Empty : QueryState::Loaded;
-    emit passingChanged();
+    m_api->fetchPassingScores([this](const QJsonObject &root, const ApiError &error) {
+        if (error.type != ApiErrorType::Unknown) {
+            handlePassingError(error);
+            return;
+        }
+        m_passing = m_stats.parsePassingScores(root);
+        m_hasPassingCache = true;
+        m_passingLastUpdated = QDateTime::currentDateTimeUtc();
+        m_passingError.clear();
+        writePassingCache(root);
+        m_passingState = m_passing.groups.isEmpty() ? QueryState::Empty : QueryState::Loaded;
+        emit passingChanged();
+    });
 }
 
 // 清理内部状态或持久化数据。
@@ -296,4 +308,32 @@ QVariantList GradesViewModel::filteredPassingGroupsByAttr(const QString &attr) c
         }
     }
     return passingGroupsToVariant(filtered.groups);
+}
+
+void GradesViewModel::handleSchemeError(const ApiError &error)
+{
+    m_schemeError = error.message;
+    if (m_hasSchemeCache) {
+        m_schemeState = QueryState::Loaded;
+        emit toastRequested(error.message);
+    } else {
+        m_schemeState = error.type == ApiErrorType::Unauthenticated || error.type == ApiErrorType::SessionExpired
+            ? QueryState::LoginRequired
+            : QueryState::Error;
+    }
+    emit schemeChanged();
+}
+
+void GradesViewModel::handlePassingError(const ApiError &error)
+{
+    m_passingError = error.message;
+    if (m_hasPassingCache) {
+        m_passingState = QueryState::Loaded;
+        emit toastRequested(error.message);
+    } else {
+        m_passingState = error.type == ApiErrorType::Unauthenticated || error.type == ApiErrorType::SessionExpired
+            ? QueryState::LoginRequired
+            : QueryState::Error;
+    }
+    emit passingChanged();
 }

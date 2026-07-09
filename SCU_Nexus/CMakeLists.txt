@@ -66,6 +66,33 @@ qt_add_executable(SCU_Nexus
     src/services/api/ZhjwParsers.cpp
     src/services/api/ZhjwApiService.h
     src/services/api/ZhjwApiService.cpp
+    src/common/QueryState.h
+    src/common/QueryState.cpp
+    src/models/AcademicCalendarModels.h
+    src/models/AcademicCalendarModels.cpp
+    src/models/ExamPlanModels.h
+    src/models/ExamPlanModels.cpp
+    src/models/GradeModels.h
+    src/models/GradeModels.cpp
+    src/repositories/QueryCacheRepository.h
+    src/repositories/QueryCacheRepository.cpp
+    src/services/calendar/AcademicCalendarService.h
+    src/services/calendar/AcademicCalendarService.cpp
+    src/services/calendar/HolidayService.h
+    src/services/calendar/HolidayService.cpp
+    src/services/grades/GradeStatisticsService.h
+    src/services/grades/GradeStatisticsService.cpp
+    src/services/zhjw/ZhjwQueryService.h
+    src/services/zhjw/ZhjwQueryService.cpp
+    src/services/zhjw/ZhjwApiQueryService.cpp
+    src/viewmodels/AcademicCalendarViewModel.h
+    src/viewmodels/AcademicCalendarViewModel.cpp
+    src/viewmodels/ExamPlanViewModel.h
+    src/viewmodels/ExamPlanViewModel.cpp
+    src/viewmodels/GradesViewModel.h
+    src/viewmodels/GradesViewModel.cpp
+    src/viewmodels/QueryCacheViewModel.h
+    src/viewmodels/QueryCacheViewModel.cpp
 )
 
 set_source_files_properties(qml/styles/Theme.qml
@@ -96,10 +123,23 @@ qt_add_qml_module(SCU_Nexus
         qml/components/SearchBar.qml
         qml/components/SectionHeader.qml
         qml/components/ToastHost.qml
+        qml/components/query/LastUpdatedLabel.qml
+        qml/components/query/RefreshButton.qml
+        qml/components/query/QueryStatePane.qml
         qml/pages/SchedulePagePlaceholder.qml
         qml/pages/AcademicCalendarPagePlaceholder.qml
         qml/pages/ExamPlanPagePlaceholder.qml
         qml/pages/GradesPagePlaceholder.qml
+        qml/pages/calendar/AcademicCalendarPage.qml
+        qml/pages/calendar/CalendarImageViewer.qml
+        qml/pages/exam/ExamPlanPage.qml
+        qml/pages/exam/ExamCard.qml
+        qml/pages/grades/GradesPage.qml
+        qml/pages/grades/SchemeScoresTab.qml
+        qml/pages/grades/PassingScoresTab.qml
+        qml/pages/grades/CustomStatsTab.qml
+        qml/pages/grades/GradeCourseCard.qml
+        qml/pages/grades/GradeSummaryPanel.qml
 )
 
 target_link_libraries(SCU_Nexus PRIVATE
@@ -114,6 +154,7 @@ target_link_libraries(SCU_Nexus PRIVATE
 )
 
 target_include_directories(SCU_Nexus PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${OPENSSL_ROOT_DIR}/include
 )
 
@@ -155,6 +196,55 @@ target_link_libraries(person_b_foundation_tests PRIVATE
     Qt6::Test
     ${OPENSSL_CRYPTO_LIBRARY}
 )
+
+enable_testing()
+add_test(NAME person_b_foundation_tests COMMAND person_b_foundation_tests)
+
+qt_add_executable(person_d_query_tests
+    tests/test_person_d_queries.cpp
+    src/common/QueryState.h
+    src/common/QueryState.cpp
+    src/models/AcademicCalendarModels.h
+    src/models/AcademicCalendarModels.cpp
+    src/models/ExamPlanModels.h
+    src/models/ExamPlanModels.cpp
+    src/models/GradeModels.h
+    src/models/GradeModels.cpp
+    src/repositories/QueryCacheRepository.h
+    src/repositories/QueryCacheRepository.cpp
+    src/services/calendar/AcademicCalendarService.h
+    src/services/calendar/AcademicCalendarService.cpp
+    src/services/calendar/HolidayService.h
+    src/services/calendar/HolidayService.cpp
+    src/services/grades/GradeStatisticsService.h
+    src/services/grades/GradeStatisticsService.cpp
+    src/services/zhjw/ZhjwQueryService.h
+    src/services/zhjw/ZhjwQueryService.cpp
+    src/viewmodels/AcademicCalendarViewModel.h
+    src/viewmodels/AcademicCalendarViewModel.cpp
+    src/viewmodels/ExamPlanViewModel.h
+    src/viewmodels/ExamPlanViewModel.cpp
+    src/viewmodels/GradesViewModel.h
+    src/viewmodels/GradesViewModel.cpp
+    src/viewmodels/QueryCacheViewModel.h
+    src/viewmodels/QueryCacheViewModel.cpp
+)
+
+target_include_directories(person_d_query_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${OPENSSL_ROOT_DIR}/include
+)
+
+target_link_libraries(person_d_query_tests PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Sql
+    Qt6::Test
+    ${OPENSSL_CRYPTO_LIBRARY}
+)
+
+add_test(NAME person_d_query_tests COMMAND person_d_query_tests)
 
 set_target_properties(SCU_Nexus PROPERTIES
     WIN32_EXECUTABLE ON
