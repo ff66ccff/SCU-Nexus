@@ -21,13 +21,10 @@ void CookieJar::storeFromSetCookie(const QUrl& url, const QList<QByteArray>& set
                 continue;
             }
 
-            // Domain isolation is required for SCU/ZHJW; path matching is a documented simplification for now.
-            const QString attributes = semicolon >= 0 ? trimmed.mid(semicolon + 1) : QString();
-            const QString host = cookieDomain(url, attributes);
             const QString name = pair.left(equals).trimmed();
             const QString value = pair.mid(equals + 1).trimmed();
-            if (!host.isEmpty() && !name.isEmpty()) {
-                m_cookiesByHost[host][name] = value;
+            if (!name.isEmpty()) {
+                m_cookiesByHost[fallbackHost][name] = value;
             }
         }
     }
@@ -84,25 +81,6 @@ QString CookieJar::normalizedHost(QString host)
         host.remove(0, 1);
     }
     return host;
-}
-
-// 初始化应用运行环境并进入主事件循环。
-QString CookieJar::cookieDomain(const QUrl& url, const QString& attributes)
-{
-    const QString fallbackHost = normalizedHost(url.host());
-    const QStringList parts = attributes.split(';', Qt::SkipEmptyParts);
-    for (const QString& part : parts) {
-        const QString attr = part.trimmed();
-        const qsizetype equals = attr.indexOf('=');
-        if (equals <= 0) {
-            continue;
-        }
-        if (attr.left(equals).trimmed().compare("Domain", Qt::CaseInsensitive) == 0) {
-            const QString domain = normalizedHost(attr.mid(equals + 1));
-            return domain.isEmpty() ? fallbackHost : domain;
-        }
-    }
-    return fallbackHost;
 }
 
 // 拆分可能被合并在同一行里的 Set-Cookie 字段。

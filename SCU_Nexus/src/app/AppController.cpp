@@ -5,10 +5,10 @@
 #include <QCoreApplication>
 
 // 构造对象并初始化依赖关系。
-AppController::AppController(QObject *parent)
+AppController::AppController(QObject *parent, ScuAuthService *authService)
     : QObject(parent)
 {
-    m_authViewModel = new AuthViewModel(this);
+    m_authViewModel = new AuthViewModel(authService, this);
     connect(m_authViewModel, &AuthViewModel::loggedInChanged, this, [this]() {
         setLoginState(m_authViewModel->loggedIn());
     });
@@ -16,6 +16,7 @@ AppController::AppController(QObject *parent)
         setLoginState(false);
         emit sessionExpired(message);
     });
+    setLoginState(m_authViewModel->loggedIn());
 }
 
 // 返回应用初始化是否已完成。

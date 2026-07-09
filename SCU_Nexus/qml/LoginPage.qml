@@ -44,11 +44,8 @@ Item {
                 subtitle: "验证码由用户手动输入；密码加密与真实登录流程由 Person B 服务层接入。"
             }
 
-            Rectangle {
+            Card {
                 Layout.fillWidth: true
-                radius: Theme.cardRadius
-                color: Theme.surface
-                border.color: Theme.border
                 implicitHeight: formColumn.implicitHeight + 36
 
                 ColumnLayout {

@@ -4,10 +4,19 @@ import QtQuick.Layouts 1.15
 import "components"
 import "styles"
 
+// 设置页：内容居中收拢为一栏（黄金分割比例控制阅读宽度与竖向节奏），
+// 每个分区为带投影的 Fluent 卡片，主题切换用分段控件。
 Item {
     id: root
 
     property string pendingAction: ""
+
+    // 黄金分割：内容最大宽度与竖向间距按 φ≈1.618 推导，视觉更协调。
+    readonly property real phi: 1.618
+    readonly property int contentMaxWidth: 720
+    readonly property int sectionSpacing: 20
+    readonly property int innerSpacing: Math.round(sectionSpacing / phi)   // ≈ 12
+    readonly property int cardMargin: 20
 
     ScrollView {
         anchors.fill: parent
@@ -15,31 +24,30 @@ Item {
         clip: true
 
         ColumnLayout {
-            width: parent.width
-            spacing: Theme.sectionGap
+            width: Math.min(parent.width - 2 * Theme.pagePadding, root.contentMaxWidth)
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: Math.round(root.sectionSpacing * root.phi)   // ≈ 32
+            anchors.bottomMargin: root.sectionSpacing
+            spacing: root.sectionSpacing
 
             ModuleHeader {
                 Layout.fillWidth: true
-                Layout.margins: Theme.pagePadding
-                Layout.bottomMargin: 0
+                Layout.bottomMargin: Math.round(root.innerSpacing / root.phi)  // ≈ 7
                 title: "设置"
                 subtitle: "账户、缓存、外观和版本信息。"
             }
 
-            Rectangle {
+            // ---- 账户 ----
+            Card {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.pagePadding
-                Layout.rightMargin: Theme.pagePadding
-                implicitHeight: accountColumn.implicitHeight + 32
-                radius: Theme.cardRadius
-                color: Theme.surface
-                border.color: Theme.border
+                implicitHeight: accountCol.implicitHeight + 2 * root.cardMargin
 
                 ColumnLayout {
-                    id: accountColumn
+                    id: accountCol
                     anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 12
+                    anchors.margins: root.cardMargin
+                    spacing: root.innerSpacing
 
                     SectionHeader {
                         Layout.fillWidth: true
@@ -49,12 +57,22 @@ Item {
 
                     RowLayout {
                         Layout.fillWidth: true
+                        spacing: root.innerSpacing
+
+                        Rectangle {
+                            width: 9
+                            height: 9
+                            radius: 4.5
+                            Layout.alignment: Qt.AlignVCenter
+                            color: appController.loggedIn ? Theme.success : Theme.placeholder
+                        }
 
                         Text {
                             Layout.fillWidth: true
                             text: appController.loggedIn ? "已登录" : "未登录"
                             font.pixelSize: Theme.fontBody
                             color: Theme.text
+                            verticalAlignment: Text.AlignVCenter
                         }
 
                         AppButton {
@@ -78,20 +96,16 @@ Item {
                 }
             }
 
-            Rectangle {
+            // ---- 数据管理 ----
+            Card {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.pagePadding
-                Layout.rightMargin: Theme.pagePadding
-                implicitHeight: dataColumn.implicitHeight + 32
-                radius: Theme.cardRadius
-                color: Theme.surface
-                border.color: Theme.border
+                implicitHeight: dataCol.implicitHeight + 2 * root.cardMargin
 
                 ColumnLayout {
-                    id: dataColumn
+                    id: dataCol
                     anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 12
+                    anchors.margins: root.cardMargin
+                    spacing: root.innerSpacing
 
                     SectionHeader {
                         Layout.fillWidth: true
@@ -101,15 +115,17 @@ Item {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 10
+                        spacing: root.innerSpacing
 
                         AppButton {
+                            Layout.fillWidth: true
                             text: "清除课表缓存"
                             type: "secondary"
                             onClicked: openDangerConfirm("clearSchedule", "清除课表缓存", "确定要清除本地课表缓存吗？")
                         }
 
                         AppButton {
+                            Layout.fillWidth: true
                             text: "清除查询缓存"
                             type: "secondary"
                             onClicked: openDangerConfirm("clearQuery", "清除查询缓存", "确定要清除考表、成绩等查询缓存吗？")
@@ -118,20 +134,16 @@ Item {
                 }
             }
 
-            Rectangle {
+            // ---- 外观 ----
+            Card {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.pagePadding
-                Layout.rightMargin: Theme.pagePadding
-                implicitHeight: appearanceColumn.implicitHeight + 32
-                radius: Theme.cardRadius
-                color: Theme.surface
-                border.color: Theme.border
+                implicitHeight: appearanceCol.implicitHeight + 2 * root.cardMargin
 
                 ColumnLayout {
-                    id: appearanceColumn
+                    id: appearanceCol
                     anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 12
+                    anchors.margins: root.cardMargin
+                    spacing: root.innerSpacing
 
                     SectionHeader {
                         Layout.fillWidth: true
@@ -139,29 +151,28 @@ Item {
                         description: "主题设置统一由 ThemeManager 输出。"
                     }
 
-                    RowLayout {
+                    SegmentedControl {
                         Layout.fillWidth: true
-                        spacing: 10
-
-                        AppButton { text: "跟随系统"; type: themeManager.mode === "system" ? "primary" : "secondary"; onClicked: themeManager.setMode("system") }
-                        AppButton { text: "浅色"; type: themeManager.mode === "light" ? "primary" : "secondary"; onClicked: themeManager.setMode("light") }
-                        AppButton { text: "深色"; type: themeManager.mode === "dark" ? "primary" : "secondary"; onClicked: themeManager.setMode("dark") }
+                        model: [
+                            { label: "跟随系统", value: "system" },
+                            { label: "浅色", value: "light" },
+                            { label: "深色", value: "dark" }
+                        ]
+                        value: themeManager.mode
+                        onActivated: themeManager.setMode(newValue)
                     }
                 }
             }
 
-            Rectangle {
+            // ---- 版本 ----
+            Card {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.pagePadding
-                Layout.rightMargin: Theme.pagePadding
-                implicitHeight: 58
-                radius: Theme.cardRadius
-                color: Theme.surface
-                border.color: Theme.border
+                implicitHeight: 56
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 16
+                    anchors.leftMargin: root.cardMargin
+                    anchors.rightMargin: root.cardMargin
 
                     Text {
                         text: "版本"

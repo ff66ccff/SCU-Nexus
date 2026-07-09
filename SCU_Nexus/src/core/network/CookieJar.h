@@ -17,7 +17,6 @@ public:
 
 private:
     static QString normalizedHost(QString host);
-    static QString cookieDomain(const QUrl& url, const QString& attributes);
     static QStringList splitCombinedSetCookieHeader(const QString& header);
     static bool isCookiePairAhead(const QString& text, qsizetype commaIndex);
 

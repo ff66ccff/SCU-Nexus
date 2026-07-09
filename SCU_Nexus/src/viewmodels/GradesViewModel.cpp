@@ -70,6 +70,9 @@ void GradesViewModel::load()
 // 刷新远端数据并更新缓存状态。
 void GradesViewModel::refreshSchemeScores()
 {
+    if (m_schemeState == QueryState::Loading) {
+        return;
+    }
     if (!loggedIn()) {
         m_schemeState = m_hasSchemeCache ? QueryState::Loaded : QueryState::LoginRequired;
         emit schemeChanged();
@@ -79,6 +82,7 @@ void GradesViewModel::refreshSchemeScores()
         return;
     }
 
+    m_schemeError.clear();
     m_schemeState = QueryState::Loading;
     emit schemeChanged();
     m_api->fetchSchemeScores([this](const QJsonObject &root, const ApiError &error) {
@@ -99,6 +103,9 @@ void GradesViewModel::refreshSchemeScores()
 // 刷新远端数据并更新缓存状态。
 void GradesViewModel::refreshPassingScores()
 {
+    if (m_passingState == QueryState::Loading) {
+        return;
+    }
     if (!loggedIn()) {
         m_passingState = m_hasPassingCache ? QueryState::Loaded : QueryState::LoginRequired;
         emit passingChanged();
@@ -108,6 +115,7 @@ void GradesViewModel::refreshPassingScores()
         return;
     }
 
+    m_passingError.clear();
     m_passingState = QueryState::Loading;
     emit passingChanged();
     m_api->fetchPassingScores([this](const QJsonObject &root, const ApiError &error) {

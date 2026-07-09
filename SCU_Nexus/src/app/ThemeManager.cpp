@@ -20,6 +20,8 @@ ThemeManager::ThemeManager(QObject *parent)
                 this, [this](Qt::ColorScheme) { updateDark(); });
     }
 
+    // Push the restored choice into the FluentWinUI3 style before the first frame.
+    applyColorScheme();
     m_dark = resolveDark();
 }
 
@@ -62,6 +64,23 @@ void ThemeManager::updateDark()
     emit darkChanged();
 }
 
+// 把当前模式同步给 Qt 的全局色彩方案，使 FluentWinUI3 控件跟随浅色/深色切换。
+// system → Unknown（交回操作系统决定）；light/dark → 强制对应方案。
+void ThemeManager::applyColorScheme()
+{
+    auto* hints = QGuiApplication::styleHints();
+    if (!hints) {
+        return;
+    }
+    if (m_mode == "dark") {
+        hints->setColorScheme(Qt::ColorScheme::Dark);
+    } else if (m_mode == "light") {
+        hints->setColorScheme(Qt::ColorScheme::Light);
+    } else {
+        hints->setColorScheme(Qt::ColorScheme::Unknown);
+    }
+}
+
 // 设置属性值并在变化时发出通知。
 void ThemeManager::setMode(const QString& mode)
 {
@@ -74,6 +93,7 @@ void ThemeManager::setMode(const QString& mode)
     QSettings settings;
     settings.setValue(QStringLiteral("appearance/mode"), m_mode);
 
+    applyColorScheme();
     emit modeChanged();
     updateDark();
 }

@@ -4,6 +4,7 @@
 #include <QObject>
 
 class AuthViewModel;
+class ScuAuthService;
 
 class AppController : public QObject
 {
@@ -13,7 +14,7 @@ class AppController : public QObject
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     Q_PROPERTY(QObject* authViewModel READ authViewModel CONSTANT)
 public:
-    explicit AppController(QObject *parent = nullptr);
+    explicit AppController(QObject *parent = nullptr, ScuAuthService *authService = nullptr);
 
     bool ready() const;
     bool loggedIn() const;

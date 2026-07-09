@@ -97,8 +97,8 @@ GradeCourseItem GradeCourseItem::fromJson(const QJsonObject &object)
     item.courseAttributeName = object.value(QStringLiteral("courseAttributeName")).toString();
     item.credit = object.value(QStringLiteral("credit")).toString();
     item.rawScore = object.value(QStringLiteral("cj")).toString();
-    item.courseScore = object.value(QStringLiteral("courseScore")).toDouble(-1.0);
-    item.gradePointScore = object.value(QStringLiteral("gradePointScore")).toDouble(-1.0);
+    item.courseScore = object.value(QStringLiteral("courseScore")).toDouble(0.0);
+    item.gradePointScore = object.value(QStringLiteral("gradePointScore")).toDouble(0.0);
     item.gradeName = object.value(QStringLiteral("gradeName")).toString();
     item.academicYearCode = object.value(QStringLiteral("academicYearCode")).toString();
     item.termName = object.value(QStringLiteral("termName")).toString();
@@ -115,7 +115,7 @@ QVariantMap TermGradeGroup::toVariant() const
     int passed = 0;
     for (const GradeCourseItem &item : items) {
         courseMaps.append(item.toVariant());
-        if (item.passed) {
+        if (item.passed && item.hasEffectiveScore) {
             credits += item.creditValue();
             passed += 1;
         }
@@ -145,7 +145,7 @@ double SchemeScoreSummary::earnedCredits() const
 {
     double sum = 0.0;
     for (const GradeCourseItem &item : items) {
-        if (item.passed) {
+        if (item.passed && item.hasEffectiveScore) {
             sum += item.creditValue();
         }
     }
@@ -169,7 +169,7 @@ double SchemeScoreSummary::creditsByAttribute(const QString &attr) const
 {
     double sum = 0.0;
     for (const GradeCourseItem &item : items) {
-        if (item.passed && item.courseAttributeName == attr) {
+        if (item.passed && item.hasEffectiveScore && item.courseAttributeName == attr) {
             sum += item.creditValue();
         }
     }
@@ -231,9 +231,12 @@ SchemeScoreSummary SchemeScoreSummary::fromJson(const QJsonObject &root)
     }
     if (summary.passedCount == 0) {
         for (const GradeCourseItem &item : summary.items) {
+            if (!item.hasEffectiveScore) {
+                continue;
+            }
             summary.passedCount += item.passed ? 1 : 0;
+            summary.failedCount += item.passed ? 0 : 1;
         }
-        summary.failedCount = summary.totalCount - summary.passedCount;
     }
     return summary;
 }
@@ -242,13 +245,17 @@ SchemeScoreSummary SchemeScoreSummary::fromJson(const QJsonObject &root)
 QVariantMap PassingScoreGroup::toVariant() const
 {
     QVariantList courseMaps;
+    int passed = 0;
     for (const GradeCourseItem &item : items) {
         courseMaps.append(item.toVariant());
+        if (item.passed && item.hasEffectiveScore) {
+            passed += 1;
+        }
     }
     return {
         {QStringLiteral("label"), label},
         {QStringLiteral("items"), courseMaps},
-        {QStringLiteral("passedCount"), items.size()},
+        {QStringLiteral("passedCount"), passed},
         {QStringLiteral("credits"), customStatsForCourses(items).value(QStringLiteral("credits"))}
     };
 }
@@ -278,7 +285,11 @@ int PassingScoreResult::totalPassed() const
 {
     int count = 0;
     for (const PassingScoreGroup &group : groups) {
-        count += group.items.size();
+        for (const GradeCourseItem &item : group.items) {
+            if (item.passed && item.hasEffectiveScore) {
+                count += 1;
+            }
+        }
     }
     return count;
 }
@@ -397,6 +408,9 @@ QVariantMap customStatsForCourses(const QList<GradeCourseItem> &items)
     int failed = 0;
     double credits = 0.0;
     for (const GradeCourseItem &item : items) {
+        if (!item.hasEffectiveScore) {
+            continue;
+        }
         if (item.passed) {
             passed += 1;
             credits += item.creditValue();

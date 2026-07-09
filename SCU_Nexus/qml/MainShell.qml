@@ -4,6 +4,8 @@ import QtQuick.Layouts 1.15
 import "components"
 import "styles"
 
+// 应用主壳：仿 FluentWinUI3 NavigationView 布局。
+// 左侧 Mica 导航栏（圆角选中项 + 品牌红指示条），顶部 Mica 标题栏，中央为业务页 Loader。
 Rectangle {
     id: root
 
@@ -30,85 +32,106 @@ Rectangle {
         anchors.fill: parent
         spacing: 0
 
+        // ---------- 左侧导航 Pane ----------
         Rectangle {
             Layout.preferredWidth: Theme.navWidth
             Layout.fillHeight: true
-            color: Theme.surface
-            border.color: Theme.border
+            color: Theme.navBackground
+
+            // 与内容区之间的细描边。
+            Rectangle {
+                anchors.right: parent.right
+                width: 1
+                height: parent.height
+                color: Theme.border
+            }
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 14
-                spacing: 8
+                anchors.margins: 12
+                spacing: 6
 
-                ColumnLayout {
+                // 品牌区
+                RowLayout {
                     Layout.fillWidth: true
-                    spacing: 2
+                    Layout.leftMargin: 6
+                    Layout.topMargin: 4
+                    spacing: 10
 
-                    Text {
-                        text: "SCU Nexus"
-                        font.pixelSize: 18
-                        font.weight: Theme.weightStrong
-                        color: Theme.text
+                    Rectangle {
+                        width: 30
+                        height: 30
+                        radius: 8
+                        color: Theme.accent
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "川"
+                            font.pixelSize: 16
+                            font.weight: Theme.weightStrong
+                            color: Theme.accentText
+                        }
                     }
 
-                    Text {
-                        text: "校园学习工作台"
-                        font.pixelSize: Theme.fontCaption
-                        color: Theme.mutedText
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+
+                        Text {
+                            text: "SCU Nexus"
+                            font.pixelSize: 16
+                            font.weight: Theme.weightStrong
+                            color: Theme.text
+                        }
+
+                        Text {
+                            text: "校园学习工作台"
+                            font.pixelSize: Theme.fontMicro
+                            color: Theme.mutedText
+                        }
                     }
                 }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 1
-                    color: Theme.border
-                    Layout.topMargin: 6
-                    Layout.bottomMargin: 4
-                }
+                Item { Layout.preferredHeight: 6 }
 
+                // 导航项
                 Repeater {
                     model: navItems
                     delegate: Rectangle {
                         id: navItem
                         Layout.fillWidth: true
-                        height: 40
+                        Layout.preferredHeight: 40
                         radius: Theme.smallRadius
                         readonly property bool active: router.currentRoute === modelData.route
                         color: navItem.active
-                               ? Theme.primarySoft
-                               : (navMouse.containsMouse ? Theme.control : "transparent")
+                               ? Theme.subtleActive
+                               : (navMouse.containsMouse ? Theme.subtleHover : "transparent")
 
-                        // Active indicator: a left accent bar encodes the current page.
+                        // Fluent 选中指示：左侧圆角品牌红竖条。
                         Rectangle {
                             anchors.left: parent.left
+                            anchors.leftMargin: 3
                             anchors.verticalCenter: parent.verticalCenter
                             width: 3
-                            height: parent.height - 12
+                            height: 16
                             radius: 1.5
-                            color: Theme.primary
+                            color: Theme.accent
                             visible: navItem.active
                         }
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 8
-                            spacing: 10
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 10
+                            spacing: 12
 
-                            Rectangle {
-                                width: 24
-                                height: 24
-                                radius: 12
-                                color: navItem.active ? Theme.primary : Theme.control
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: modelData.icon
-                                    font.pixelSize: Theme.fontCaption
-                                    font.weight: Theme.weightStrong
-                                    color: navItem.active ? "white" : Theme.mutedText
-                                }
+                            Text {
+                                Layout.preferredWidth: 20
+                                horizontalAlignment: Text.AlignHCenter
+                                text: modelData.icon
+                                font.pixelSize: Theme.fontBody
+                                font.weight: Theme.weightStrong
+                                color: navItem.active ? Theme.accent : Theme.mutedText
                             }
 
                             Text {
@@ -116,7 +139,7 @@ Rectangle {
                                 text: modelData.name
                                 font.pixelSize: Theme.fontBody
                                 font.weight: navItem.active ? Theme.weightStrong : Theme.weightNormal
-                                color: navItem.active ? Theme.primary : Theme.text
+                                color: Theme.text
                                 elide: Text.ElideRight
                             }
                         }
@@ -133,12 +156,10 @@ Rectangle {
 
                 Item { Layout.fillHeight: true }
 
-                Rectangle {
+                // 登录状态卡片
+                Card {
                     Layout.fillWidth: true
-                    implicitHeight: 58
-                    radius: Theme.cardRadius
-                    color: Theme.surfaceMuted
-                    border.color: Theme.border
+                    implicitHeight: 56
 
                     RowLayout {
                         anchors.fill: parent
@@ -173,6 +194,7 @@ Rectangle {
             }
         }
 
+        // ---------- 右侧内容 ----------
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -182,11 +204,18 @@ Rectangle {
                 anchors.fill: parent
                 spacing: 0
 
+                // 顶部标题栏（Mica，底部细分割线）
                 Rectangle {
                     Layout.fillWidth: true
-                    height: Theme.topBarHeight
-                    color: Theme.surface
-                    border.color: Theme.border
+                    Layout.preferredHeight: Theme.topBarHeight
+                    color: Theme.background
+
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        width: parent.width
+                        height: 1
+                        color: Theme.border
+                    }
 
                     RowLayout {
                         anchors.fill: parent
@@ -218,7 +247,7 @@ Rectangle {
 
                         AppButton {
                             text: appController.loggedIn ? "账户" : "登录"
-                            type: "secondary"
+                            type: appController.loggedIn ? "secondary" : "primary"
                             onClicked: router.navigate(appController.loggedIn ? "Settings" : "Login")
                         }
                     }

@@ -15,6 +15,9 @@ ApplicationWindow {
     title: "SCU Nexus"
     color: Theme.background
 
+    // 全局把 Fluent 控件的强调色设为四川大学品牌红（按钮、开关、焦点线等都会跟随）。
+    palette.accent: Theme.accent
+
     Component.onCompleted: appController.initialize()
 
     MainShell {

@@ -26,7 +26,7 @@ QString firstCapture(const QString& text, const QString& pattern)
 // 从文本中提取指定标签后的值。
 QString labeledValue(const QString& text, const QString& label)
 {
-    return firstCapture(text, label + R"(\s*:\s*(?:&nbsp;|\s)*([^<]+))");
+    return firstCapture(text, label + R"(\s*[:：]\s*(?:&nbsp;|\s)*([^<]+))");
 }
 
 // 从 HTML 中提取指定后缀的回调路径。

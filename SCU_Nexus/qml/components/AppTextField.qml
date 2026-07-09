@@ -3,6 +3,9 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "../styles"
 
+// 带标签/错误提示的输入框。内层 TextField 交给 FluentWinUI3 绘制
+// （底部强调线、悬浮/焦点态、圆角），仅保留可清除按钮与错误态：
+// 错误时把 palette.accent 换成危险红，让 Fluent 的焦点线变红。
 ColumnLayout {
     id: root
 
@@ -33,17 +36,9 @@ ColumnLayout {
         echoMode: root.passwordMode ? TextInput.Password : TextInput.Normal
         readOnly: root.readOnly
         rightPadding: clearButton.visible ? 34 : 12
-        color: Theme.text
-        placeholderTextColor: Theme.placeholder
         selectByMouse: true
+        palette.accent: root.errorText.length > 0 ? Theme.danger : Theme.accent
         onAccepted: root.accepted()
-
-        background: Rectangle {
-            radius: Theme.smallRadius
-            color: Theme.control
-            border.width: field.activeFocus || root.errorText.length > 0 ? 2 : 1
-            border.color: root.errorText.length > 0 ? Theme.danger : (field.activeFocus ? Theme.primary : Theme.border)
-        }
 
         ToolButton {
             id: clearButton
@@ -52,6 +47,7 @@ ColumnLayout {
             anchors.rightMargin: 4
             width: 28
             height: 28
+            flat: true
             visible: root.clearable && field.text.length > 0 && !root.readOnly
             text: "×"
             onClicked: field.clear()

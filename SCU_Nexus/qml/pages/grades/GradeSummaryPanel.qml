@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
+import "../../components"
 import "../../styles"
 
 GridLayout {
@@ -15,12 +16,9 @@ GridLayout {
     Repeater {
         model: metrics
 
-        Rectangle {
+        Card {
             Layout.fillWidth: true
             implicitHeight: 74
-            radius: Theme.cardRadius
-            color: Theme.surface
-            border.color: Theme.border
 
             ColumnLayout {
                 anchors.fill: parent

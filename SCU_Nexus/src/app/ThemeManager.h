@@ -23,6 +23,7 @@ signals:
 private:
     bool resolveDark() const;
     void updateDark();
+    void applyColorScheme();
 
     QString m_mode = "system";
     bool m_dark = false;

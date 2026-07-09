@@ -18,12 +18,7 @@ Dialog {
     standardButtons: Dialog.NoButton
     padding: 0
     width: Math.min(parent ? parent.width - 48 : 420, 420)
-
-    background: Rectangle {
-        radius: Theme.cardRadius
-        color: Theme.surface
-        border.color: Theme.border
-    }
+    // 背景/阴影交给 FluentWinUI3 的 Dialog 皮肤绘制，这里只排版内容。
 
     contentItem: ColumnLayout {
         spacing: 16

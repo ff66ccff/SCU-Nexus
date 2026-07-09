@@ -6,12 +6,14 @@
 #include <QObject>
 #include <QUrl>
 #define private public
+#include "src/app/AppController.h"
 #include "src/services/auth/AuthViewModel.h"
+#include "src/services/auth/ZhjwAuthService.h"
+#include "src/services/api/ZhjwApiService.h"
+#include "src/services/zhjw/ZhjwQueryService.h"
 #undef private
 #include "src/services/auth/ScuAuthService.h"
-#include "src/services/auth/ZhjwAuthService.h"
 #include "src/services/api/ZhjwParsers.h"
-#include "src/services/api/ZhjwApiService.h"
 
 #include <QEventLoop>
 #include <QHostAddress>
@@ -32,35 +34,52 @@ public:
 
     void get(const QUrl& url, Callback callback, const Headers& headers = {}) override
     {
-        Q_UNUSED(headers)
         getUrls.append(url.toString());
-        callback(nextResponse(url), {});
+        getHeaders.append(headers);
+        callback(nextResponse(url), nextError(url));
     }
 
     void post(const QUrl& url, const QByteArray& body, Callback callback, const Headers& headers = {}) override
     {
-        Q_UNUSED(headers)
         postUrls.append(url.toString());
         postBodies.append(body);
-        callback(nextResponse(url), {});
+        postHeaders.append(headers);
+        callback(nextResponse(url), nextError(url));
     }
 
     void followRedirects(const QUrl& url, Callback callback, const Headers& headers = {}, int maxRedirects = 10) override
     {
-        Q_UNUSED(headers)
         Q_UNUSED(maxRedirects)
         redirectUrls.append(url.toString());
-        callback(nextResponse(url), {});
+        redirectHeaders.append(headers);
+        callback(nextResponse(url), nextError(url));
     }
 
     QStringList getUrls;
     QStringList postUrls;
     QStringList redirectUrls;
+    QList<Headers> getHeaders;
+    QList<Headers> postHeaders;
+    QList<Headers> redirectHeaders;
     QList<QByteArray> postBodies;
     QMap<QString, HttpResponse> responses;
     QMap<QString, QList<HttpResponse>> responseQueues;
+    QMap<QString, ApiError> errors;
+    QMap<QString, QList<ApiError>> errorQueues;
 
 private:
+    ApiError nextError(const QUrl& url)
+    {
+        const QString key = url.toString();
+        if (errorQueues.contains(key) && !errorQueues[key].isEmpty()) {
+            return errorQueues[key].takeFirst();
+        }
+        if (errors.contains(key)) {
+            return errors.value(key);
+        }
+        return {};
+    }
+
     HttpResponse nextResponse(const QUrl& url)
     {
         const QString key = url.toString();
@@ -219,6 +238,7 @@ class PersonBFoundationTest : public QObject
 private slots:
     void cookieJarMatchesExactAndParentDomain();
     void cookieJarRejectsUnrelatedDomain();
+    void cookieJarIgnoresSetCookieDomainForSubsystemIsolation();
     void cookieJarParsesCommaSeparatedSetCookie();
     void cookieHttpClientReturnsHttpErrorResponsesWithBody();
     void cookieHttpClientReportsRedirectLimit();
@@ -241,7 +261,14 @@ private slots:
     void scuAuthBindSessionRefreshesExpiredTokenWhenSessionSaveSucceeds();
     void zhjwAuthCoalescesConcurrentSsoLogin();
     void zhjwAuthRebindsWhenScuTokenChanges();
+    void zhjwAuthRevalidatesScuSessionBeforeCacheHit();
+    void appControllerCanShareScuAuthWithZhjwStack();
+    void appControllerReflectsRestoredAuthState();
+    void zhjwApiUsesBrowserAcceptForExamPlan();
+    void zhjwApiUsesBrowserAcceptForScoreIndex();
+    void zhjwApiRetriesScoreIndexWhenLoginMarkerHidesCallback();
     void zhjwApiRetriesOnceWhenSessionExpired();
+    void zhjwApiPreservesNetworkErrorWithoutSessionRetry();
 };
 
 // 验证 CookieJar 的域名匹配和解析行为。
@@ -262,6 +289,18 @@ void PersonBFoundationTest::cookieJarRejectsUnrelatedDomain()
     jar.storeFromSetCookie(QUrl("https://id.scu.edu.cn/login"),
                            {QByteArray("SESSION=abc; Path=/; HttpOnly")});
 
+    QCOMPARE(jar.cookieHeader(QUrl("https://zhjw.scu.edu.cn/")), QString());
+}
+
+// 验证 CookieJar 的域名匹配和解析行为。
+void PersonBFoundationTest::cookieJarIgnoresSetCookieDomainForSubsystemIsolation()
+{
+    CookieJar jar;
+    jar.storeFromSetCookie(QUrl("https://id.scu.edu.cn/login"),
+                           {QByteArray("SESSION=abc; Domain=.scu.edu.cn; Path=/; HttpOnly")});
+
+    QCOMPARE(jar.cookieHeader(QUrl("https://id.scu.edu.cn/profile")), QString("SESSION=abc"));
+    QCOMPARE(jar.cookieHeader(QUrl("https://sub.id.scu.edu.cn/profile")), QString("SESSION=abc"));
     QCOMPARE(jar.cookieHeader(QUrl("https://zhjw.scu.edu.cn/")), QString());
 }
 
@@ -496,7 +535,7 @@ void PersonBFoundationTest::zhjwParsersExtractRequiredValues()
           <div>地点:&nbsp;江安一教 A101</div>
           <div>座位号:&nbsp;32</div>
           <div>准考证号:&nbsp;ABC123</div>
-          <div>考试提示信息:&nbsp;携带证件</div>
+          <div>考试提示信息：&nbsp;携带证件</div>
         </div>)");
     const auto exams = ZhjwParsers::parseExamPlan(examHtml);
     QCOMPARE(exams.size(), 1);
@@ -927,6 +966,168 @@ void PersonBFoundationTest::zhjwAuthRebindsWhenScuTokenChanges()
     QCOMPARE(secondResult, &secondClient);
 }
 
+// 验证综合教务认证每次缓存命中前仍会先让统一认证层检查/刷新 session。
+void PersonBFoundationTest::zhjwAuthRevalidatesScuSessionBeforeCacheHit()
+{
+    DeferredRedirectClient client;
+    BoundScuAuthService scuAuth(&client);
+    ZhjwAuthService auth(nullptr, &scuAuth);
+
+    int firstCallbacks = 0;
+    auth.getClient([&](CookieHttpClient* receivedClient, const ApiError& error) {
+        ++firstCallbacks;
+        QCOMPARE(error.type, ApiErrorType::Unknown);
+        QCOMPARE(receivedClient, &client);
+    });
+    QCOMPARE(scuAuth.bindSessionCalls, 1);
+    QCOMPARE(client.redirectUrls.size(), 1);
+    client.completeNextRedirect();
+    QCOMPARE(firstCallbacks, 1);
+
+    scuAuth.saveTokenForTesting(QStringLiteral("access-token-1"), QDateTime::currentSecsSinceEpoch() - 3700);
+
+    int secondCallbacks = 0;
+    auth.getClient([&](CookieHttpClient* receivedClient, const ApiError& error) {
+        ++secondCallbacks;
+        QCOMPARE(error.type, ApiErrorType::Unknown);
+        QCOMPARE(receivedClient, &client);
+    });
+
+    QCOMPARE(secondCallbacks, 1);
+    QCOMPARE(scuAuth.bindSessionCalls, 2);
+    QCOMPARE(client.redirectUrls.size(), 1);
+}
+
+// 验证主应用认证链可按 Bugaoshan 的单根 ScuAuth 模式共享同一实例。
+void PersonBFoundationTest::appControllerCanShareScuAuthWithZhjwStack()
+{
+    FakeScuAuthService sharedAuth;
+    AppController controller(nullptr, &sharedAuth);
+    auto* authModel = qobject_cast<AuthViewModel*>(controller.authViewModel());
+    QVERIFY(authModel);
+    QCOMPARE(authModel->m_authService, &sharedAuth);
+
+    ZhjwAuthService zhjwAuth(nullptr, &sharedAuth);
+    ZhjwApiService api(nullptr, &zhjwAuth);
+    ZhjwApiQueryService query(nullptr, &api);
+    QCOMPARE(zhjwAuth.m_scuAuthService, &sharedAuth);
+    QCOMPARE(api.m_authService, &zhjwAuth);
+    QCOMPARE(query.m_api, &api);
+}
+
+// 验证启动时恢复的统一认证 token 会同步到 AppController 和查询服务入口。
+void PersonBFoundationTest::appControllerReflectsRestoredAuthState()
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "SCU_Nexus_Test", "AppControllerRestore");
+    settings.clear();
+    ScuAuthService sharedAuth(nullptr, &settings);
+    sharedAuth.saveTokenForTesting(QStringLiteral("access-token-1"), QDateTime::currentSecsSinceEpoch());
+
+    AppController controller(nullptr, &sharedAuth);
+    auto* authModel = qobject_cast<AuthViewModel*>(controller.authViewModel());
+    QVERIFY(authModel);
+    QVERIFY(authModel->loggedIn());
+    QVERIFY(controller.loggedIn());
+}
+
+// 验证考表页面请求头与 Bugaoshan 保持一致。
+void PersonBFoundationTest::zhjwApiUsesBrowserAcceptForExamPlan()
+{
+    auto* fakeClient = new FakeCookieHttpClient();
+    const QString examUrl = "http://zhjw.scu.edu.cn/student/examinationManagement/examPlan/index";
+
+    HttpResponse examResponse;
+    examResponse.statusCode = 200;
+    examResponse.finalUrl = QUrl(examUrl);
+    examResponse.body = "<html></html>";
+    fakeClient->responses.insert(examUrl, examResponse);
+
+    FakeZhjwAuthService auth(fakeClient);
+    ZhjwApiService service(nullptr, &auth);
+    ApiError result;
+    service.fetchExamPlan([&result](const QList<ExamPlanItemDto>&, const ApiError& error) {
+        result = error;
+    });
+
+    QCOMPARE(result.type, ApiErrorType::Unknown);
+    QCOMPARE(fakeClient->getUrls.size(), 1);
+    QCOMPARE(fakeClient->getHeaders.first().value(QStringLiteral("Accept")),
+             QStringLiteral("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"));
+}
+
+// 验证成绩 index 页请求头与 Bugaoshan 保持一致，避免服务端返回非预期页面导致 callback 提取失败。
+void PersonBFoundationTest::zhjwApiUsesBrowserAcceptForScoreIndex()
+{
+    auto* fakeClient = new FakeCookieHttpClient();
+    const QString indexUrl = "http://zhjw.scu.edu.cn/student/integratedQuery/scoreQuery/schemeScores/index";
+    const QString callbackUrl = "http://zhjw.scu.edu.cn/student/integratedQuery/scoreQuery/abc/schemeScores/callback";
+
+    HttpResponse indexResponse;
+    indexResponse.statusCode = 200;
+    indexResponse.finalUrl = QUrl(indexUrl);
+    indexResponse.body = R"(var url = "/student/integratedQuery/scoreQuery/abc/schemeScores/callback")";
+    fakeClient->responses.insert(indexUrl, indexResponse);
+
+    HttpResponse callbackResponse;
+    callbackResponse.statusCode = 200;
+    callbackResponse.finalUrl = QUrl(callbackUrl);
+    callbackResponse.body = R"({"lnList":[]})";
+    fakeClient->responses.insert(callbackUrl, callbackResponse);
+
+    FakeZhjwAuthService auth(fakeClient);
+    ZhjwApiService service(nullptr, &auth);
+    ApiError result;
+    service.fetchSchemeScores([&result](const QJsonObject&, const ApiError& error) {
+        result = error;
+    });
+
+    QCOMPARE(result.type, ApiErrorType::Unknown);
+    QCOMPARE(fakeClient->getUrls.size(), 2);
+    QCOMPARE(fakeClient->getHeaders.first().value(QStringLiteral("Accept")),
+             QStringLiteral("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"));
+    QCOMPARE(fakeClient->getHeaders.at(1).value(QStringLiteral("Accept")),
+             QStringLiteral("application/json, text/plain, */*"));
+}
+
+// 验证成绩 index 页无法提取 callback 且带登录标记时，会按未认证重试一次。
+void PersonBFoundationTest::zhjwApiRetriesScoreIndexWhenLoginMarkerHidesCallback()
+{
+    auto* fakeClient = new FakeCookieHttpClient();
+    const QString indexUrl = "http://zhjw.scu.edu.cn/student/integratedQuery/scoreQuery/schemeScores/index";
+    const QString callbackUrl = "http://zhjw.scu.edu.cn/student/integratedQuery/scoreQuery/abc/schemeScores/callback";
+
+    HttpResponse loginMarkerResponse;
+    loginMarkerResponse.statusCode = 200;
+    loginMarkerResponse.finalUrl = QUrl(indexUrl);
+    loginMarkerResponse.body = "Login required";
+
+    HttpResponse indexResponse;
+    indexResponse.statusCode = 200;
+    indexResponse.finalUrl = QUrl(indexUrl);
+    indexResponse.body = R"(var url = "/student/integratedQuery/scoreQuery/abc/schemeScores/callback")";
+    fakeClient->responseQueues.insert(indexUrl, QList<HttpResponse>{loginMarkerResponse, indexResponse});
+
+    HttpResponse callbackResponse;
+    callbackResponse.statusCode = 200;
+    callbackResponse.finalUrl = QUrl(callbackUrl);
+    callbackResponse.body = R"({"lnList":[]})";
+    fakeClient->responses.insert(callbackUrl, callbackResponse);
+
+    FakeZhjwAuthService auth(fakeClient);
+    ZhjwApiService service(nullptr, &auth);
+    ApiError result;
+    service.fetchSchemeScores([&result](const QJsonObject&, const ApiError& error) {
+        result = error;
+    });
+
+    QCOMPARE(result.type, ApiErrorType::Unknown);
+    QCOMPARE(auth.invalidateCount, 1);
+    QCOMPARE(fakeClient->getUrls.size(), 3);
+    QCOMPARE(fakeClient->getUrls.at(0), indexUrl);
+    QCOMPARE(fakeClient->getUrls.at(1), indexUrl);
+    QCOMPARE(fakeClient->getUrls.at(2), callbackUrl);
+}
+
 // 验证综合教务 API 服务的请求与重试行为。
 void PersonBFoundationTest::zhjwApiRetriesOnceWhenSessionExpired()
 {
@@ -958,6 +1159,40 @@ void PersonBFoundationTest::zhjwApiRetriesOnceWhenSessionExpired()
     QCOMPARE(week, 12);
     QCOMPARE(auth.invalidateCount, 1);
     QCOMPARE(fakeClient->getUrls.size(), 2);
+}
+
+// 验证综合教务 API 服务不会把普通网络错误误判为会话过期。
+void PersonBFoundationTest::zhjwApiPreservesNetworkErrorWithoutSessionRetry()
+{
+    auto* fakeClient = new FakeCookieHttpClient();
+    const QString homeUrl = "http://zhjw.scu.edu.cn/";
+
+    HttpResponse emptyNetworkResponse;
+    emptyNetworkResponse.statusCode = 0;
+    emptyNetworkResponse.finalUrl = QUrl(homeUrl);
+    emptyNetworkResponse.body = "";
+    fakeClient->responses.insert(homeUrl, emptyNetworkResponse);
+
+    ApiError networkError;
+    networkError.type = ApiErrorType::Network;
+    networkError.message = QStringLiteral("connection refused");
+    fakeClient->errors.insert(homeUrl, networkError);
+
+    FakeZhjwAuthService auth(fakeClient);
+    ZhjwApiService service(nullptr, &auth);
+
+    int week = 0;
+    ApiError result;
+    service.fetchCurrentWeek([&week, &result](int fetchedWeek, const ApiError& error) {
+        week = fetchedWeek;
+        result = error;
+    });
+
+    QCOMPARE(week, 0);
+    QCOMPARE(result.type, ApiErrorType::Network);
+    QCOMPARE(result.message, QStringLiteral("connection refused"));
+    QCOMPARE(auth.invalidateCount, 0);
+    QCOMPARE(fakeClient->getUrls.size(), 1);
 }
 
 QTEST_MAIN(PersonBFoundationTest)

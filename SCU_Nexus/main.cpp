@@ -10,6 +10,9 @@
 #include "src/app/ThemeManager.h"
 #include "src/app/ToastManager.h"
 #include "src/repositories/QueryCacheRepository.h"
+#include "src/services/api/ZhjwApiService.h"
+#include "src/services/auth/ScuAuthService.h"
+#include "src/services/auth/ZhjwAuthService.h"
 #include "src/services/zhjw/ZhjwQueryService.h"
 #include "src/viewmodels/AcademicCalendarViewModel.h"
 #include "src/viewmodels/ExamPlanViewModel.h"
@@ -24,9 +27,12 @@ int main(int argc, char *argv[])
     app.setApplicationName("SCU_Nexus");
     app.setApplicationVersion("0.1.0");
 
-    QQuickStyle::setStyle("Fusion");
+    // Fluent WinUI 3 是 Qt 6.8+ 自带的现代 Windows 11 风格；
+    // 若运行环境未安装该样式模块，Qt 会回退到默认样式并打印告警。
+    QQuickStyle::setStyle("FluentWinUI3");
 
-    AppController appController;
+    ScuAuthService scuAuthService;
+    AppController appController(nullptr, &scuAuthService);
     Router router;
     ThemeManager themeManager;
     ToastManager toastManager;
@@ -36,7 +42,9 @@ int main(int argc, char *argv[])
     QueryCacheRepository queryCache(dataDir + QStringLiteral("/query_cache.sqlite"));
     queryCache.open();
 
-    ZhjwApiQueryService zhjwQueryService;
+    ZhjwAuthService zhjwAuthService(nullptr, &scuAuthService);
+    ZhjwApiService zhjwApiService(nullptr, &zhjwAuthService);
+    ZhjwApiQueryService zhjwQueryService(nullptr, &zhjwApiService);
     zhjwQueryService.setLoggedIn(appController.loggedIn());
 
     AcademicCalendarViewModel academicCalendarViewModel(&queryCache);

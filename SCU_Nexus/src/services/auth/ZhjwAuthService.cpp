@@ -34,23 +34,12 @@ ZhjwAuthService::ZhjwAuthService(QObject* parent, ScuAuthService* scuAuthService
 // 读取指定资源并返回结果。
 void ZhjwAuthService::getClient(ClientCallback callback)
 {
-    if (m_cachedClient) {
-        const QString currentToken = m_scuAuthService->accessToken();
-        if (m_boundAccessToken == currentToken) {
-            callback(m_cachedClient, {});
-            return;
-        }
-        AuthLogger::instance().debug(QStringLiteral("ZhjwAuth"), QStringLiteral("cached client discarded after SCU token change"));
-        m_cachedClient = nullptr;
-        m_boundAccessToken.clear();
-    }
     m_pendingCallbacks.push_back(std::move(callback));
     if (m_loginInProgress) {
         return;
     }
 
     m_loginInProgress = true;
-    AuthLogger::instance().info(QStringLiteral("ZhjwAuth"), QStringLiteral("SSO login start"));
     m_scuAuthService->bindSession([this](CookieHttpClient* client, const ApiError& error) mutable {
         if (error.type != ApiErrorType::Unknown || !client) {
             AuthLogger::instance().warn(QStringLiteral("ZhjwAuth"),
@@ -60,6 +49,18 @@ void ZhjwAuthService::getClient(ClientCallback callback)
         }
 
         const QString token = m_scuAuthService->accessToken();
+        if (m_cachedClient && m_boundAccessToken == token && m_cachedClient == client) {
+            AuthLogger::instance().debug(QStringLiteral("ZhjwAuth"), QStringLiteral("getClient cache hit after SCU validation"));
+            finishLogin(m_cachedClient, {});
+            return;
+        }
+        if (m_cachedClient) {
+            AuthLogger::instance().debug(QStringLiteral("ZhjwAuth"), QStringLiteral("cached client discarded after SCU session change"));
+            m_cachedClient = nullptr;
+            m_boundAccessToken.clear();
+        }
+
+        AuthLogger::instance().info(QStringLiteral("ZhjwAuth"), QStringLiteral("SSO login start"));
         client->followRedirects(QUrl(QStringLiteral("https://id.scu.edu.cn/enduser/sp/sso/scdxplugin_jwt23?enterpriseId=scdx&target_url=index")),
                                 [this, client, token](const HttpResponse&, const ApiError& ssoError) mutable {
             if (ssoError.type != ApiErrorType::Unknown) {

@@ -47,19 +47,22 @@ QVariantList ExamPlanViewModel::exams() const
 void ExamPlanViewModel::load()
 {
     readCache();
-    if (!loggedIn() && !m_hasCache) {
-        setState(QueryState::LoginRequired);
+    if (loggedIn()) {
+        if (m_hasCache) {
+            setState(m_exams.isEmpty() ? QueryState::Empty : QueryState::Loaded);
+        }
+        refresh();
         return;
     }
-    setState(m_hasCache ? (m_exams.isEmpty() ? QueryState::Empty : QueryState::Loaded) : QueryState::Loading);
-    if (loggedIn()) {
-        refresh();
-    }
+    setState(m_hasCache ? (m_exams.isEmpty() ? QueryState::Empty : QueryState::Loaded) : QueryState::LoginRequired);
 }
 
 // 刷新远端数据并更新缓存状态。
 void ExamPlanViewModel::refresh()
 {
+    if (m_state == QueryState::Loading) {
+        return;
+    }
     if (!loggedIn()) {
         if (m_hasCache) {
             emit toastRequested(QStringLiteral("登录已失效，正在显示缓存考表。"));
@@ -70,6 +73,7 @@ void ExamPlanViewModel::refresh()
         return;
     }
 
+    setError(QString());
     setState(QueryState::Loading);
     m_api->fetchExamPlan([this](const QList<ExamPlanItemDto> &dtos, const ApiError &error) {
         if (error.type != ApiErrorType::Unknown) {

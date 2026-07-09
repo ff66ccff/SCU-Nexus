@@ -51,7 +51,8 @@ private:
     void fetchScoreJson(const QString& indexPath,
                         const QString& callbackKind,
                         const QString& parseFailureMessage,
-                        JsonCallback callback);
+                        JsonCallback callback,
+                        bool retried = false);
     static QJsonObject parseJsonObject(const QByteArray& body, const QString& context, ApiError* error);
     static ApiError makeError(ApiErrorType type, const QString& message, int statusCode = 0, const QString& debugBody = {});
 

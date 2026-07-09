@@ -112,6 +112,7 @@ qt_add_qml_module(SCU_Nexus
         qml/components/AppButton.qml
         qml/components/AppDialog.qml
         qml/components/AppTextField.qml
+        qml/components/Card.qml
         qml/components/DataTable.qml
         qml/components/EmptyView.qml
         qml/components/ErrorView.qml
@@ -122,6 +123,7 @@ qt_add_qml_module(SCU_Nexus
         qml/components/ModuleHeader.qml
         qml/components/SearchBar.qml
         qml/components/SectionHeader.qml
+        qml/components/SegmentedControl.qml
         qml/components/ToastHost.qml
         qml/components/query/LastUpdatedLabel.qml
         qml/components/query/RefreshButton.qml
@@ -160,6 +162,8 @@ target_include_directories(SCU_Nexus PRIVATE
 
 qt_add_executable(person_b_foundation_tests
     tests/test_person_b_foundation.cpp
+    src/app/AppController.h
+    src/app/AppController.cpp
     src/core/crypto/Sm2Crypto.h
     src/core/crypto/Sm2Crypto.cpp
     src/core/logging/AuthLogger.h
@@ -183,6 +187,9 @@ qt_add_executable(person_b_foundation_tests
     src/services/api/ZhjwParsers.cpp
     src/services/api/ZhjwApiService.h
     src/services/api/ZhjwApiService.cpp
+    src/services/zhjw/ZhjwQueryService.h
+    src/services/zhjw/ZhjwQueryService.cpp
+    src/services/zhjw/ZhjwApiQueryService.cpp
 )
 
 target_include_directories(person_b_foundation_tests PRIVATE

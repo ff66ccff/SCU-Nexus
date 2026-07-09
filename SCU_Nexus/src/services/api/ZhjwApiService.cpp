@@ -21,6 +21,15 @@ CookieHttpClient::Headers htmlHeaders(const QString& referer)
     };
 }
 
+CookieHttpClient::Headers browserHtmlHeaders(const QString& referer)
+{
+    return {
+        {QStringLiteral("Accept"), QStringLiteral("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")},
+        {QStringLiteral("Referer"), referer},
+        {QStringLiteral("User-Agent"), NetworkSettings::kDefaultUserAgent},
+    };
+}
+
 }
 
 // 构造对象并初始化依赖关系。
@@ -125,7 +134,7 @@ void ZhjwApiService::fetchJwxtSchedule(const QString& planCode, ScheduleCallback
 void ZhjwApiService::fetchExamPlan(ExamPlanCallback callback)
 {
     request(QUrl(zhjwBase() + QStringLiteral("/student/examinationManagement/examPlan/index")),
-            htmlHeaders(zhjwBase() + QStringLiteral("/")),
+            browserHtmlHeaders(zhjwBase() + QStringLiteral("/")),
             [callback = std::move(callback)](const HttpResponse& response, const ApiError& error) {
         if (error.type != ApiErrorType::Unknown) {
             callback({}, error);
@@ -165,14 +174,19 @@ void ZhjwApiService::request(const QUrl& url,
         }
         client->get(url, [this, url, headers, callback = std::move(callback), retried](const HttpResponse& response, const ApiError& error) mutable {
             const QString body = QString::fromUtf8(response.body);
-            if ((error.type == ApiErrorType::Unauthenticated || isSessionExpired(body, response.statusCode)) && !retried) {
+            if (error.type != ApiErrorType::Unknown && error.type != ApiErrorType::Unauthenticated) {
+                callback(response, error);
+                return;
+            }
+            const bool sessionExpired = isSessionExpired(body, response.statusCode);
+            if ((error.type == ApiErrorType::Unauthenticated || sessionExpired) && !retried) {
                 AuthLogger::instance().warn(QStringLiteral("ZhjwApiService"),
                                             QStringLiteral("session expired on GET %1, retrying once").arg(url.path()));
                 m_authService->invalidate();
                 request(url, headers, std::move(callback), true);
                 return;
             }
-            if (isSessionExpired(body, response.statusCode)) {
+            if (error.type == ApiErrorType::Unauthenticated || sessionExpired) {
                 AuthLogger::instance().warn(QStringLiteral("ZhjwApiService"),
                                             QStringLiteral("session expired after retry GET %1").arg(url.path()));
                 callback({}, makeError(ApiErrorType::Unauthenticated, QStringLiteral("未登录或登录已过期"), response.statusCode));
@@ -196,14 +210,19 @@ void ZhjwApiService::postForm(const QUrl& url,
         }
         client->post(url, body, [this, url, body, headers, callback = std::move(callback), retried](const HttpResponse& response, const ApiError& error) mutable {
             const QString responseBody = QString::fromUtf8(response.body);
-            if ((error.type == ApiErrorType::Unauthenticated || isSessionExpired(responseBody, response.statusCode)) && !retried) {
+            if (error.type != ApiErrorType::Unknown && error.type != ApiErrorType::Unauthenticated) {
+                callback(response, error);
+                return;
+            }
+            const bool sessionExpired = isSessionExpired(responseBody, response.statusCode);
+            if ((error.type == ApiErrorType::Unauthenticated || sessionExpired) && !retried) {
                 AuthLogger::instance().warn(QStringLiteral("ZhjwApiService"),
                                             QStringLiteral("session expired on POST %1, retrying once").arg(url.path()));
                 m_authService->invalidate();
                 postForm(url, body, headers, std::move(callback), true);
                 return;
             }
-            if (isSessionExpired(responseBody, response.statusCode)) {
+            if (error.type == ApiErrorType::Unauthenticated || sessionExpired) {
                 AuthLogger::instance().warn(QStringLiteral("ZhjwApiService"),
                                             QStringLiteral("session expired after retry POST %1").arg(url.path()));
                 callback({}, makeError(ApiErrorType::Unauthenticated, QStringLiteral("未登录或登录已过期"), response.statusCode));
@@ -217,11 +236,12 @@ void ZhjwApiService::postForm(const QUrl& url,
 void ZhjwApiService::fetchScoreJson(const QString& indexPath,
                                     const QString& callbackKind,
                                     const QString& parseFailureMessage,
-                                    JsonCallback callback)
+                                    JsonCallback callback,
+                                    bool retried)
 {
     request(QUrl(zhjwBase() + indexPath),
-            htmlHeaders(zhjwBase() + QStringLiteral("/")),
-            [this, indexPath, callbackKind, parseFailureMessage, callback = std::move(callback)](const HttpResponse& indexResponse, const ApiError& indexError) mutable {
+            browserHtmlHeaders(zhjwBase() + QStringLiteral("/")),
+            [this, indexPath, callbackKind, parseFailureMessage, callback = std::move(callback), retried](const HttpResponse& indexResponse, const ApiError& indexError) mutable {
         if (indexError.type != ApiErrorType::Unknown) {
             callback({}, indexError);
             return;
@@ -231,6 +251,17 @@ void ZhjwApiService::fetchScoreJson(const QString& indexPath,
             ? ZhjwParsers::extractSchemeScoresCallback(indexBody)
             : ZhjwParsers::extractPassingScoresCallback(indexBody);
         if (callbackPath.isEmpty()) {
+            if (indexBody.contains(QStringLiteral("login"), Qt::CaseInsensitive)) {
+                if (!retried) {
+                    AuthLogger::instance().warn(QStringLiteral("ZhjwApiService"),
+                                                QStringLiteral("score index returned login marker for %1, retrying once").arg(indexPath));
+                    m_authService->invalidate();
+                    fetchScoreJson(indexPath, callbackKind, parseFailureMessage, std::move(callback), true);
+                    return;
+                }
+                callback({}, makeError(ApiErrorType::Unauthenticated, QStringLiteral("未登录或登录已过期"), indexResponse.statusCode, indexBody.left(500)));
+                return;
+            }
             callback({}, makeError(ApiErrorType::ParseFailed, parseFailureMessage, indexResponse.statusCode, indexBody.left(500)));
             return;
         }
