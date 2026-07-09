@@ -1,0 +1,17 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/main.qml</file>
+        <file>qml/pages/schedule/SchedulePage.qml</file>
+        <file>qml/pages/schedule/CourseEditDialog.qml</file>
+        <file>qml/pages/schedule/ImportScheduleDialog.qml</file>
+        <file>qml/pages/schedule/ScheduleManagementDialog.qml</file>
+        <file>qml/pages/schedule/ScheduleSettingsDialog.qml</file>
+        <file>qml/pages/schedule/TimeSlotSettingsDialog.qml</file>
+        <file>qml/components/schedule/CourseGrid.qml</file>
+        <file>qml/components/schedule/CourseCard.qml</file>
+        <file>qml/components/schedule/WeekSwitcher.qml</file>
+        <file>qml/components/schedule/DayColumn.qml</file>
+        <file>qml/components/schedule/SectionColumn.qml</file>
+        <file>qml/components/schedule/CourseConflictBadge.qml</file>
+    </qresource>
+</RCC>

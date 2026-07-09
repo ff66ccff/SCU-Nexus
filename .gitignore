@@ -1,0 +1,19 @@
+# Qt编译输出目录
+build-*/
+build/
+build_fix/
+
+# Qt本地配置文件
+*.user
+CMakeLists.txt.user
+*.pro.user
+
+# 编译产物、临时文件
+*.o
+*.obj
+*.exe
+*.dll
+*.log
+*.tmp
+.cache
+.qtcreator/

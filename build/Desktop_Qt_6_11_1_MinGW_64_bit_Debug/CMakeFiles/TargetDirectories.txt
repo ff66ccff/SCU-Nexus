@@ -1,0 +1,9 @@
+D:/SCU_Nexus/build/Desktop_Qt_6_11_1_MinGW_64_bit_Debug/CMakeFiles/SCU_Nexus.dir
+D:/SCU_Nexus/build/Desktop_Qt_6_11_1_MinGW_64_bit_Debug/CMakeFiles/edit_cache.dir
+D:/SCU_Nexus/build/Desktop_Qt_6_11_1_MinGW_64_bit_Debug/CMakeFiles/rebuild_cache.dir
+D:/SCU_Nexus/build/Desktop_Qt_6_11_1_MinGW_64_bit_Debug/CMakeFiles/list_install_components.dir
+D:/SCU_Nexus/build/Desktop_Qt_6_11_1_MinGW_64_bit_Debug/CMakeFiles/install.dir
+D:/SCU_Nexus/build/Desktop_Qt_6_11_1_MinGW_64_bit_Debug/CMakeFiles/install/local.dir
+D:/SCU_Nexus/build/Desktop_Qt_6_11_1_MinGW_64_bit_Debug/CMakeFiles/install/strip.dir
+D:/SCU_Nexus/build/Desktop_Qt_6_11_1_MinGW_64_bit_Debug/CMakeFiles/SCU_Nexus_autogen_timestamp_deps.dir
+D:/SCU_Nexus/build/Desktop_Qt_6_11_1_MinGW_64_bit_Debug/CMakeFiles/SCU_Nexus_autogen.dir

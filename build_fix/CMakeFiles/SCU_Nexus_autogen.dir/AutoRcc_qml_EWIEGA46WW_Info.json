@@ -1,0 +1,37 @@
+{
+	"BUILD_DIR" : "D:/SCU_Nexus/build_fix/SCU_Nexus_autogen",
+	"CMAKE_BINARY_DIR" : "D:/SCU_Nexus/build_fix",
+	"CMAKE_CURRENT_BINARY_DIR" : "D:/SCU_Nexus/build_fix",
+	"CMAKE_CURRENT_SOURCE_DIR" : "D:/SCU_Nexus",
+	"CMAKE_SOURCE_DIR" : "D:/SCU_Nexus",
+	"CROSS_CONFIG" : false,
+	"GENERATOR" : "MinGW Makefiles",
+	"INCLUDE_DIR" : "D:/SCU_Nexus/build_fix/SCU_Nexus_autogen/include",
+	"INPUTS" : 
+	[
+		"D:/SCU_Nexus/qml/main.qml",
+		"D:/SCU_Nexus/qml/pages/schedule/TimeSlotSettingsDialog.qml",
+		"D:/SCU_Nexus/qml/pages/schedule/ImportScheduleDialog.qml",
+		"D:/SCU_Nexus/qml/pages/schedule/SchedulePage.qml",
+		"D:/SCU_Nexus/qml/pages/schedule/ScheduleManagementDialog.qml",
+		"D:/SCU_Nexus/qml/pages/schedule/ScheduleSettingsDialog.qml",
+		"D:/SCU_Nexus/qml/pages/schedule/CourseEditDialog.qml",
+		"D:/SCU_Nexus/qml/components/schedule/CourseConflictBadge.qml",
+		"D:/SCU_Nexus/qml/components/schedule/WeekSwitcher.qml",
+		"D:/SCU_Nexus/qml/components/schedule/DayColumn.qml",
+		"D:/SCU_Nexus/qml/components/schedule/CourseGrid.qml",
+		"D:/SCU_Nexus/qml/components/schedule/CourseCard.qml",
+		"D:/SCU_Nexus/qml/components/schedule/SectionColumn.qml"
+	],
+	"LOCK_FILE" : "D:/SCU_Nexus/build_fix/CMakeFiles/SCU_Nexus_autogen.dir/AutoRcc_qml_EWIEGA46WW_Lock.lock",
+	"MULTI_CONFIG" : false,
+	"OPTIONS" : [ "--no-zstd", "-name", "qml" ],
+	"OUTPUT_CHECKSUM" : "EWIEGA46WW",
+	"OUTPUT_NAME" : "qrc_qml.cpp",
+	"RCC_EXECUTABLE" : "D:/Qt/6.11.1/mingw_64/bin/rcc.exe",
+	"RCC_LIST_OPTIONS" : [ "--list" ],
+	"SETTINGS_FILE" : "D:/SCU_Nexus/build_fix/CMakeFiles/SCU_Nexus_autogen.dir/AutoRcc_qml_EWIEGA46WW_Used.txt",
+	"SOURCE" : "D:/SCU_Nexus/qml.qrc",
+	"USE_BETTER_GRAPH" : true,
+	"VERBOSITY" : 0
+}

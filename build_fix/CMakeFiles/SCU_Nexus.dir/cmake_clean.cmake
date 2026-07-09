@@ -1,0 +1,43 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/SCU_Nexus.dir/SCU_Nexus_autogen/EWIEGA46WW/qrc_qml.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/SCU_Nexus_autogen/EWIEGA46WW/qrc_qml.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus.dir/SCU_Nexus_autogen/mocs_compilation.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/SCU_Nexus_autogen/mocs_compilation.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus.dir/main.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/main.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus.dir/src/models/Course.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/src/models/Course.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus.dir/src/models/ScheduleConfig.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/src/models/ScheduleConfig.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus.dir/src/models/TimeSlot.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/src/models/TimeSlot.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus.dir/src/repositories/ScheduleRepository.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/src/repositories/ScheduleRepository.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus.dir/src/services/course/CourseLayoutService.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/src/services/course/CourseLayoutService.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus.dir/src/services/course/JwxtScheduleParser.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/src/services/course/JwxtScheduleParser.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus.dir/src/services/course/ScheduleImportService.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/src/services/course/ScheduleImportService.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus.dir/src/viewmodels/CourseEditViewModel.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/src/viewmodels/CourseEditViewModel.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus.dir/src/viewmodels/ScheduleImportViewModel.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/src/viewmodels/ScheduleImportViewModel.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus.dir/src/viewmodels/ScheduleViewModel.cpp.obj"
+  "CMakeFiles/SCU_Nexus.dir/src/viewmodels/ScheduleViewModel.cpp.obj.d"
+  "CMakeFiles/SCU_Nexus_autogen.dir/AutogenUsed.txt"
+  "CMakeFiles/SCU_Nexus_autogen.dir/ParseCache.txt"
+  "SCU_Nexus_autogen"
+  "SCU_Nexus.exe"
+  "SCU_Nexus.exe.manifest"
+  "SCU_Nexus.pdb"
+  "SCU_Nexus_autogen/EWIEGA46WW/qrc_qml.cpp"
+  "SCU_Nexus_autogen/mocs_compilation.cpp"
+  "SCU_Nexus_autogen/timestamp"
+  "libSCU_Nexus.dll.a"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/SCU_Nexus.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()
