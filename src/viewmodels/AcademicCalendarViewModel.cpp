@@ -10,6 +10,7 @@ constexpr auto SelectedKey = "academic_calendar.selected_year";
 constexpr auto ImagesKey = "academic_calendar.images";
 }
 
+// 构造对象并初始化依赖关系。
 AcademicCalendarViewModel::AcademicCalendarViewModel(QueryCacheRepository *cache, QObject *parent)
     : QObject(parent),
       m_cache(cache)
@@ -31,14 +32,22 @@ AcademicCalendarViewModel::AcademicCalendarViewModel(QueryCacheRepository *cache
     });
 }
 
+// 返回当前查询状态。
 QueryState AcademicCalendarViewModel::state() const { return m_state; }
+// 加载当前模块数据并同步界面状态。
 bool AcademicCalendarViewModel::loading() const { return m_state == QueryState::Loading; }
+// 返回当前错误提示文本。
 QString AcademicCalendarViewModel::errorMessage() const { return m_errorMessage; }
+// 返回数据最近更新时间。
 QDateTime AcademicCalendarViewModel::lastUpdated() const { return m_lastUpdated; }
+// 返回是否已有可用缓存。
 bool AcademicCalendarViewModel::hasCache() const { return m_hasCache; }
+// 返回当前选中项相关数据。
 int AcademicCalendarViewModel::selectedIndex() const { return m_selectedIndex; }
+// 返回当前校历详情图片地址列表。
 QStringList AcademicCalendarViewModel::imageUrls() const { return m_imageUrls; }
 
+// 返回校历条目列表的界面数据。
 QVariantList AcademicCalendarViewModel::entries() const
 {
     QVariantList list;
@@ -48,6 +57,7 @@ QVariantList AcademicCalendarViewModel::entries() const
     return list;
 }
 
+// 返回当前选中项相关数据。
 QString AcademicCalendarViewModel::selectedTitle() const
 {
     if (m_selectedIndex < 0 || m_selectedIndex >= m_entries.size()) {
@@ -56,6 +66,7 @@ QString AcademicCalendarViewModel::selectedTitle() const
     return m_entries.at(m_selectedIndex).title;
 }
 
+// 加载当前模块数据并同步界面状态。
 void AcademicCalendarViewModel::load()
 {
     readCache();
@@ -67,11 +78,13 @@ void AcademicCalendarViewModel::load()
     reloadList();
 }
 
+// 刷新远端数据并更新缓存状态。
 void AcademicCalendarViewModel::refresh()
 {
     reloadList();
 }
 
+// 清理本模块缓存并重置相关状态。
 void AcademicCalendarViewModel::clearCache()
 {
     if (!m_cache) {
@@ -91,6 +104,7 @@ void AcademicCalendarViewModel::clearCache()
     setState(QueryState::Idle);
 }
 
+// 切换当前校历条目并加载对应详情。
 void AcademicCalendarViewModel::selectEntry(int index)
 {
     if (index < 0 || index >= m_entries.size() || index == m_selectedIndex) {
@@ -104,12 +118,14 @@ void AcademicCalendarViewModel::selectEntry(int index)
     reloadSelected();
 }
 
+// 加载当前模块数据并同步界面状态。
 void AcademicCalendarViewModel::reloadList()
 {
     setState(QueryState::Loading);
     m_service.fetchEntries();
 }
 
+// 加载当前模块数据并同步界面状态。
 void AcademicCalendarViewModel::reloadSelected()
 {
     if (m_selectedIndex < 0 || m_selectedIndex >= m_entries.size()) {
@@ -120,6 +136,7 @@ void AcademicCalendarViewModel::reloadSelected()
     m_service.fetchDetail(m_entries.at(m_selectedIndex));
 }
 
+// 更新查询状态并通知界面刷新。
 void AcademicCalendarViewModel::setState(QueryState state)
 {
     if (m_state == state) {
@@ -129,6 +146,7 @@ void AcademicCalendarViewModel::setState(QueryState state)
     emit stateChanged();
 }
 
+// 更新错误信息并触发错误状态通知。
 void AcademicCalendarViewModel::setError(const QString &message)
 {
     if (m_errorMessage == message) {
@@ -138,6 +156,7 @@ void AcademicCalendarViewModel::setError(const QString &message)
     emit errorChanged();
 }
 
+// 读取本地缓存并恢复视图模型状态。
 void AcademicCalendarViewModel::readCache()
 {
     if (!m_cache) {
@@ -178,6 +197,7 @@ void AcademicCalendarViewModel::readCache()
     }
 }
 
+// 写入校历条目列表缓存。
 void AcademicCalendarViewModel::writeEntriesCache()
 {
     if (m_cache) {
@@ -185,6 +205,7 @@ void AcademicCalendarViewModel::writeEntriesCache()
     }
 }
 
+// 写入当前选中的校历条目缓存。
 void AcademicCalendarViewModel::writeSelectedCache()
 {
     if (!m_cache || m_selectedIndex < 0 || m_selectedIndex >= m_entries.size()) {
@@ -193,6 +214,7 @@ void AcademicCalendarViewModel::writeSelectedCache()
     m_cache->put(QString::fromLatin1(SelectedKey), QString::fromUtf8(QJsonDocument(QJsonObject{{QStringLiteral("title"), selectedTitle()}}).toJson(QJsonDocument::Compact)));
 }
 
+// 写入校历详情图片地址缓存。
 void AcademicCalendarViewModel::writeImagesCache()
 {
     if (!m_cache) {
@@ -205,6 +227,7 @@ void AcademicCalendarViewModel::writeImagesCache()
     m_cache->put(QString::fromLatin1(ImagesKey), QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
 }
 
+// 应用样式或脱敏规则到目标内容。
 void AcademicCalendarViewModel::applyEntries(const QList<AcademicCalendarEntry> &entries, bool fromNetwork)
 {
     m_entries = entries;
@@ -224,6 +247,7 @@ void AcademicCalendarViewModel::applyEntries(const QList<AcademicCalendarEntry> 
     emit selectedChanged();
 }
 
+// 应用样式或脱敏规则到目标内容。
 void AcademicCalendarViewModel::applyDetail(const AcademicCalendarDetail &detail, bool fromNetwork)
 {
     m_imageUrls = detail.imageUrls;

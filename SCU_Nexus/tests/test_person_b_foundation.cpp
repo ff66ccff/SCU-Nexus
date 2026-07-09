@@ -111,6 +111,7 @@ public:
     {
     }
 
+// 验证 fetchCaptcha 场景的预期行为。
     void fetchCaptcha(std::function<void(const CaptchaResult& result, const ApiError& error)> callback) override
     {
         ApiError error;
@@ -243,6 +244,7 @@ private slots:
     void zhjwApiRetriesOnceWhenSessionExpired();
 };
 
+// 验证 CookieJar 的域名匹配和解析行为。
 void PersonBFoundationTest::cookieJarMatchesExactAndParentDomain()
 {
     CookieJar jar;
@@ -253,6 +255,7 @@ void PersonBFoundationTest::cookieJarMatchesExactAndParentDomain()
     QCOMPARE(jar.cookieHeader(QUrl("https://sub.id.scu.edu.cn/profile")), QString("SESSION=abc"));
 }
 
+// 验证 CookieJar 的域名匹配和解析行为。
 void PersonBFoundationTest::cookieJarRejectsUnrelatedDomain()
 {
     CookieJar jar;
@@ -262,6 +265,7 @@ void PersonBFoundationTest::cookieJarRejectsUnrelatedDomain()
     QCOMPARE(jar.cookieHeader(QUrl("https://zhjw.scu.edu.cn/")), QString());
 }
 
+// 验证 CookieJar 的域名匹配和解析行为。
 void PersonBFoundationTest::cookieJarParsesCommaSeparatedSetCookie()
 {
     CookieJar jar;
@@ -274,6 +278,7 @@ void PersonBFoundationTest::cookieJarParsesCommaSeparatedSetCookie()
     QVERIFY(header.contains("lang=zh_CN"));
 }
 
+// 验证 CookieHttpClient 的网络响应处理行为。
 void PersonBFoundationTest::cookieHttpClientReturnsHttpErrorResponsesWithBody()
 {
     QTcpServer server;
@@ -325,6 +330,7 @@ void PersonBFoundationTest::cookieHttpClientReturnsHttpErrorResponsesWithBody()
     QCOMPARE(response.body, body);
 }
 
+// 验证 CookieHttpClient 的网络响应处理行为。
 void PersonBFoundationTest::cookieHttpClientReportsRedirectLimit()
 {
     AuthLogger::instance().clear();
@@ -378,6 +384,7 @@ void PersonBFoundationTest::cookieHttpClientReportsRedirectLimit()
     }));
 }
 
+// 验证 CookieHttpClient 的网络响应处理行为。
 void PersonBFoundationTest::cookieHttpClientSendsCookiesStoredDuringRedirect()
 {
     QTcpServer server;
@@ -437,6 +444,7 @@ void PersonBFoundationTest::cookieHttpClientSendsCookiesStoredDuringRedirect()
     QVERIFY(finalRequestHadCookie);
 }
 
+// 验证认证日志记录与脱敏行为。
 void PersonBFoundationTest::authLoggerRedactsSensitiveValues()
 {
     AuthLogger logger(10);
@@ -455,6 +463,7 @@ void PersonBFoundationTest::authLoggerRedactsSensitiveValues()
     QVERIFY(!message.contains(QStringLiteral("token-value")));
 }
 
+// 验证认证日志记录与脱敏行为。
 void PersonBFoundationTest::authLoggerCapsRingBuffer()
 {
     AuthLogger logger(2);
@@ -469,6 +478,7 @@ void PersonBFoundationTest::authLoggerCapsRingBuffer()
     QCOMPARE(logger.entries().at(1).level, AuthLogLevel::Error);
 }
 
+// 验证综合教务页面解析器行为。
 void PersonBFoundationTest::zhjwParsersExtractRequiredValues()
 {
     QCOMPARE(ZhjwParsers::parseCurrentWeek("<span>当前是第16周</span>"), 16);
@@ -508,6 +518,7 @@ void PersonBFoundationTest::zhjwParsersExtractRequiredValues()
              QString("/student/integratedQuery/scoreQuery/abc/allPassingScores/callback"));
 }
 
+// 验证综合教务页面解析器行为。
 void PersonBFoundationTest::zhjwParsersDetectExpiredSessions()
 {
     QVERIFY(ZhjwParsers::isSessionExpired("", 200));
@@ -517,6 +528,7 @@ void PersonBFoundationTest::zhjwParsersDetectExpiredSessions()
     QVERIFY(!ZhjwParsers::isSessionExpired("{\"success\":true}", 200));
 }
 
+// 验证认证视图模型的状态和信号行为。
 void PersonBFoundationTest::authViewModelWritesFreshCaptchaUrlEachTime()
 {
     AuthViewModel model;
@@ -529,6 +541,7 @@ void PersonBFoundationTest::authViewModelWritesFreshCaptchaUrlEachTime()
     QVERIFY(first != second);
 }
 
+// 验证认证视图模型的状态和信号行为。
 void PersonBFoundationTest::authViewModelRejectsLoginBeforeCaptchaLoaded()
 {
     AuthViewModel model;
@@ -539,6 +552,7 @@ void PersonBFoundationTest::authViewModelRejectsLoginBeforeCaptchaLoaded()
     QCOMPARE(model.errorMessage(), QStringLiteral("请先刷新验证码"));
 }
 
+// 验证认证视图模型的状态和信号行为。
 void PersonBFoundationTest::authViewModelDoesNotEmitLoginFailedForCaptchaFetchErrors()
 {
     FakeScuAuthService service;
@@ -552,6 +566,7 @@ void PersonBFoundationTest::authViewModelDoesNotEmitLoginFailedForCaptchaFetchEr
     QCOMPARE(model.captchaLoading(), false);
 }
 
+// 验证认证视图模型的状态和信号行为。
 void PersonBFoundationTest::authViewModelForwardsSessionExpired()
 {
     FakeScuAuthService service;
@@ -567,6 +582,7 @@ void PersonBFoundationTest::authViewModelForwardsSessionExpired()
     QCOMPARE(expiredSpy.count(), 1);
 }
 
+// 验证统一身份认证服务的核心流程。
 void PersonBFoundationTest::scuAuthParsesCaptchaDataUrl()
 {
     const QByteArray body = R"({
@@ -583,6 +599,7 @@ void PersonBFoundationTest::scuAuthParsesCaptchaDataUrl()
     QCOMPARE(result.imageBytes, QByteArray("ABCD"));
 }
 
+// 验证统一身份认证服务的核心流程。
 void PersonBFoundationTest::scuAuthTokenTtlAndStorageWork()
 {
     QVERIFY(ScuAuthService::isTokenExpired(0, 5000));
@@ -602,6 +619,7 @@ void PersonBFoundationTest::scuAuthTokenTtlAndStorageWork()
     QCOMPARE(service.loginTimestamp(), qint64(0));
 }
 
+// 验证综合教务 API 服务的请求与重试行为。
 void PersonBFoundationTest::zhjwApiExposesDocumentedEndpoints()
 {
     QCOMPARE(ZhjwApiService::scuIdBase(), QString("https://id.scu.edu.cn"));
@@ -610,6 +628,7 @@ void PersonBFoundationTest::zhjwApiExposesDocumentedEndpoints()
     QVERIFY(ZhjwApiService::isSessionExpired("<html>统一身份认证 用户登录</html>", 200));
 }
 
+// 验证 SM2 加密输出格式符合接口要求。
 void PersonBFoundationTest::sm2CryptoEncryptsToC1C2C3Base64()
 {
     const QString publicKeyBase64 =
@@ -622,6 +641,7 @@ void PersonBFoundationTest::sm2CryptoEncryptsToC1C2C3Base64()
     QCOMPARE(static_cast<unsigned char>(bytes.at(0)), static_cast<unsigned char>(0x04));
 }
 
+// 验证统一身份认证服务的核心流程。
 void PersonBFoundationTest::scuAuthLoginRequestsSm2ThenTokenAndStoresToken()
 {
     AuthLogger::instance().clear();
@@ -686,6 +706,7 @@ void PersonBFoundationTest::scuAuthLoginRequestsSm2ThenTokenAndStoresToken()
     }));
 }
 
+// 验证统一身份认证服务的核心流程。
 void PersonBFoundationTest::scuAuthLoginParsesRestTokenHttp400JsonError()
 {
     auto* fakeClient = new FakeCookieHttpClient();
@@ -730,6 +751,7 @@ void PersonBFoundationTest::scuAuthLoginParsesRestTokenHttp400JsonError()
     QCOMPARE(service.accessToken(), QString());
 }
 
+// 验证统一身份认证服务的核心流程。
 void PersonBFoundationTest::scuAuthBindSessionCoalescesConcurrentCalls()
 {
     QList<DeferredSessionClient*> clients;
@@ -772,6 +794,7 @@ void PersonBFoundationTest::scuAuthBindSessionCoalescesConcurrentCalls()
     QCOMPARE(secondClient, clients.first());
 }
 
+// 验证统一身份认证服务的核心流程。
 void PersonBFoundationTest::scuAuthBindSessionRefreshesExpiredTokenWhenSessionSaveSucceeds()
 {
     QList<DeferredSessionClient*> clients;
@@ -810,6 +833,7 @@ void PersonBFoundationTest::scuAuthBindSessionRefreshesExpiredTokenWhenSessionSa
     QCOMPARE(expiredSpy.count(), 0);
 }
 
+// 验证综合教务认证会话管理行为。
 void PersonBFoundationTest::zhjwAuthCoalescesConcurrentSsoLogin()
 {
     AuthLogger::instance().clear();
@@ -853,6 +877,7 @@ void PersonBFoundationTest::zhjwAuthCoalescesConcurrentSsoLogin()
     }));
 }
 
+// 验证综合教务认证会话管理行为。
 void PersonBFoundationTest::zhjwAuthRebindsWhenScuTokenChanges()
 {
     DeferredRedirectClient firstClient;
@@ -902,6 +927,7 @@ void PersonBFoundationTest::zhjwAuthRebindsWhenScuTokenChanges()
     QCOMPARE(secondResult, &secondClient);
 }
 
+// 验证综合教务 API 服务的请求与重试行为。
 void PersonBFoundationTest::zhjwApiRetriesOnceWhenSessionExpired()
 {
     auto* fakeClient = new FakeCookieHttpClient();

@@ -16,6 +16,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 
+// 读取指定资源并返回结果。
 GradesWidget::GradesWidget(GradesViewModel *viewModel, QWidget *parent)
     : QWidget(parent),
       m_viewModel(viewModel)
@@ -59,6 +60,7 @@ GradesWidget::GradesWidget(GradesViewModel *viewModel, QWidget *parent)
     syncCustom();
 }
 
+// 创建对应界面组件并完成基础布局。
 QWidget *GradesWidget::createSchemeTab()
 {
     auto *tab = new QWidget(this);
@@ -99,6 +101,7 @@ QWidget *GradesWidget::createSchemeTab()
     return tab;
 }
 
+// 创建对应界面组件并完成基础布局。
 QWidget *GradesWidget::createPassingTab()
 {
     auto *tab = new QWidget(this);
@@ -138,6 +141,7 @@ QWidget *GradesWidget::createPassingTab()
     return tab;
 }
 
+// 创建对应界面组件并完成基础布局。
 QWidget *GradesWidget::createCustomTab()
 {
     auto *tab = new QWidget(this);
@@ -233,6 +237,7 @@ QWidget *GradesWidget::createCustomTab()
     return tab;
 }
 
+// 根据视图模型同步界面展示。
 void GradesWidget::syncScheme()
 {
     m_refreshSchemeButton->setEnabled(m_viewModel->schemeState() != QueryState::Loading);
@@ -250,6 +255,7 @@ void GradesWidget::syncScheme()
     syncCustom();
 }
 
+// 根据视图模型同步界面展示。
 void GradesWidget::syncPassing()
 {
     m_refreshPassingButton->setEnabled(m_viewModel->passingState() != QueryState::Loading);
@@ -266,6 +272,7 @@ void GradesWidget::syncPassing()
     fillGroupedCourses(m_passingTree, m_viewModel->filteredPassingGroups(), false);
 }
 
+// 根据视图模型同步界面展示。
 void GradesWidget::syncCustom()
 {
     if (!m_customTree) {
@@ -293,6 +300,7 @@ void GradesWidget::syncCustom()
                 {tr("GPA"), tr("学分"), tr("加权均分"), tr("必修均分"), tr("通过"), tr("未通过"), tr("已选")});
 }
 
+// 填充界面数据并设置显示内容。
 void GradesWidget::fillSummary(QLabel *label, const QVariantMap &summary, const QStringList &keys, const QStringList &names)
 {
     QStringList parts;
@@ -303,6 +311,7 @@ void GradesWidget::fillSummary(QLabel *label, const QVariantMap &summary, const 
     label->setText(parts.join(QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;")));
 }
 
+// 填充界面数据并设置显示内容。
 void GradesWidget::fillGroupedCourses(QTreeWidget *tree, const QVariantList &groups, bool checkable)
 {
     tree->clear();
@@ -348,6 +357,7 @@ void GradesWidget::fillGroupedCourses(QTreeWidget *tree, const QVariantList &gro
     }
 }
 
+// 收集自定义成绩页中已勾选课程的键。
 QVariantList GradesWidget::checkedKeys() const
 {
     QVariantList keys;

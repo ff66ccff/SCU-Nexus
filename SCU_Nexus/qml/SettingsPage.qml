@@ -60,6 +60,7 @@ Item {
                         AppButton {
                             text: appController.loggedIn ? "退出登录" : "去登录"
                             type: appController.loggedIn ? "danger" : "primary"
+                            // 根据当前登录状态打开退出确认框或跳转登录页。
                             onClicked: {
                                 if (appController.loggedIn) {
                                     pendingAction = "logout"
@@ -183,6 +184,7 @@ Item {
     AppDialog {
         id: confirmDialog
         anchors.centerIn: parent
+        // 根据待确认动作执行退出登录或缓存清理提示。
         onConfirmed: {
             if (pendingAction === "logout") {
                 appController.authViewModel.logout()
@@ -196,6 +198,7 @@ Item {
         }
     }
 
+    // 打开危险操作确认框，并暂存用户即将执行的动作。
     function openDangerConfirm(action, title, message) {
         pendingAction = action
         confirmDialog.title = title

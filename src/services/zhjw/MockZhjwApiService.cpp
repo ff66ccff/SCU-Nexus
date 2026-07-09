@@ -2,16 +2,19 @@
 
 #include <QJsonArray>
 
+// 构造对象并初始化依赖关系。
 MockZhjwApiService::MockZhjwApiService(QObject *parent)
     : QObject(parent)
 {
 }
 
+// 返回当前登录状态。
 bool MockZhjwApiService::loggedIn() const
 {
     return m_loggedIn;
 }
 
+// 设置属性值并在变化时发出通知。
 void MockZhjwApiService::setLoggedIn(bool loggedIn)
 {
     if (m_loggedIn == loggedIn) {
@@ -21,6 +24,7 @@ void MockZhjwApiService::setLoggedIn(bool loggedIn)
     emit loggedInChanged();
 }
 
+// 发起数据获取流程并通过回调返回结果。
 QList<QJsonObject> MockZhjwApiService::fetchExamPlan()
 {
     return {
@@ -49,6 +53,7 @@ QList<QJsonObject> MockZhjwApiService::fetchExamPlan()
     };
 }
 
+// 发起数据获取流程并通过回调返回结果。
 QJsonObject MockZhjwApiService::fetchSchemeScores()
 {
     QJsonArray courses = {
@@ -105,6 +110,7 @@ QJsonObject MockZhjwApiService::fetchSchemeScores()
     };
 }
 
+// 发起数据获取流程并通过回调返回结果。
 QJsonObject MockZhjwApiService::fetchPassingScores()
 {
     return {

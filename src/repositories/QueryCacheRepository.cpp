@@ -4,6 +4,7 @@
 #include <QSqlQuery>
 #include <QUuid>
 
+// 构造对象并初始化依赖关系。
 QueryCacheRepository::QueryCacheRepository(const QString &databasePath, QObject *parent)
     : QObject(parent),
       m_connectionName(QStringLiteral("query-cache-%1").arg(QUuid::createUuid().toString(QUuid::WithoutBraces))),
@@ -11,6 +12,7 @@ QueryCacheRepository::QueryCacheRepository(const QString &databasePath, QObject 
 {
 }
 
+// 释放数据库连接并从连接池中移除当前连接。
 QueryCacheRepository::~QueryCacheRepository()
 {
     if (QSqlDatabase::contains(m_connectionName)) {
@@ -20,6 +22,7 @@ QueryCacheRepository::~QueryCacheRepository()
     QSqlDatabase::removeDatabase(m_connectionName);
 }
 
+// 打开数据库连接并初始化缓存表结构。
 bool QueryCacheRepository::open()
 {
     QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), m_connectionName);
@@ -42,6 +45,7 @@ bool QueryCacheRepository::open()
     return ok;
 }
 
+// 写入或更新缓存记录。
 bool QueryCacheRepository::put(const QString &key, const QString &payloadJson, const QDateTime &updatedAt)
 {
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
@@ -59,6 +63,7 @@ bool QueryCacheRepository::put(const QString &key, const QString &payloadJson, c
     return ok;
 }
 
+// 读取指定资源并返回结果。
 bool QueryCacheRepository::get(const QString &key, QueryCacheEntry *entry) const
 {
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
@@ -80,6 +85,7 @@ bool QueryCacheRepository::get(const QString &key, QueryCacheEntry *entry) const
     return true;
 }
 
+// 移除指定数据记录。
 bool QueryCacheRepository::remove(const QString &key)
 {
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
@@ -93,6 +99,7 @@ bool QueryCacheRepository::remove(const QString &key)
     return ok;
 }
 
+// 清理内部状态或持久化数据。
 bool QueryCacheRepository::clear()
 {
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
@@ -104,6 +111,7 @@ bool QueryCacheRepository::clear()
     return ok;
 }
 
+// 返回最近一次持久化操作的错误信息。
 QString QueryCacheRepository::lastError() const
 {
     return m_lastError;

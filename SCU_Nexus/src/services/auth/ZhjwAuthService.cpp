@@ -7,6 +7,7 @@
 
 namespace {
 
+// 构造统一的接口错误对象。
 ApiError makeError(ApiErrorType type, const QString& message, int statusCode = 0)
 {
     ApiError error;
@@ -18,6 +19,7 @@ ApiError makeError(ApiErrorType type, const QString& message, int statusCode = 0
 
 }
 
+// 构造对象并初始化依赖关系。
 ZhjwAuthService::ZhjwAuthService(QObject* parent, ScuAuthService* scuAuthService)
     : QObject(parent)
     , m_scuAuthService(scuAuthService)
@@ -29,6 +31,7 @@ ZhjwAuthService::ZhjwAuthService(QObject* parent, ScuAuthService* scuAuthService
     }
 }
 
+// 读取指定资源并返回结果。
 void ZhjwAuthService::getClient(ClientCallback callback)
 {
     if (m_cachedClient) {
@@ -77,6 +80,7 @@ void ZhjwAuthService::getClient(ClientCallback callback)
     });
 }
 
+// 收束异步流程并通知等待中的回调。
 void ZhjwAuthService::finishLogin(CookieHttpClient* client, const ApiError& error)
 {
     m_loginInProgress = false;
@@ -87,6 +91,7 @@ void ZhjwAuthService::finishLogin(CookieHttpClient* client, const ApiError& erro
     }
 }
 
+// 使教务会话缓存失效并释放客户端。
 void ZhjwAuthService::invalidate()
 {
     AuthLogger::instance().debug(QStringLiteral("ZhjwAuth"), QStringLiteral("invalidate"));

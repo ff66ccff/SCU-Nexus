@@ -70,3 +70,5 @@ compile_commands.json
 01-team-work-overview.md
 02-feature-implementation-details.md
 SCU_Nexus/importedcontent/README.md
+/SCU_Nexus/.idea
+/SCU_Nexus/src/app/.idea

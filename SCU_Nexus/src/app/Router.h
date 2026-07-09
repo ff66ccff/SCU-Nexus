@@ -25,8 +25,10 @@ public:
 
     explicit Router(QObject *parent = nullptr);
 
+    // 返回当前路由字符串。
     QString currentRoute() const { return m_currentRouteString; }
     QString routeTitle() const;
+    // 判断当前状态是否允许执行该操作。
     bool canGoBack() const { return !m_stack.isEmpty(); }
 
     Q_INVOKABLE void navigate(const QString& route);

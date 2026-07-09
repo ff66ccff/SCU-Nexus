@@ -17,6 +17,7 @@ Item {
 
     Connections {
         target: toastManager
+        // 接收全局提示事件并加入临时消息队列。
         function onToastRequested(message, level) {
             toastModel.append({ message: message, level: level })
             cleanupTimer.restart()
@@ -26,6 +27,7 @@ Item {
     Timer {
         id: cleanupTimer
         interval: 3200
+        // 定时移除最早的提示，并在队列未空时继续计时。
         onTriggered: {
             if (toastModel.count > 0) {
                 toastModel.remove(0)

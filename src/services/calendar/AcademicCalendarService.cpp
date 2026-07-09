@@ -4,11 +4,13 @@
 #include <QRegularExpression>
 #include <QStringConverter>
 
+// 构造对象并初始化依赖关系。
 AcademicCalendarService::AcademicCalendarService(QObject *parent)
     : QObject(parent)
 {
 }
 
+// 发起数据获取流程并通过回调返回结果。
 void AcademicCalendarService::fetchEntries()
 {
     QNetworkReply *reply = m_network.get(QNetworkRequest(QUrl(QStringLiteral("https://jwc.scu.edu.cn/cdxl.htm"))));
@@ -22,6 +24,7 @@ void AcademicCalendarService::fetchEntries()
     });
 }
 
+// 发起数据获取流程并通过回调返回结果。
 void AcademicCalendarService::fetchDetail(const AcademicCalendarEntry &entry)
 {
     const QUrl url(QStringLiteral("https://jwc.scu.edu.cn/") + entry.path);
@@ -39,6 +42,7 @@ void AcademicCalendarService::fetchDetail(const AcademicCalendarEntry &entry)
     });
 }
 
+// 按响应编码解码校历 HTML 内容。
 QString AcademicCalendarService::decodeHtml(const QByteArray &bytes, const QByteArray &contentType)
 {
     const QByteArray lower = contentType.toLower();
@@ -65,6 +69,7 @@ QString AcademicCalendarService::decodeHtml(const QByteArray &bytes, const QByte
     return QString::fromLocal8Bit(bytes);
 }
 
+// 解析外部数据并转换为内部结构。
 QList<AcademicCalendarEntry> AcademicCalendarService::parseEntries(const QString &html)
 {
     QList<AcademicCalendarEntry> entries;
@@ -80,6 +85,7 @@ QList<AcademicCalendarEntry> AcademicCalendarService::parseEntries(const QString
     return entries;
 }
 
+// 解析外部数据并转换为内部结构。
 QStringList AcademicCalendarService::parseImageUrls(const QString &html, const QString &baseUrl)
 {
     QStringList urls;

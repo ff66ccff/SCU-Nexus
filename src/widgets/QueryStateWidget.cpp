@@ -6,6 +6,7 @@
 #include <QStackedLayout>
 #include <QVBoxLayout>
 
+// 读取指定资源并返回结果。
 QueryStateWidget::QueryStateWidget(QWidget *parent)
     : QWidget(parent)
 {
@@ -44,6 +45,7 @@ QueryStateWidget::QueryStateWidget(QWidget *parent)
     m_stack->addWidget(messagePage);
 }
 
+// 更新查询状态并通知界面刷新。
 void QueryStateWidget::setState(QueryState state, const QString &errorMessage)
 {
     if (state == QueryState::Idle) {

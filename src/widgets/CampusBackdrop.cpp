@@ -4,6 +4,7 @@
 #include <QPainter>
 #include <QPainterPath>
 
+// 构造对象并初始化依赖关系。
 CampusBackdrop::CampusBackdrop(QWidget *parent)
     : QWidget(parent)
 {
@@ -11,6 +12,7 @@ CampusBackdrop::CampusBackdrop(QWidget *parent)
     setAutoFillBackground(false);
 }
 
+// 绘制自定义背景视觉效果。
 void CampusBackdrop::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)

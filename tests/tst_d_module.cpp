@@ -69,6 +69,7 @@ private slots:
 // Calendar: parsing
 // ---------------------------------------------------------------------------
 
+// 验证解析逻辑能正确读取目标数据。
 void DModuleTest::parsesCalendarEntries()
 {
     const QString html = QStringLiteral(R"(
@@ -81,6 +82,7 @@ void DModuleTest::parsesCalendarEntries()
     QCOMPARE(entries.first().path, QStringLiteral("info/1101/1234.htm"));
 }
 
+// 验证解析逻辑能正确读取目标数据。
 void DModuleTest::parsesCalendarEntryEmptyHtml()
 {
     const QList<AcademicCalendarEntry> entries = AcademicCalendarService::parseEntries(
@@ -88,6 +90,7 @@ void DModuleTest::parsesCalendarEntryEmptyHtml()
     QVERIFY(entries.isEmpty());
 }
 
+// 验证解析逻辑能正确读取目标数据。
 void DModuleTest::parsesCalendarImages()
 {
     const QString html = QStringLiteral(R"(
@@ -99,6 +102,7 @@ void DModuleTest::parsesCalendarImages()
     QVERIFY(urls.first().startsWith(QStringLiteral("https://jwc.scu.edu.cn/__local/")));
 }
 
+// 验证解析逻辑能正确读取目标数据。
 void DModuleTest::parsesCalendarImagesEmpty()
 {
     const QStringList urls = AcademicCalendarService::parseImageUrls(
@@ -106,6 +110,7 @@ void DModuleTest::parsesCalendarImagesEmpty()
     QVERIFY(urls.isEmpty());
 }
 
+// 验证编码解码逻辑能处理目标输入。
 void DModuleTest::decodesGb18030Fallback()
 {
     const QString decoded = AcademicCalendarService::decodeHtml(
@@ -118,6 +123,7 @@ void DModuleTest::decodesGb18030Fallback()
 // Exam: isPast
 // ---------------------------------------------------------------------------
 
+// 验证考试时间状态判断符合预期。
 void DModuleTest::isPastWithValidDateTime()
 {
     ExamPlanItem item;
@@ -137,6 +143,7 @@ void DModuleTest::isPastWithValidDateTime()
     QVERIFY(!early.isPast);
 }
 
+// 验证考试时间状态判断符合预期。
 void DModuleTest::isPastWithDateOnlyFallback()
 {
     ExamPlanItem item;
@@ -152,6 +159,7 @@ void DModuleTest::isPastWithDateOnlyFallback()
     QVERIFY(!future.isPast);
 }
 
+// 验证考试时间状态判断符合预期。
 void DModuleTest::isPastWithParseFailure()
 {
     ExamPlanItem item;
@@ -167,6 +175,7 @@ void DModuleTest::isPastWithParseFailure()
 // Exam: sorting
 // ---------------------------------------------------------------------------
 
+// 验证排序逻辑符合业务规则。
 void DModuleTest::sortsByStartTime()
 {
     ExamPlanItem late;
@@ -186,6 +195,7 @@ void DModuleTest::sortsByStartTime()
     QCOMPARE(items.first().courseName, QStringLiteral("A"));
 }
 
+// 验证排序逻辑符合业务规则。
 void DModuleTest::sortsUnparseableTimeAtEnd()
 {
     ExamPlanItem parsed;
@@ -206,6 +216,7 @@ void DModuleTest::sortsUnparseableTimeAtEnd()
     QCOMPARE(items.last().courseName, QStringLiteral("A"));
 }
 
+// 验证排序逻辑符合业务规则。
 void DModuleTest::sortsEmptyList()
 {
     QList<ExamPlanItem> items;
@@ -217,6 +228,7 @@ void DModuleTest::sortsEmptyList()
 // Grade: field mapping
 // ---------------------------------------------------------------------------
 
+// 验证接口字段能正确映射到模型。
 void DModuleTest::mapsGradeCourseItemFields()
 {
     QJsonObject obj{
@@ -245,6 +257,7 @@ void DModuleTest::mapsGradeCourseItemFields()
     QCOMPARE(item.termName, QStringLiteral("秋"));
 }
 
+// 验证状态检测逻辑能识别目标条件。
 void DModuleTest::detectsPassedAndEffectiveScore()
 {
     GradeCourseItem passed;
@@ -283,6 +296,7 @@ void DModuleTest::detectsPassedAndEffectiveScore()
     QVERIFY(emptyGrade.gradeName.isEmpty());
 }
 
+// 验证 gradeCourseItemKey 场景的预期行为。
 void DModuleTest::gradeCourseItemKey()
 {
     GradeCourseItem item;
@@ -297,6 +311,7 @@ void DModuleTest::gradeCourseItemKey()
 // Grade: Scheme scores
 // ---------------------------------------------------------------------------
 
+// 验证解析逻辑能正确读取目标数据。
 void DModuleTest::parsesSchemeScoresAndCalculatesStats()
 {
     const QJsonObject courseA{
@@ -342,6 +357,7 @@ void DModuleTest::parsesSchemeScoresAndCalculatesStats()
     QCOMPARE(summary.weightedAvgScore(), 85.0);
 }
 
+// 验证解析逻辑能正确读取目标数据。
 void DModuleTest::parsesSchemeScoresWithEmptyItems()
 {
     const QJsonObject root{
@@ -352,6 +368,7 @@ void DModuleTest::parsesSchemeScoresWithEmptyItems()
     QCOMPARE(summary.gpa(), 0.0);
 }
 
+// 验证统计计算结果符合预期。
 void DModuleTest::calculatesRequiredGpa()
 {
     QJsonObject courseA{
@@ -380,6 +397,7 @@ void DModuleTest::calculatesRequiredGpa()
     QCOMPARE(summary.requiredWeightedAvgScore(), 90.0);
 }
 
+// 验证统计计算结果符合预期。
 void DModuleTest::calculatesPassedCountFromItems()
 {
     QJsonObject passed{
@@ -416,6 +434,7 @@ void DModuleTest::calculatesPassedCountFromItems()
 // Grade: Passing scores
 // ---------------------------------------------------------------------------
 
+// 验证解析逻辑能正确读取目标数据。
 void DModuleTest::parsesPassingScoresJson()
 {
     const QJsonObject course{
@@ -442,6 +461,7 @@ void DModuleTest::parsesPassingScoresJson()
     QVERIFY(result.gpa() > 0.0);
 }
 
+// 验证排序逻辑符合业务规则。
 void DModuleTest::sortsPassingScores()
 {
     const QJsonObject root{
@@ -458,6 +478,7 @@ void DModuleTest::sortsPassingScores()
     QCOMPARE(result.groups.last().label, QStringLiteral("2024-2025学年秋"));
 }
 
+// 验证统计计算结果符合预期。
 void DModuleTest::calculatesPassingStats()
 {
     const QJsonObject courseA{
@@ -494,6 +515,7 @@ void DModuleTest::calculatesPassingStats()
 // Grade: Custom stats
 // ---------------------------------------------------------------------------
 
+// 验证自定义课程统计结果符合预期。
 void DModuleTest::customStatsForSelectedCourses()
 {
     GradeCourseItem a;
@@ -524,6 +546,7 @@ void DModuleTest::customStatsForSelectedCourses()
     QCOMPARE(stats.value(QStringLiteral("weightedAvgScore")).toDouble(), 86.0);
 }
 
+// 验证自定义课程统计结果符合预期。
 void DModuleTest::customStatsForEmptyList()
 {
     const QVariantMap stats = customStatsForCourses({});
@@ -536,6 +559,7 @@ void DModuleTest::customStatsForEmptyList()
 // Grade: Term grouping
 // ---------------------------------------------------------------------------
 
+// 验证课程数据能按学期正确分组。
 void DModuleTest::groupsByTermAndSorts()
 {
     GradeCourseItem autumn;
@@ -582,6 +606,7 @@ void DModuleTest::groupsByTermAndSorts()
 // Grade: credits by attribute
 // ---------------------------------------------------------------------------
 
+// 验证课程学分汇总逻辑符合预期。
 void DModuleTest::creditsByAttribute()
 {
     GradeCourseItem required;
@@ -656,6 +681,7 @@ void DModuleTest::creditsByAttribute()
 // GradeStatisticsService wrappers
 // ---------------------------------------------------------------------------
 
+// 验证成绩统计服务封装解析逻辑。
 void DModuleTest::gradeStatisticsServiceWrapsParsing()
 {
     GradeStatisticsService svc;

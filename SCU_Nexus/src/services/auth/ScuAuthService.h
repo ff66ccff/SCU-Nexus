@@ -25,6 +25,7 @@ public:
     using ClientFactory = std::function<CookieHttpClient*(QObject* parent)>;
     using BindSessionCallback = std::function<void(CookieHttpClient* client, const ApiError& error)>;
 
+    // 构造认证服务并注入设置与 HTTP 客户端工厂。
     explicit ScuAuthService(QObject* parent = nullptr,
                             QSettings* settings = nullptr,
                             ClientFactory clientFactory = {});

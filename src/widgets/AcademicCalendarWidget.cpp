@@ -15,6 +15,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 
+// 读取指定资源并返回结果。
 AcademicCalendarWidget::AcademicCalendarWidget(AcademicCalendarViewModel *viewModel, QWidget *parent)
     : QWidget(parent),
       m_viewModel(viewModel)
@@ -72,6 +73,7 @@ AcademicCalendarWidget::AcademicCalendarWidget(AcademicCalendarViewModel *viewMo
     syncFromViewModel();
 }
 
+// 根据视图模型同步界面展示。
 void AcademicCalendarWidget::syncFromViewModel()
 {
     m_updatingCombo = true;
@@ -91,6 +93,7 @@ void AcademicCalendarWidget::syncFromViewModel()
     m_scrollArea->setVisible(m_viewModel->state() == QueryState::Loaded);
 }
 
+// 重建动态界面内容。
 void AcademicCalendarWidget::rebuildImages()
 {
     clearImageLayout();
@@ -121,6 +124,7 @@ void AcademicCalendarWidget::rebuildImages()
     syncFromViewModel();
 }
 
+// 清理内部状态或持久化数据。
 void AcademicCalendarWidget::clearImageLayout()
 {
     while (m_imageLayout->count() > 1) {
@@ -130,6 +134,7 @@ void AcademicCalendarWidget::clearImageLayout()
     }
 }
 
+// 拦截控件事件并处理交互预览。
 bool AcademicCalendarWidget::eventFilter(QObject *watched, QEvent *event)
 {
     if (event->type() == QEvent::MouseButtonRelease) {
@@ -153,6 +158,7 @@ bool AcademicCalendarWidget::eventFilter(QObject *watched, QEvent *event)
     return QWidget::eventFilter(watched, event);
 }
 
+// 响应窗口尺寸变化并调整子控件布局。
 void AcademicCalendarWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);

@@ -4,6 +4,7 @@
 
 namespace {
 
+// 去除 HTML 标签并规整空白字符。
 QString stripTags(QString text)
 {
     text.remove(QRegularExpression("<[^>]+>"));
@@ -14,6 +15,7 @@ QString stripTags(QString text)
     return text.simplified();
 }
 
+// 返回正则表达式的第一个捕获结果。
 QString firstCapture(const QString& text, const QString& pattern)
 {
     const QRegularExpression regex(pattern, QRegularExpression::DotMatchesEverythingOption);
@@ -21,11 +23,13 @@ QString firstCapture(const QString& text, const QString& pattern)
     return match.hasMatch() ? stripTags(match.captured(1)) : QString();
 }
 
+// 从文本中提取指定标签后的值。
 QString labeledValue(const QString& text, const QString& label)
 {
     return firstCapture(text, label + R"(\s*:\s*(?:&nbsp;|\s)*([^<]+))");
 }
 
+// 从 HTML 中提取指定后缀的回调路径。
 QString extractCallback(const QString& html, const QString& suffix)
 {
     const QRegularExpression regex(
@@ -39,6 +43,7 @@ QString extractCallback(const QString& html, const QString& suffix)
 
 namespace ZhjwParsers {
 
+// 判断条件是否成立并返回布尔结果。
 bool isSessionExpired(const QString& body, int statusCode)
 {
     const QString trimmed = body.trimmed();
@@ -51,6 +56,7 @@ bool isSessionExpired(const QString& body, int statusCode)
     return trimmed.contains("统一身份认证") || trimmed.contains("用户登录");
 }
 
+// 解析外部数据并转换为内部结构。
 int parseCurrentWeek(const QString& html)
 {
     const QRegularExpression regex(QStringLiteral("第(\\d+)周"));
@@ -58,6 +64,7 @@ int parseCurrentWeek(const QString& html)
     return match.hasMatch() ? match.captured(1).toInt() : 0;
 }
 
+// 解析外部数据并转换为内部结构。
 QList<SemesterDto> parseSemesters(const QString& html)
 {
     QList<SemesterDto> semesters;
@@ -72,6 +79,7 @@ QList<SemesterDto> parseSemesters(const QString& html)
     return semesters;
 }
 
+// 解析外部数据并转换为内部结构。
 QList<ExamPlanItemDto> parseExamPlan(const QString& html)
 {
     QList<ExamPlanItemDto> items;
@@ -105,11 +113,13 @@ QList<ExamPlanItemDto> parseExamPlan(const QString& html)
     return items;
 }
 
+// 提取培养方案成绩接口回调路径。
 QString extractSchemeScoresCallback(const QString& html)
 {
     return extractCallback(html, QStringLiteral("schemeScores"));
 }
 
+// 提取及格成绩接口回调路径。
 QString extractPassingScoresCallback(const QString& html)
 {
     return extractCallback(html, QStringLiteral("allPassingScores"));

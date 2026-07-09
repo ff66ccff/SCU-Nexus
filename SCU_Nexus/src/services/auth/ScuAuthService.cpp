@@ -16,6 +16,7 @@ constexpr auto kAccessTokenKey = "auth/accessToken";
 constexpr auto kLoginTimestampKey = "auth/loginTimestamp";
 constexpr qint64 kSessionDurationSeconds = 3600;
 
+// 构造统一的接口错误对象。
 ApiError makeError(ApiErrorType type, const QString& message, int statusCode = 0, const QString& debugBody = {})
 {
     ApiError error;
@@ -26,6 +27,7 @@ ApiError makeError(ApiErrorType type, const QString& message, int statusCode = 0
     return error;
 }
 
+// 按候选字段名读取第一个非空 JSON 字符串。
 QString jsonString(const QJsonObject& object, std::initializer_list<const char*> keys)
 {
     for (const char* key : keys) {
@@ -37,6 +39,7 @@ QString jsonString(const QJsonObject& object, std::initializer_list<const char*>
     return {};
 }
 
+// 判断条件是否成立并返回布尔结果。
 bool isCaptchaErrorMessage(const QString& message)
 {
     return message.contains(QStringLiteral("验证码"))
@@ -45,6 +48,7 @@ bool isCaptchaErrorMessage(const QString& message)
 
 }
 
+// 构造对象并初始化依赖关系。
 ScuAuthService::ScuAuthService(QObject* parent, QSettings* settings, ClientFactory clientFactory)
     : QObject(parent)
     , m_settings(settings)
@@ -62,22 +66,26 @@ ScuAuthService::ScuAuthService(QObject* parent, QSettings* settings, ClientFacto
     }
 }
 
+// 返回当前统一身份认证访问令牌。
 QString ScuAuthService::accessToken() const
 {
     return m_accessToken;
 }
 
+// 返回当前令牌的登录时间戳。
 qint64 ScuAuthService::loginTimestamp() const
 {
     return m_loginTimestamp;
 }
 
+// 返回当前登录状态。
 bool ScuAuthService::loggedIn() const
 {
     const qint64 now = QDateTime::currentSecsSinceEpoch();
     return !m_accessToken.isEmpty() && !isTokenExpired(m_loginTimestamp, now);
 }
 
+// 判断条件是否成立并返回布尔结果。
 bool ScuAuthService::isTokenExpired(qint64 loginTimestamp, qint64 nowSeconds)
 {
     if (loginTimestamp <= 0) {
@@ -86,6 +94,7 @@ bool ScuAuthService::isTokenExpired(qint64 loginTimestamp, qint64 nowSeconds)
     return nowSeconds - loginTimestamp > kSessionDurationSeconds;
 }
 
+// 解析外部数据并转换为内部结构。
 CaptchaResult ScuAuthService::parseCaptchaResponse(const QByteArray& body)
 {
     QJsonParseError parseError;
@@ -121,6 +130,7 @@ CaptchaResult ScuAuthService::parseCaptchaResponse(const QByteArray& body)
     return result;
 }
 
+// 初始化服务依赖和应用状态。
 void ScuAuthService::initialize()
 {
     m_accessToken = m_settings->value(kAccessTokenKey).toString();
@@ -132,6 +142,7 @@ void ScuAuthService::initialize()
     emit loggedInChanged(loggedIn());
 }
 
+// 发起数据获取流程并通过回调返回结果。
 void ScuAuthService::fetchCaptcha(std::function<void(const CaptchaResult& result, const ApiError& error)> callback)
 {
     auto* client = m_clientFactory(this);
@@ -314,6 +325,7 @@ void ScuAuthService::login(const QString& username,
     (*requestSm2)();
 }
 
+// 绑定教务系统会话并复用登录态。
 void ScuAuthService::bindSession(BindSessionCallback callback)
 {
     if (m_accessToken.isEmpty()) {
@@ -384,6 +396,7 @@ void ScuAuthService::bindSession(BindSessionCallback callback)
     });
 }
 
+// 收束异步流程并通知等待中的回调。
 void ScuAuthService::finishBindSession(CookieHttpClient* client, const ApiError& error)
 {
     m_bindSessionInProgress = false;
@@ -394,6 +407,7 @@ void ScuAuthService::finishBindSession(CookieHttpClient* client, const ApiError&
     }
 }
 
+// 退出登录并清除会话状态。
 void ScuAuthService::logout()
 {
     AuthLogger::instance().info(QStringLiteral("ScuAuth"), QStringLiteral("logout"));
@@ -407,11 +421,13 @@ void ScuAuthService::logout()
     emit loggedInChanged(false);
 }
 
+// 为测试场景写入指定令牌和时间戳。
 void ScuAuthService::saveTokenForTesting(const QString& token, qint64 loginTimestamp)
 {
     saveToken(token, loginTimestamp);
 }
 
+// 保存访问令牌并持久化登录时间戳。
 void ScuAuthService::saveToken(const QString& token, qint64 loginTimestamp)
 {
     m_accessToken = token;
@@ -422,6 +438,7 @@ void ScuAuthService::saveToken(const QString& token, qint64 loginTimestamp)
     emit loggedInChanged(loggedIn());
 }
 
+// 清理内部状态或持久化数据。
 void ScuAuthService::clearToken()
 {
     m_accessToken.clear();

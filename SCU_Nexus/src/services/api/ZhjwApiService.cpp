@@ -11,6 +11,7 @@
 
 namespace {
 
+// 构建教务 HTML 请求所需的通用请求头。
 CookieHttpClient::Headers htmlHeaders(const QString& referer)
 {
     return {
@@ -22,6 +23,7 @@ CookieHttpClient::Headers htmlHeaders(const QString& referer)
 
 }
 
+// 构造对象并初始化依赖关系。
 ZhjwApiService::ZhjwApiService(QObject* parent, ZhjwAuthService* authService)
     : QObject(parent)
     , m_authService(authService)
@@ -32,26 +34,31 @@ ZhjwApiService::ZhjwApiService(QObject* parent, ZhjwAuthService* authService)
     }
 }
 
+// 返回统一身份认证服务基础地址。
 QString ZhjwApiService::scuIdBase()
 {
     return QStringLiteral("https://id.scu.edu.cn");
 }
 
+// 返回综合教务系统基础地址。
 QString ZhjwApiService::zhjwBase()
 {
     return QStringLiteral("http://zhjw.scu.edu.cn");
 }
 
+// 返回教务处校历页面地址。
 QString ZhjwApiService::jwcCalendarUrl()
 {
     return QStringLiteral("https://jwc.scu.edu.cn/cdxl.htm");
 }
 
+// 判断条件是否成立并返回布尔结果。
 bool ZhjwApiService::isSessionExpired(const QString& body, int statusCode)
 {
     return ZhjwParsers::isSessionExpired(body, statusCode);
 }
 
+// 发起数据获取流程并通过回调返回结果。
 void ZhjwApiService::fetchCurrentWeek(WeekCallback callback)
 {
     request(QUrl(zhjwBase() + QStringLiteral("/")),
@@ -70,6 +77,7 @@ void ZhjwApiService::fetchCurrentWeek(WeekCallback callback)
     });
 }
 
+// 发起数据获取流程并通过回调返回结果。
 void ZhjwApiService::fetchSemesters(SemestersCallback callback)
 {
     request(QUrl(zhjwBase() + QStringLiteral("/student/courseSelect/calendarSemesterCurriculum/index")),
@@ -88,6 +96,7 @@ void ZhjwApiService::fetchSemesters(SemestersCallback callback)
     });
 }
 
+// 发起数据获取流程并通过回调返回结果。
 void ZhjwApiService::fetchJwxtSchedule(const QString& planCode, ScheduleCallback callback)
 {
     QUrlQuery form;
@@ -112,6 +121,7 @@ void ZhjwApiService::fetchJwxtSchedule(const QString& planCode, ScheduleCallback
     });
 }
 
+// 发起数据获取流程并通过回调返回结果。
 void ZhjwApiService::fetchExamPlan(ExamPlanCallback callback)
 {
     request(QUrl(zhjwBase() + QStringLiteral("/student/examinationManagement/examPlan/index")),
@@ -125,6 +135,7 @@ void ZhjwApiService::fetchExamPlan(ExamPlanCallback callback)
     });
 }
 
+// 发起数据获取流程并通过回调返回结果。
 void ZhjwApiService::fetchSchemeScores(JsonCallback callback)
 {
     fetchScoreJson(QStringLiteral("/student/integratedQuery/scoreQuery/schemeScores/index"),
@@ -133,6 +144,7 @@ void ZhjwApiService::fetchSchemeScores(JsonCallback callback)
                    std::move(callback));
 }
 
+// 发起数据获取流程并通过回调返回结果。
 void ZhjwApiService::fetchPassingScores(JsonCallback callback)
 {
     fetchScoreJson(QStringLiteral("/student/integratedQuery/scoreQuery/allPassingScores/index"),
@@ -241,6 +253,7 @@ void ZhjwApiService::fetchScoreJson(const QString& indexPath,
     });
 }
 
+// 解析外部数据并转换为内部结构。
 QJsonObject ZhjwApiService::parseJsonObject(const QByteArray& body, const QString& context, ApiError* error)
 {
     QJsonParseError parseError;
@@ -263,6 +276,7 @@ QJsonObject ZhjwApiService::parseJsonObject(const QByteArray& body, const QStrin
     return document.object();
 }
 
+// 构造统一的接口错误对象。
 ApiError ZhjwApiService::makeError(ApiErrorType type, const QString& message, int statusCode, const QString& debugBody)
 {
     ApiError error;

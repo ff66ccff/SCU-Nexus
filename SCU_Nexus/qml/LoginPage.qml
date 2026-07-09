@@ -13,10 +13,12 @@ Item {
 
     Connections {
         target: auth
+        // 处理登录成功事件，提示用户并返回上一页。
         function onLoginSucceeded() {
             toastManager.show("登录成功")
             router.goBack()
         }
+        // 处理登录失败事件，清空验证码并重新拉取图片。
         function onLoginFailed(message) {
             captchaField.text = ""
             toastManager.show(message, "error")
@@ -138,6 +140,7 @@ Item {
                             text: "刷新验证码"
                             type: "secondary"
                             busy: auth.captchaLoading
+                            // 清空旧验证码输入并重新请求验证码图片。
                             onClicked: {
                                 captchaField.text = ""
                                 auth.fetchCaptcha()

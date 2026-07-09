@@ -91,6 +91,7 @@ Item {
         }
     }
 
+    // 按列名从数组行或对象行中提取单元格显示文本。
     function rowText(column, row) {
         if (row === undefined || row === null) return ""
         if (Array.isArray(row)) {

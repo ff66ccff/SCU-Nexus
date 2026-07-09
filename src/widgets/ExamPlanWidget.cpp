@@ -11,6 +11,7 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
+// 读取指定资源并返回结果。
 ExamPlanWidget::ExamPlanWidget(ExamPlanViewModel *viewModel, QWidget *parent)
     : QWidget(parent),
       m_viewModel(viewModel)
@@ -54,6 +55,7 @@ ExamPlanWidget::ExamPlanWidget(ExamPlanViewModel *viewModel, QWidget *parent)
     syncFromViewModel();
 }
 
+// 根据视图模型同步界面展示。
 void ExamPlanWidget::syncFromViewModel()
 {
     m_refreshButton->setEnabled(!m_viewModel->loading());

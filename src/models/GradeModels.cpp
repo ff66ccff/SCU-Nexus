@@ -5,11 +5,13 @@
 #include <QMap>
 
 namespace {
+// 将统计结果四舍五入到两位小数。
 double rounded(double value)
 {
     return std::round(value * 100.0) / 100.0;
 }
 
+// 筛选可计入绩点和均分统计的有效课程。
 QList<GradeCourseItem> effectiveCourses(const QList<GradeCourseItem> &items, bool requiredOnly = false)
 {
     QList<GradeCourseItem> result;
@@ -25,6 +27,7 @@ QList<GradeCourseItem> effectiveCourses(const QList<GradeCourseItem> &items, boo
     return result;
 }
 
+// 按学分加权计算绩点或成绩均值。
 double weightedBy(const QList<GradeCourseItem> &items, bool useGpa, bool requiredOnly = false)
 {
     const QList<GradeCourseItem> effective = effectiveCourses(items, requiredOnly);
@@ -38,6 +41,7 @@ double weightedBy(const QList<GradeCourseItem> &items, bool useGpa, bool require
     return credits > 0.0 ? rounded(sum / credits) : 0.0;
 }
 
+// 将学期文本转换为用于排序的季节权重。
 int termRank(const QString &label)
 {
     if (label.contains(QStringLiteral("春"))) {
@@ -50,11 +54,13 @@ int termRank(const QString &label)
 }
 }
 
+// 生成课程在界面选择中的稳定唯一键。
 QString GradeCourseItem::key() const
 {
     return courseName + QStringLiteral("|") + academicYearCode + QStringLiteral("|") + termName + QStringLiteral("|") + courseAttributeName;
 }
 
+// 将课程学分文本转换为可计算的数值。
 double GradeCourseItem::creditValue() const
 {
     bool ok = false;
@@ -62,6 +68,7 @@ double GradeCourseItem::creditValue() const
     return ok ? value : 0.0;
 }
 
+// 转换为界面可直接读取的 QVariant 数据。
 QVariantMap GradeCourseItem::toVariant() const
 {
     return {
@@ -81,6 +88,7 @@ QVariantMap GradeCourseItem::toVariant() const
     };
 }
 
+// 从 JSON 对象还原数据模型。
 GradeCourseItem GradeCourseItem::fromJson(const QJsonObject &object)
 {
     GradeCourseItem item;
@@ -99,6 +107,7 @@ GradeCourseItem GradeCourseItem::fromJson(const QJsonObject &object)
     return item;
 }
 
+// 转换为界面可直接读取的 QVariant 数据。
 QVariantMap TermGradeGroup::toVariant() const
 {
     QVariantList courseMaps;
@@ -119,16 +128,19 @@ QVariantMap TermGradeGroup::toVariant() const
     };
 }
 
+// 计算通过课程的平均绩点。
 double SchemeScoreSummary::gpa() const
 {
     return weightedBy(items, true);
 }
 
+// 计算必修课程的平均绩点。
 double SchemeScoreSummary::requiredGpa() const
 {
     return weightedBy(items, true, true);
 }
 
+// 汇总已通过课程获得的学分。
 double SchemeScoreSummary::earnedCredits() const
 {
     double sum = 0.0;
@@ -140,16 +152,19 @@ double SchemeScoreSummary::earnedCredits() const
     return rounded(sum);
 }
 
+// 计算通过课程的学分加权平均分。
 double SchemeScoreSummary::weightedAvgScore() const
 {
     return weightedBy(items, false);
 }
 
+// 计算必修通过课程的学分加权平均分。
 double SchemeScoreSummary::requiredWeightedAvgScore() const
 {
     return weightedBy(items, false, true);
 }
 
+// 按课程属性汇总已通过课程学分。
 double SchemeScoreSummary::creditsByAttribute(const QString &attr) const
 {
     double sum = 0.0;
@@ -161,11 +176,13 @@ double SchemeScoreSummary::creditsByAttribute(const QString &attr) const
     return rounded(sum);
 }
 
+// 按业务维度分组数据并返回结果。
 QList<TermGradeGroup> SchemeScoreSummary::groupedByTerm() const
 {
     return groupGradeCoursesByTerm(items);
 }
 
+// 汇总统计指标为界面可绑定的 QVariantMap。
 QVariantMap SchemeScoreSummary::toSummaryVariant() const
 {
     return {
@@ -185,6 +202,7 @@ QVariantMap SchemeScoreSummary::toSummaryVariant() const
     };
 }
 
+// 从 JSON 对象还原数据模型。
 SchemeScoreSummary SchemeScoreSummary::fromJson(const QJsonObject &root)
 {
     SchemeScoreSummary summary;
@@ -220,6 +238,7 @@ SchemeScoreSummary SchemeScoreSummary::fromJson(const QJsonObject &root)
     return summary;
 }
 
+// 转换为界面可直接读取的 QVariant 数据。
 QVariantMap PassingScoreGroup::toVariant() const
 {
     QVariantList courseMaps;
@@ -234,6 +253,7 @@ QVariantMap PassingScoreGroup::toVariant() const
     };
 }
 
+// 计算通过课程的平均绩点。
 double PassingScoreResult::gpa() const
 {
     QList<GradeCourseItem> all;
@@ -243,6 +263,7 @@ double PassingScoreResult::gpa() const
     return weightedBy(all, true);
 }
 
+// 汇总及格成绩结果中的课程学分。
 double PassingScoreResult::totalCredits() const
 {
     QList<GradeCourseItem> all;
@@ -252,6 +273,7 @@ double PassingScoreResult::totalCredits() const
     return customStatsForCourses(all).value(QStringLiteral("credits")).toDouble();
 }
 
+// 汇总及格成绩结果中的通过课程数量。
 int PassingScoreResult::totalPassed() const
 {
     int count = 0;
@@ -261,6 +283,7 @@ int PassingScoreResult::totalPassed() const
     return count;
 }
 
+// 计算通过课程的学分加权平均分。
 double PassingScoreResult::weightedAvgScore() const
 {
     QList<GradeCourseItem> all;
@@ -270,6 +293,7 @@ double PassingScoreResult::weightedAvgScore() const
     return weightedBy(all, false);
 }
 
+// 计算必修通过课程的学分加权平均分。
 double PassingScoreResult::requiredWeightedAvgScore() const
 {
     QList<GradeCourseItem> all;
@@ -279,6 +303,7 @@ double PassingScoreResult::requiredWeightedAvgScore() const
     return weightedBy(all, false, true);
 }
 
+// 汇总统计指标为界面可绑定的 QVariantMap。
 QVariantMap PassingScoreResult::toSummaryVariant() const
 {
     return {
@@ -291,6 +316,7 @@ QVariantMap PassingScoreResult::toSummaryVariant() const
     };
 }
 
+// 从 JSON 对象还原数据模型。
 PassingScoreResult PassingScoreResult::fromJson(const QJsonObject &root)
 {
     PassingScoreResult result;
@@ -322,6 +348,7 @@ PassingScoreResult PassingScoreResult::fromJson(const QJsonObject &root)
     return result;
 }
 
+// 按业务维度分组数据并返回结果。
 QList<TermGradeGroup> groupGradeCoursesByTerm(const QList<GradeCourseItem> &items)
 {
     QMap<QString, QList<GradeCourseItem>> groups;
@@ -343,6 +370,7 @@ QList<TermGradeGroup> groupGradeCoursesByTerm(const QList<GradeCourseItem> &item
     return result;
 }
 
+// 将学期分组列表转换为界面可绑定数据。
 QVariantList termGroupsToVariant(const QList<TermGradeGroup> &groups)
 {
     QVariantList list;
@@ -352,6 +380,7 @@ QVariantList termGroupsToVariant(const QList<TermGradeGroup> &groups)
     return list;
 }
 
+// 将及格成绩分组列表转换为界面可绑定数据。
 QVariantList passingGroupsToVariant(const QList<PassingScoreGroup> &groups)
 {
     QVariantList list;
@@ -361,6 +390,7 @@ QVariantList passingGroupsToVariant(const QList<PassingScoreGroup> &groups)
     return list;
 }
 
+// 基于自定义课程集合计算统计信息。
 QVariantMap customStatsForCourses(const QList<GradeCourseItem> &items)
 {
     int passed = 0;

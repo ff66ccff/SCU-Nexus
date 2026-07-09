@@ -63,6 +63,7 @@ MainWindow::MainWindow(AcademicCalendarViewModel *calendarViewModel,
     setMinimumSize(1040, 680);
 }
 
+// 加载当前模块数据并同步界面状态。
 void MainWindow::loadAll()
 {
     m_calendarViewModel->load();

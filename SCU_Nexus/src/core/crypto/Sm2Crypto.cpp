@@ -24,6 +24,7 @@ using EcPointPtr = std::unique_ptr<EC_POINT, OpenSslDeleter>;
 using EvpKeyPtr = std::unique_ptr<EVP_PKEY, OpenSslDeleter>;
 using EvpCtxPtr = std::unique_ptr<EVP_PKEY_CTX, OpenSslDeleter>;
 
+// 读取并格式化最近一次 OpenSSL 错误。
 QString opensslError()
 {
     const unsigned long code = ERR_get_error();
@@ -35,6 +36,7 @@ QString opensslError()
     return QString::fromLatin1(buffer);
 }
 
+// 从 DER 数据中读取长度字段并推进偏移。
 bool readDerLength(const QByteArray& der, qsizetype* offset, qsizetype* length)
 {
     if (*offset >= der.size()) {
@@ -57,6 +59,7 @@ bool readDerLength(const QByteArray& der, qsizetype* offset, qsizetype* length)
     return true;
 }
 
+// 按预期标签读取 DER 字段内容。
 QByteArray readDerValue(const QByteArray& der, qsizetype* offset, unsigned char expectedTag)
 {
     if (*offset >= der.size() || static_cast<unsigned char>(der.at((*offset)++)) != expectedTag) {
@@ -71,6 +74,7 @@ QByteArray readDerValue(const QByteArray& der, qsizetype* offset, unsigned char 
     return value;
 }
 
+// 将 DER 整数字段规整为 32 字节坐标。
 QByteArray fixedInteger32(QByteArray value)
 {
     while (value.size() > 32 && value.at(0) == '\0') {
@@ -85,6 +89,7 @@ QByteArray fixedInteger32(QByteArray value)
     return value;
 }
 
+// 将 OpenSSL DER 密文转换为国密常用的 C1C2C3 格式。
 QByteArray sm2DerToC1C2C3(const QByteArray& der)
 {
     qsizetype offset = 0;
@@ -116,6 +121,7 @@ QByteArray sm2DerToC1C2C3(const QByteArray& der)
 
 }
 
+// 使用 SM2 公钥加密明文并输出 Base64 结果。
 QString Sm2Crypto::encryptWithBase64Key(const QString& plaintext, const QString& publicKeyBase64)
 {
     QByteArray publicKey = QByteArray::fromBase64(publicKeyBase64.toUtf8());

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <QRegularExpression>
 
+// 转换为界面可直接读取的 QVariant 数据。
 QVariantMap ExamPlanItem::toVariant() const
 {
     return {
@@ -21,6 +22,7 @@ QVariantMap ExamPlanItem::toVariant() const
     };
 }
 
+// 序列化为 JSON 对象，便于缓存或传输。
 QJsonObject ExamPlanItem::toJson() const
 {
     return {
@@ -36,6 +38,7 @@ QJsonObject ExamPlanItem::toJson() const
     };
 }
 
+// 从 JSON 对象还原数据模型。
 ExamPlanItem ExamPlanItem::fromJson(const QJsonObject &object)
 {
     ExamPlanItem item;
@@ -52,6 +55,7 @@ ExamPlanItem ExamPlanItem::fromJson(const QJsonObject &object)
     return item;
 }
 
+// 解析外部数据并转换为内部结构。
 QDate parseExamDate(const QString &dateText)
 {
     const QString trimmed = dateText.trimmed();
@@ -76,6 +80,7 @@ QDate parseExamDate(const QString &dateText)
     return {};
 }
 
+// 解析外部数据并转换为内部结构。
 QPair<QTime, QTime> parseExamTimeRange(const QString &timeRange)
 {
     static const QRegularExpression re(QStringLiteral("(\\d{1,2}:\\d{2})\\s*[-~至]\\s*(\\d{1,2}:\\d{2})"));
@@ -88,6 +93,7 @@ QPair<QTime, QTime> parseExamTimeRange(const QString &timeRange)
     return {start, end};
 }
 
+// 根据考试日期时间计算开始时间和是否已结束。
 void updateExamTemporalFields(ExamPlanItem *item, const QDateTime &now)
 {
     if (!item) {
@@ -110,6 +116,7 @@ void updateExamTemporalFields(ExamPlanItem *item, const QDateTime &now)
     }
 }
 
+// 按考试开始时间排序，无法解析时间的记录排在末尾。
 void sortExamPlanItems(QList<ExamPlanItem> *items)
 {
     if (!items) {
@@ -129,6 +136,7 @@ void sortExamPlanItems(QList<ExamPlanItem> *items)
     });
 }
 
+// 将考试安排列表序列化为 JSON 数组。
 QJsonArray examPlanItemsToJson(const QList<ExamPlanItem> &items)
 {
     QJsonArray array;
@@ -138,6 +146,7 @@ QJsonArray examPlanItemsToJson(const QList<ExamPlanItem> &items)
     return array;
 }
 
+// 从 JSON 数组还原考试安排列表。
 QList<ExamPlanItem> examPlanItemsFromJson(const QJsonArray &array)
 {
     QList<ExamPlanItem> items;

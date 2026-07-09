@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QStandardPaths>
 
+// 构造对象并初始化依赖关系。
 AuthViewModel::AuthViewModel(QObject* parent)
     : QObject(parent)
 {
@@ -14,6 +15,7 @@ AuthViewModel::AuthViewModel(QObject* parent)
     initializeAuthService();
 }
 
+// 构造对象并初始化依赖关系。
 AuthViewModel::AuthViewModel(ScuAuthService* authService, QObject* parent)
     : QObject(parent)
     , m_authService(authService ? authService : new ScuAuthService(this))
@@ -21,6 +23,7 @@ AuthViewModel::AuthViewModel(ScuAuthService* authService, QObject* parent)
     initializeAuthService();
 }
 
+// 初始化服务依赖和应用状态。
 void AuthViewModel::initializeAuthService()
 {
     connect(m_authService, &ScuAuthService::loggedInChanged, this, [this](bool loggedIn) {
@@ -35,31 +38,37 @@ void AuthViewModel::initializeAuthService()
     setLoggedIn(m_authService->loggedIn());
 }
 
+// 返回当前登录状态。
 bool AuthViewModel::loggedIn() const
 {
     return m_loggedIn;
 }
 
+// 加载当前模块数据并同步界面状态。
 bool AuthViewModel::loading() const
 {
     return m_loading;
 }
 
+// 返回验证码图片是否正在加载。
 bool AuthViewModel::captchaLoading() const
 {
     return m_captchaLoading;
 }
 
+// 返回当前验证码图片的本地访问地址。
 QUrl AuthViewModel::captchaImageUrl() const
 {
     return m_captchaImageUrl;
 }
 
+// 返回当前错误提示文本。
 QString AuthViewModel::errorMessage() const
 {
     return m_errorMessage;
 }
 
+// 发起数据获取流程并通过回调返回结果。
 void AuthViewModel::fetchCaptcha()
 {
     clearError();
@@ -80,6 +89,7 @@ void AuthViewModel::fetchCaptcha()
     });
 }
 
+// 执行登录流程并维护认证状态。
 void AuthViewModel::login(const QString& username, const QString& password, const QString& captchaText)
 {
     clearError();
@@ -107,17 +117,20 @@ void AuthViewModel::login(const QString& username, const QString& password, cons
     });
 }
 
+// 退出登录并清除会话状态。
 void AuthViewModel::logout()
 {
     m_authService->logout();
     clearError();
 }
 
+// 清理内部状态或持久化数据。
 void AuthViewModel::clearError()
 {
     setErrorMessage(QString());
 }
 
+// 设置属性值并在变化时发出通知。
 void AuthViewModel::setLoggedIn(bool loggedIn)
 {
     if (m_loggedIn == loggedIn) {
@@ -127,6 +140,7 @@ void AuthViewModel::setLoggedIn(bool loggedIn)
     emit loggedInChanged();
 }
 
+// 设置属性值并在变化时发出通知。
 void AuthViewModel::setLoading(bool loading)
 {
     if (m_loading == loading) {
@@ -136,6 +150,7 @@ void AuthViewModel::setLoading(bool loading)
     emit loadingChanged();
 }
 
+// 设置属性值并在变化时发出通知。
 void AuthViewModel::setCaptchaLoading(bool captchaLoading)
 {
     if (m_captchaLoading == captchaLoading) {
@@ -145,6 +160,7 @@ void AuthViewModel::setCaptchaLoading(bool captchaLoading)
     emit captchaLoadingChanged();
 }
 
+// 设置属性值并在变化时发出通知。
 void AuthViewModel::setCaptchaImageUrl(const QUrl& url)
 {
     if (m_captchaImageUrl == url) {
@@ -154,6 +170,7 @@ void AuthViewModel::setCaptchaImageUrl(const QUrl& url)
     emit captchaChanged();
 }
 
+// 更新错误信息并触发错误状态通知。
 void AuthViewModel::setErrorMessage(const QString& message)
 {
     if (m_errorMessage == message) {
@@ -163,6 +180,7 @@ void AuthViewModel::setErrorMessage(const QString& message)
     emit errorChanged();
 }
 
+// 将验证码图片写入临时文件并返回本地 URL。
 QUrl AuthViewModel::writeCaptchaImage(const QByteArray& imageBytes, const QString& mimeType)
 {
     QString suffix = QStringLiteral("png");

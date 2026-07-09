@@ -8,6 +8,7 @@
 #include "src/app/ThemeManager.h"
 #include "src/app/ToastManager.h"
 
+// 初始化应用运行环境并进入主事件循环。
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);

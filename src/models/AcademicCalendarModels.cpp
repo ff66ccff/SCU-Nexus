@@ -1,5 +1,6 @@
 #include "models/AcademicCalendarModels.h"
 
+// 转换为界面可直接读取的 QVariant 数据。
 QVariantMap AcademicCalendarEntry::toVariant() const
 {
     return {
@@ -8,6 +9,7 @@ QVariantMap AcademicCalendarEntry::toVariant() const
     };
 }
 
+// 序列化为 JSON 对象，便于缓存或传输。
 QJsonObject AcademicCalendarEntry::toJson() const
 {
     return {
@@ -16,6 +18,7 @@ QJsonObject AcademicCalendarEntry::toJson() const
     };
 }
 
+// 从 JSON 对象还原数据模型。
 AcademicCalendarEntry AcademicCalendarEntry::fromJson(const QJsonObject &object)
 {
     return {
@@ -24,6 +27,7 @@ AcademicCalendarEntry AcademicCalendarEntry::fromJson(const QJsonObject &object)
     };
 }
 
+// 转换为界面可直接读取的 QVariant 数据。
 QVariantMap AcademicCalendarDetail::toVariant() const
 {
     return {
@@ -32,6 +36,7 @@ QVariantMap AcademicCalendarDetail::toVariant() const
     };
 }
 
+// 将校历条目列表序列化为 JSON 数组。
 QJsonArray academicCalendarEntriesToJson(const QList<AcademicCalendarEntry> &entries)
 {
     QJsonArray array;
@@ -41,6 +46,7 @@ QJsonArray academicCalendarEntriesToJson(const QList<AcademicCalendarEntry> &ent
     return array;
 }
 
+// 从 JSON 数组还原校历条目列表。
 QList<AcademicCalendarEntry> academicCalendarEntriesFromJson(const QJsonArray &array)
 {
     QList<AcademicCalendarEntry> entries;

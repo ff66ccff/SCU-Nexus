@@ -19,6 +19,7 @@ Rectangle {
 
     Connections {
         target: appController
+        // 处理会话过期事件，提示用户并跳转到登录页。
         function onSessionExpired(message) {
             toastManager.show(message, "error")
             router.navigate("Login")
@@ -250,10 +251,12 @@ Rectangle {
 
     ToastHost { }
 
+    // 判断受保护页面是否因未登录而需要拦截。
     function protectedRouteBlocked(route) {
         return !appController.loggedIn && (route === "ExamPlan" || route === "Grades")
     }
 
+    // 根据当前路由返回对应的 QML 页面资源路径。
     function pageSource(route) {
         if (route === "Schedule") return "qrc:/SCU_Nexus/qml/pages/SchedulePagePlaceholder.qml"
         if (route === "AcademicCalendar") return "qrc:/SCU_Nexus/qml/pages/AcademicCalendarPagePlaceholder.qml"

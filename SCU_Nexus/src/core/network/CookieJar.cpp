@@ -2,6 +2,7 @@
 
 #include <QStringList>
 
+// 解析响应中的 Set-Cookie 头并写入 Cookie 仓库。
 void CookieJar::storeFromSetCookie(const QUrl& url, const QList<QByteArray>& setCookieHeaders)
 {
     const QString fallbackHost = normalizedHost(url.host());
@@ -32,6 +33,7 @@ void CookieJar::storeFromSetCookie(const QUrl& url, const QList<QByteArray>& set
     }
 }
 
+// 处理 Cookie 的解析、存储或输出。
 QString CookieJar::cookieHeader(const QUrl& url) const
 {
     const QString host = normalizedHost(url.host());
@@ -56,6 +58,7 @@ QString CookieJar::cookieHeader(const QUrl& url) const
     return pairs.join("; ");
 }
 
+// 处理 Cookie 的解析、存储或输出。
 QString CookieJar::cookieHeaderForDebug() const
 {
     QStringList pairs;
@@ -67,11 +70,13 @@ QString CookieJar::cookieHeaderForDebug() const
     return pairs.join("; ");
 }
 
+// 清理内部状态或持久化数据。
 void CookieJar::clear()
 {
     m_cookiesByHost.clear();
 }
 
+// 规范化 Cookie 域名，移除协议无关的前导点。
 QString CookieJar::normalizedHost(QString host)
 {
     host = host.trimmed().toLower();
@@ -81,6 +86,7 @@ QString CookieJar::normalizedHost(QString host)
     return host;
 }
 
+// 初始化应用运行环境并进入主事件循环。
 QString CookieJar::cookieDomain(const QUrl& url, const QString& attributes)
 {
     const QString fallbackHost = normalizedHost(url.host());
@@ -99,6 +105,7 @@ QString CookieJar::cookieDomain(const QUrl& url, const QString& attributes)
     return fallbackHost;
 }
 
+// 拆分可能被合并在同一行里的 Set-Cookie 字段。
 QStringList CookieJar::splitCombinedSetCookieHeader(const QString& header)
 {
     QStringList result;
@@ -113,6 +120,7 @@ QStringList CookieJar::splitCombinedSetCookieHeader(const QString& header)
     return result;
 }
 
+// 判断条件是否成立并返回布尔结果。
 bool CookieJar::isCookiePairAhead(const QString& text, qsizetype commaIndex)
 {
     qsizetype i = commaIndex + 1;

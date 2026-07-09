@@ -66,6 +66,7 @@ Dialog {
             AppButton {
                 text: root.confirmText
                 type: root.type === "danger" ? "danger" : "primary"
+                // 触发确认信号并关闭当前对话框。
                 onClicked: {
                     root.confirmed()
                     root.close()

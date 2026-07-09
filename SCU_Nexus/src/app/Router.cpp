@@ -1,11 +1,13 @@
 #include "Router.h"
 
+// 构造对象并初始化依赖关系。
 Router::Router(QObject *parent) : QObject(parent)
 {
     m_currentRoute = AppRoute::Schedule;
     m_currentRouteString = "Schedule";
 }
 
+// 在路由枚举和字符串之间转换。
 QString Router::routeTitle() const
 {
     switch(m_currentRoute) {
@@ -19,6 +21,7 @@ QString Router::routeTitle() const
     }
 }
 
+// 导航到指定路由并维护历史栈。
 void Router::navigate(const QString& route)
 {
     AppRoute newRoute;
@@ -32,6 +35,7 @@ void Router::navigate(const QString& route)
     emit routeChanged();
 }
 
+// 替换当前路由并通知界面切换。
 void Router::replace(const QString& route)
 {
     AppRoute newRoute;
@@ -43,6 +47,7 @@ void Router::replace(const QString& route)
     emit routeChanged();
 }
 
+// 返回上一条路由并更新当前页面。
 void Router::goBack()
 {
     if (!m_stack.isEmpty()) {
@@ -52,6 +57,7 @@ void Router::goBack()
     }
 }
 
+// 在路由枚举和字符串之间转换。
 bool Router::routeFromString(const QString& route, AppRoute* outRoute) const
 {
     if (!outRoute) return false;
@@ -65,6 +71,7 @@ bool Router::routeFromString(const QString& route, AppRoute* outRoute) const
     return true;
 }
 
+// 在路由枚举和字符串之间转换。
 QString Router::routeToString(AppRoute route) const
 {
     switch(route) {

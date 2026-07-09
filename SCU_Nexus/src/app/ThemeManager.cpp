@@ -4,6 +4,7 @@
 #include <QSettings>
 #include <QStyleHints>
 
+// 构造对象并初始化依赖关系。
 ThemeManager::ThemeManager(QObject *parent)
     : QObject(parent)
 {
@@ -22,16 +23,19 @@ ThemeManager::ThemeManager(QObject *parent)
     m_dark = resolveDark();
 }
 
+// 返回当前主题模式设置。
 QString ThemeManager::mode() const
 {
     return m_mode;
 }
 
+// 返回当前是否处于深色主题。
 bool ThemeManager::dark() const
 {
     return m_dark;
 }
 
+// 根据主题模式和系统偏好计算深色状态。
 bool ThemeManager::resolveDark() const
 {
     if (m_mode == "dark") {
@@ -47,6 +51,7 @@ bool ThemeManager::resolveDark() const
     return false;
 }
 
+// 重新计算深色状态并在变化时通知界面。
 void ThemeManager::updateDark()
 {
     const bool next = resolveDark();
@@ -57,6 +62,7 @@ void ThemeManager::updateDark()
     emit darkChanged();
 }
 
+// 设置属性值并在变化时发出通知。
 void ThemeManager::setMode(const QString& mode)
 {
     const QString normalized = (mode == "light" || mode == "dark") ? mode : QStringLiteral("system");

@@ -5,6 +5,7 @@
 #include <QFont>
 #include <QPalette>
 
+// 应用样式或脱敏规则到目标内容。
 void AppStyle::apply(QApplication *app)
 {
     if (!app) {

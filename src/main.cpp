@@ -10,6 +10,7 @@
 #include <QDir>
 #include <QStandardPaths>
 
+// 初始化应用运行环境并进入主事件循环。
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);

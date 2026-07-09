@@ -8,31 +8,37 @@
 #include <QStringList>
 #include <QTimer>
 
+// 构造对象并初始化依赖关系。
 CookieHttpClient::CookieHttpClient(QObject* parent)
     : QObject(parent)
 {
 }
 
+// 读取指定资源并返回结果。
 void CookieHttpClient::get(const QUrl& url, Callback callback, const Headers& headers)
 {
     send(QStringLiteral("GET"), url, {}, std::move(headers), std::move(callback), 0, false);
 }
 
+// 发送 POST 请求并复用统一网络处理流程。
 void CookieHttpClient::post(const QUrl& url, const QByteArray& body, Callback callback, const Headers& headers)
 {
     send(QStringLiteral("POST"), url, body, std::move(headers), std::move(callback), 0, false);
 }
 
+// 发起请求并按限制自动跟随重定向。
 void CookieHttpClient::followRedirects(const QUrl& url, Callback callback, const Headers& headers, int maxRedirects)
 {
     send(QStringLiteral("GET"), url, {}, std::move(headers), std::move(callback), maxRedirects, false);
 }
 
+// 清理内部状态或持久化数据。
 void CookieHttpClient::clearCookies()
 {
     m_cookieJar.clear();
 }
 
+// 处理 Cookie 的解析、存储或输出。
 QString CookieHttpClient::cookieHeaderForDebug() const
 {
     return m_cookieJar.cookieHeaderForDebug();
@@ -146,6 +152,7 @@ void CookieHttpClient::send(QString method,
     });
 }
 
+// 构建携带公共请求头和 Cookie 的网络请求。
 QNetworkRequest CookieHttpClient::buildRequest(const QUrl& url, const Headers& headers) const
 {
     QNetworkRequest request(url);
@@ -163,6 +170,7 @@ QNetworkRequest CookieHttpClient::buildRequest(const QUrl& url, const Headers& h
     return request;
 }
 
+// 从响应头中提取 Cookie 并保存到 CookieJar。
 void CookieHttpClient::storeCookies(const QUrl& url, QNetworkReply* reply)
 {
     QList<QByteArray> setCookieHeaders;
@@ -188,6 +196,7 @@ void CookieHttpClient::storeCookies(const QUrl& url, QNetworkReply* reply)
     }
 }
 
+// 构造统一的网络错误对象。
 ApiError CookieHttpClient::networkError(const QString& message, ApiErrorType type, int statusCode)
 {
     ApiError error;

@@ -7,6 +7,7 @@ namespace {
 constexpr auto ExamPlanKey = "exam_plan.latest";
 }
 
+// 构造对象并初始化依赖关系。
 ExamPlanViewModel::ExamPlanViewModel(QueryCacheRepository *cache, MockZhjwApiService *api, QObject *parent)
     : QObject(parent),
       m_cache(cache),
@@ -17,14 +18,22 @@ ExamPlanViewModel::ExamPlanViewModel(QueryCacheRepository *cache, MockZhjwApiSer
     }
 }
 
+// 返回当前查询状态。
 QueryState ExamPlanViewModel::state() const { return m_state; }
+// 加载当前模块数据并同步界面状态。
 bool ExamPlanViewModel::loading() const { return m_state == QueryState::Loading; }
+// 返回当前错误提示文本。
 QString ExamPlanViewModel::errorMessage() const { return m_errorMessage; }
+// 返回数据最近更新时间。
 QDateTime ExamPlanViewModel::lastUpdated() const { return m_lastUpdated; }
+// 返回是否已有可用缓存。
 bool ExamPlanViewModel::hasCache() const { return m_hasCache; }
+// 返回当前数据条目数量。
 int ExamPlanViewModel::count() const { return m_exams.size(); }
+// 返回当前登录状态。
 bool ExamPlanViewModel::loggedIn() const { return m_api && m_api->loggedIn(); }
 
+// 返回考试安排列表的界面数据。
 QVariantList ExamPlanViewModel::exams() const
 {
     QVariantList list;
@@ -34,6 +43,7 @@ QVariantList ExamPlanViewModel::exams() const
     return list;
 }
 
+// 加载当前模块数据并同步界面状态。
 void ExamPlanViewModel::load()
 {
     readCache();
@@ -47,6 +57,7 @@ void ExamPlanViewModel::load()
     }
 }
 
+// 刷新远端数据并更新缓存状态。
 void ExamPlanViewModel::refresh()
 {
     if (!loggedIn()) {
@@ -75,6 +86,7 @@ void ExamPlanViewModel::refresh()
     setState(m_exams.isEmpty() ? QueryState::Empty : QueryState::Loaded);
 }
 
+// 清理本模块缓存并重置相关状态。
 void ExamPlanViewModel::clearCache()
 {
     if (m_cache) {
@@ -87,6 +99,7 @@ void ExamPlanViewModel::clearCache()
     setState(QueryState::Idle);
 }
 
+// 按索引返回单条考试安排数据。
 QVariantMap ExamPlanViewModel::examAt(int index) const
 {
     if (index < 0 || index >= m_exams.size()) {
@@ -95,6 +108,7 @@ QVariantMap ExamPlanViewModel::examAt(int index) const
     return m_exams.at(index).toVariant();
 }
 
+// 更新查询状态并通知界面刷新。
 void ExamPlanViewModel::setState(QueryState state)
 {
     if (m_state == state) {
@@ -104,6 +118,7 @@ void ExamPlanViewModel::setState(QueryState state)
     emit stateChanged();
 }
 
+// 更新错误信息并触发错误状态通知。
 void ExamPlanViewModel::setError(const QString &message)
 {
     if (m_errorMessage == message) {
@@ -113,6 +128,7 @@ void ExamPlanViewModel::setError(const QString &message)
     emit errorChanged();
 }
 
+// 读取本地缓存并恢复视图模型状态。
 void ExamPlanViewModel::readCache()
 {
     if (!m_cache) {
@@ -130,6 +146,7 @@ void ExamPlanViewModel::readCache()
     emit cacheChanged();
 }
 
+// 写入本地缓存以便后续离线展示。
 void ExamPlanViewModel::writeCache()
 {
     if (m_cache) {
