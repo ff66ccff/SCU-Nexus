@@ -94,8 +94,7 @@ Item {
             QueryStatePane {
                 id: statePane
                 anchors.fill: parent
-                state: academicCalendarViewModel.state
-                loading: academicCalendarViewModel.loading
+                queryState: academicCalendarViewModel.state
                 errorMessage: academicCalendarViewModel.errorMessage
                 emptyTitle: "暂无校历图片"
                 emptyDescription: "可以稍后刷新公开校历页面"

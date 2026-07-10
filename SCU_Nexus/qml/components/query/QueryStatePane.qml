@@ -4,8 +4,7 @@ import ".."
 Item {
     id: root
 
-    property int state: 0
-    property bool loading: false
+    property int queryState: 0
     property string errorMessage: ""
     property string emptyTitle: "暂无数据"
     property string emptyDescription: ""
@@ -13,16 +12,17 @@ Item {
     signal retry()
     signal loginRequested()
 
-    visible: loading || state === 3 || state === 4 || state === 5
+    readonly property bool firstLoading: queryState === 1
+    visible: firstLoading || queryState === 4 || queryState === 5 || queryState === 6
 
     LoadingView {
         anchors.fill: parent
-        visible: root.loading
+        visible: root.firstLoading
     }
 
     EmptyView {
         anchors.fill: parent
-        visible: !root.loading && root.state === 3
+        visible: root.queryState === 4
         title: root.emptyTitle
         description: root.emptyDescription
         actionText: "刷新"
@@ -31,14 +31,14 @@ Item {
 
     ErrorView {
         anchors.fill: parent
-        visible: !root.loading && root.state === 4
+        visible: root.queryState === 5
         message: root.errorMessage
         onRetry: root.retry()
     }
 
     LoginRequiredView {
         anchors.fill: parent
-        visible: !root.loading && root.state === 5
+        visible: root.queryState === 6
         message: root.loginMessage
         onLoginRequested: root.loginRequested()
     }

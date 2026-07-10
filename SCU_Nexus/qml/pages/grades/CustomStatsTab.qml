@@ -118,8 +118,7 @@ Item {
     QueryStatePane {
         id: statePane
         anchors.fill: parent
-        state: gradesViewModel.schemeState
-        loading: gradesViewModel.schemeState === 1
+        queryState: gradesViewModel.schemeState
         errorMessage: gradesViewModel.schemeErrorMessage
         emptyTitle: "请先获取方案成绩"
         loginMessage: "教务成绩需要登录教务系统"

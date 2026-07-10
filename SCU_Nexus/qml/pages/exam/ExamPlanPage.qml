@@ -56,8 +56,7 @@ Item {
             QueryStatePane {
                 id: statePane
                 anchors.fill: parent
-                state: examPlanViewModel.state
-                loading: examPlanViewModel.loading
+                queryState: examPlanViewModel.state
                 errorMessage: examPlanViewModel.errorMessage
                 emptyTitle: "暂无考试安排"
                 loginMessage: "考表查询需要登录教务系统"

@@ -323,6 +323,28 @@ target_link_libraries(schedule_tests PRIVATE
 
 add_test(NAME schedule_tests COMMAND schedule_tests)
 
+qt_add_executable(app_foundation_tests
+    tests/test_app_foundation.cpp
+    src/common/QueryState.h
+    src/common/QueryState.cpp
+)
+
+target_include_directories(app_foundation_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(app_foundation_tests PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Sql
+    Qt6::Test
+)
+
+add_test(NAME app_foundation_tests COMMAND app_foundation_tests)
+set_tests_properties(app_foundation_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
+
 set_target_properties(SCU_Nexus PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON

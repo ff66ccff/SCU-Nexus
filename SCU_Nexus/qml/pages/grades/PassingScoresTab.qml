@@ -68,8 +68,7 @@ Item {
     QueryStatePane {
         id: statePane
         anchors.fill: parent
-        state: gradesViewModel.passingState
-        loading: gradesViewModel.passingState === 1
+        queryState: gradesViewModel.passingState
         errorMessage: gradesViewModel.passingErrorMessage
         emptyTitle: "暂无及格成绩"
         loginMessage: "教务成绩需要登录教务系统"

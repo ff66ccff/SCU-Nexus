@@ -8,12 +8,13 @@ class QueryStateNamespace
 
 public:
     enum QueryState {
-        Idle,
-        Loading,
-        Loaded,
-        Empty,
-        Error,
-        LoginRequired
+        Idle = 0,
+        Loading = 1,
+        Loaded = 2,
+        Refreshing = 3,
+        Empty = 4,
+        Error = 5,
+        LoginRequired = 6
     };
     Q_ENUM(QueryState)
 };
