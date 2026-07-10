@@ -17,3 +17,4 @@ CMakeLists.txt.user
 *.tmp
 .cache
 .qtcreator/
+/Bugaoshan
