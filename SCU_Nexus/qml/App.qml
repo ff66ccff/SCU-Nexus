@@ -39,7 +39,15 @@ ApplicationWindow {
 
     LoadingView {
         anchors.fill: parent
-        visible: !appController.ready
+        visible: !appController.ready && appController.startupError.length === 0
         text: "正在启动 SCU Nexus..."
+    }
+
+    ErrorView {
+        anchors.fill: parent
+        visible: appController.startupError.length > 0
+        title: "启动失败"
+        message: appController.startupError
+        onRetry: appController.initialize()
     }
 }

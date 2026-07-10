@@ -37,7 +37,6 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("FluentWinUI3");
 
     ScuAuthService scuAuthService;
-    AppController appController(nullptr, &scuAuthService);
     AppSettings appSettings;
     Router router;
     ThemeManager themeManager;
@@ -46,7 +45,20 @@ int main(int argc, char *argv[])
     QDir().mkpath(dataDir);
 
     QueryCacheRepository queryCache(dataDir + QStringLiteral("/query_cache.sqlite"));
-    queryCache.open();
+    SCUNexus::ScheduleRepository scheduleRepository;
+    AppController appController(
+        nullptr,
+        &scuAuthService,
+        [&queryCache]() {
+            const bool ok = queryCache.open();
+            return StartupStepResult{ok, ok ? QString{} : queryCache.lastError()};
+        },
+        [&scheduleRepository]() {
+            const bool ok = scheduleRepository.init();
+            return StartupStepResult{
+                ok,
+                ok ? QString{} : QStringLiteral("无法打开或初始化课表数据库")};
+        });
 
     ZhjwAuthService zhjwAuthService(nullptr, &scuAuthService);
     ZhjwApiService zhjwApiService(nullptr, &zhjwAuthService);
@@ -57,7 +69,6 @@ int main(int argc, char *argv[])
     ExamPlanViewModel examPlanViewModel(&queryCache, &zhjwQueryService);
     GradesViewModel gradesViewModel(&queryCache, &zhjwQueryService);
 
-    SCUNexus::ScheduleRepository scheduleRepository;
     SCUNexus::ScheduleViewModel scheduleViewModel;
     SCUNexus::ScheduleImportViewModel scheduleImportViewModel;
     SCUNexus::CourseEditViewModel courseEditViewModel;

@@ -325,21 +325,44 @@ add_test(NAME schedule_tests COMMAND schedule_tests)
 
 qt_add_executable(app_foundation_tests
     tests/test_app_foundation.cpp
+    src/app/AppController.h
+    src/app/AppController.cpp
     src/app/AppSettings.h
     src/app/AppSettings.cpp
     src/common/QueryState.h
     src/common/QueryState.cpp
+    src/core/crypto/Sm2Crypto.h
+    src/core/crypto/Sm2Crypto.cpp
+    src/core/logging/AuthLogger.h
+    src/core/logging/AuthLogger.cpp
+    src/core/network/CookieJar.h
+    src/core/network/CookieJar.cpp
+    src/core/network/CookieHttpClient.h
+    src/core/network/CookieHttpClient.cpp
+    src/core/network/HttpRequest.h
+    src/core/network/HttpResponse.h
+    src/core/network/NetworkError.h
+    src/core/network/NetworkSettings.h
+    src/services/auth/AuthErrors.h
+    src/services/auth/AuthViewModel.h
+    src/services/auth/AuthViewModel.cpp
+    src/services/auth/ScuAuthService.h
+    src/services/auth/ScuAuthService.cpp
 )
 
 target_include_directories(app_foundation_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${OPENSSL_ROOT_DIR}/include
 )
 
 target_link_libraries(app_foundation_tests PRIVATE
     Qt6::Core
     Qt6::Gui
+    Qt6::Network
     Qt6::Sql
     Qt6::Test
+    ${OPENSSL_CRYPTO_LIBRARY}
 )
 
 add_test(NAME app_foundation_tests COMMAND app_foundation_tests)
