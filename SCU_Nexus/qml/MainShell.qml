@@ -1,5 +1,4 @@
 import QtQuick 2.15
-import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "components"
 import "styles"
@@ -59,8 +58,8 @@ Rectangle {
                     spacing: 10
 
                     Rectangle {
-                        width: 30
-                        height: 30
+                        Layout.preferredWidth: 30
+                        Layout.preferredHeight: 30
                         radius: 8
                         color: Theme.accent
 
@@ -167,8 +166,8 @@ Rectangle {
                         spacing: 8
 
                         Rectangle {
-                            width: 9
-                            height: 9
+                            Layout.preferredWidth: 9
+                            Layout.preferredHeight: 9
                             radius: 4.5
                             color: appController.loggedIn ? Theme.success : Theme.placeholder
                         }

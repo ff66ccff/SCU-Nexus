@@ -60,8 +60,8 @@ Item {
                         spacing: root.innerSpacing
 
                         Rectangle {
-                            width: 9
-                            height: 9
+                            Layout.preferredWidth: 9
+                            Layout.preferredHeight: 9
                             radius: 4.5
                             Layout.alignment: Qt.AlignVCenter
                             color: appController.loggedIn ? Theme.success : Theme.placeholder

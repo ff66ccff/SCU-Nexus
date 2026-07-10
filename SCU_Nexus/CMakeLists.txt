@@ -149,9 +149,6 @@ qt_add_qml_module(SCU_Nexus
         qml/components/query/LastUpdatedLabel.qml
         qml/components/query/RefreshButton.qml
         qml/components/query/QueryStatePane.qml
-        qml/pages/AcademicCalendarPagePlaceholder.qml
-        qml/pages/ExamPlanPagePlaceholder.qml
-        qml/pages/GradesPagePlaceholder.qml
         qml/pages/calendar/AcademicCalendarPage.qml
         qml/pages/calendar/CalendarImageViewer.qml
         qml/pages/exam/ExamPlanPage.qml

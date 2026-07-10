@@ -15,8 +15,8 @@ Item {
 
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
-            width: 48
-            height: 48
+            Layout.preferredWidth: 48
+            Layout.preferredHeight: 48
             radius: 24
             color: Theme.control
             border.color: Theme.border

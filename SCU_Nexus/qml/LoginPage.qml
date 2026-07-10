@@ -41,7 +41,7 @@ Item {
             ModuleHeader {
                 Layout.fillWidth: true
                 title: "登录统一身份认证"
-                subtitle: "验证码由用户手动输入；密码加密与真实登录流程由 Person B 服务层接入。"
+                subtitle: "请输入学号、密码和验证码，完成统一身份认证登录。"
             }
 
             Card {
