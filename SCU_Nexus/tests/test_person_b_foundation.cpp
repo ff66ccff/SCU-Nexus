@@ -236,6 +236,7 @@ class PersonBFoundationTest : public QObject
     Q_OBJECT
 
 private slots:
+    void networkErrorTaxonomyIncludesDomainFailures();
     void cookieJarMatchesExactAndParentDomain();
     void cookieJarRejectsUnrelatedDomain();
     void cookieJarIgnoresSetCookieDomainForSubsystemIsolation();
@@ -249,6 +250,10 @@ private slots:
     void authLoggerRedactsJsonTokenAndFormPasswordCaseInsensitively();
     void authLoggerCapsRingBuffer();
     void zhjwParsersExtractRequiredValues();
+    void zhjwExamPlanParserRecognizesValidWidget();
+    void zhjwExamPlanParserRecognizesExplicitEmptyMarkers();
+    void zhjwExamPlanParserRejectsUnrelatedHtml();
+    void zhjwExamPlanParserRecognizesUnparseableWidget();
     void zhjwParsersDetectExpiredSessions();
     void authViewModelWritesFreshCaptchaUrlEachTime();
     void authViewModelRejectsLoginBeforeCaptchaLoaded();
@@ -268,11 +273,29 @@ private slots:
     void appControllerCanShareScuAuthWithZhjwStack();
     void appControllerReflectsRestoredAuthState();
     void zhjwApiUsesBrowserAcceptForExamPlan();
+    void zhjwApiReturnsValidExamPlan();
+    void zhjwApiReturnsExplicitlyEmptyExamPlan();
+    void zhjwApiMapsUnrelatedExamPageToParseFailure();
+    void zhjwApiMapsUnparseableExamWidgetToParseFailure();
+    void zhjwApiSanitizesExamParseFailureSummary();
     void zhjwApiUsesBrowserAcceptForScoreIndex();
     void zhjwApiRetriesScoreIndexWhenLoginMarkerHidesCallback();
     void zhjwApiRetriesOnceWhenSessionExpired();
     void zhjwApiPreservesNetworkErrorWithoutSessionRetry();
 };
+
+// 验证网络错误枚举包含完整的领域错误，并保持追加顺序。
+void PersonBFoundationTest::networkErrorTaxonomyIncludesDomainFailures()
+{
+    QCOMPARE(static_cast<int>(ApiErrorType::ConflictDetected),
+             static_cast<int>(ApiErrorType::ParameterInvalid) + 1);
+    QCOMPARE(static_cast<int>(ApiErrorType::DataWriteFailed),
+             static_cast<int>(ApiErrorType::ConflictDetected) + 1);
+    QCOMPARE(static_cast<int>(ApiErrorType::EmptyResult),
+             static_cast<int>(ApiErrorType::DataWriteFailed) + 1);
+    QCOMPARE(static_cast<int>(ApiErrorType::Unknown),
+             static_cast<int>(ApiErrorType::EmptyResult) + 1);
+}
 
 // 验证 CookieJar 的域名匹配和解析行为。
 void PersonBFoundationTest::cookieJarMatchesExactAndParentDomain()
@@ -607,6 +630,63 @@ void PersonBFoundationTest::zhjwParsersExtractRequiredValues()
     QCOMPARE(ZhjwParsers::extractPassingScoresCallback(
                  R"(var url = "/student/integratedQuery/scoreQuery/abc/allPassingScores/callback")"),
              QString("/student/integratedQuery/scoreQuery/abc/allPassingScores/callback"));
+}
+
+// 验证有效考表组件会被识别并解析为条目。
+void PersonBFoundationTest::zhjwExamPlanParserRecognizesValidWidget()
+{
+    const QString html = QString::fromUtf8(R"(
+        <div class="widget-box widget-color-blue">
+          <h5 class="widget-title smaller">线性代数</h5>
+          <div>第18周</div><div>2026-01-09</div><div>星期五</div><div>09:00-11:00</div>
+        </div>)");
+
+    const ZhjwParsers::ExamPlanParseResult result = ZhjwParsers::parseExamPlanResult(html);
+
+    QVERIFY(result.recognized);
+    QVERIFY(!result.explicitlyEmpty);
+    QCOMPARE(result.items.size(), 1);
+    QCOMPARE(result.items.first().courseName, QStringLiteral("线性代数"));
+}
+
+// 验证教务系统的三种明确空结果标记都会返回成功空态。
+void PersonBFoundationTest::zhjwExamPlanParserRecognizesExplicitEmptyMarkers()
+{
+    const QStringList markers = {
+        QStringLiteral("暂无考试安排"),
+        QStringLiteral("暂无数据"),
+        QStringLiteral("没有查询到"),
+    };
+
+    for (const QString& marker : markers) {
+        const ZhjwParsers::ExamPlanParseResult result =
+            ZhjwParsers::parseExamPlanResult(QStringLiteral("<html><body>%1</body></html>").arg(marker));
+        QVERIFY2(result.items.isEmpty(), qPrintable(marker));
+        QVERIFY2(!result.recognized, qPrintable(marker));
+        QVERIFY2(result.explicitlyEmpty, qPrintable(marker));
+    }
+}
+
+// 验证无考表结构或空结果标记的页面不会被误判为成功。
+void PersonBFoundationTest::zhjwExamPlanParserRejectsUnrelatedHtml()
+{
+    const ZhjwParsers::ExamPlanParseResult result =
+        ZhjwParsers::parseExamPlanResult(QStringLiteral("<html><body>教务系统维护中</body></html>"));
+
+    QVERIFY(result.items.isEmpty());
+    QVERIFY(!result.recognized);
+    QVERIFY(!result.explicitlyEmpty);
+}
+
+// 验证组件结构仍可识别但字段改版无法解析时，不会伪装成明确空结果。
+void PersonBFoundationTest::zhjwExamPlanParserRecognizesUnparseableWidget()
+{
+    const ZhjwParsers::ExamPlanParseResult result = ZhjwParsers::parseExamPlanResult(
+        QStringLiteral("<div class=\"widget-box widget-color-red\"><h5 class=\"renamed-title\">大学物理</h5></div>"));
+
+    QVERIFY(result.items.isEmpty());
+    QVERIFY(result.recognized);
+    QVERIFY(!result.explicitlyEmpty);
 }
 
 // 验证综合教务页面解析器行为。
@@ -1094,7 +1174,7 @@ void PersonBFoundationTest::zhjwApiUsesBrowserAcceptForExamPlan()
     HttpResponse examResponse;
     examResponse.statusCode = 200;
     examResponse.finalUrl = QUrl(examUrl);
-    examResponse.body = "<html></html>";
+    examResponse.body = QStringLiteral("<html><body>暂无考试安排</body></html>").toUtf8();
     fakeClient->responses.insert(examUrl, examResponse);
 
     FakeZhjwAuthService auth(fakeClient);
@@ -1108,6 +1188,155 @@ void PersonBFoundationTest::zhjwApiUsesBrowserAcceptForExamPlan()
     QCOMPARE(fakeClient->getUrls.size(), 1);
     QCOMPARE(fakeClient->getHeaders.first().value(QStringLiteral("Accept")),
              QStringLiteral("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"));
+}
+
+// 验证有效考表页面仍通过 API 服务返回解析后的条目。
+void PersonBFoundationTest::zhjwApiReturnsValidExamPlan()
+{
+    auto* fakeClient = new FakeCookieHttpClient();
+    const QString examUrl = QStringLiteral("http://zhjw.scu.edu.cn/student/examinationManagement/examPlan/index");
+
+    HttpResponse response;
+    response.statusCode = 200;
+    response.finalUrl = QUrl(examUrl);
+    response.body = QString::fromUtf8(R"(
+        <div class="widget-box widget-color-blue">
+          <h5 class="widget-title smaller">线性代数</h5>
+          <div>第18周</div><div>2026-01-09</div>
+        </div>)").toUtf8();
+    fakeClient->responses.insert(examUrl, response);
+
+    FakeZhjwAuthService auth(fakeClient);
+    ZhjwApiService service(nullptr, &auth);
+    QList<ExamPlanItemDto> items;
+    ApiError result;
+    service.fetchExamPlan([&items, &result](const QList<ExamPlanItemDto>& exams, const ApiError& error) {
+        items = exams;
+        result = error;
+    });
+
+    QCOMPARE(result.type, ApiErrorType::Unknown);
+    QCOMPARE(items.size(), 1);
+    QCOMPARE(items.first().courseName, QStringLiteral("线性代数"));
+}
+
+// 验证明确空结果页面通过 API 服务返回成功空列表。
+void PersonBFoundationTest::zhjwApiReturnsExplicitlyEmptyExamPlan()
+{
+    auto* fakeClient = new FakeCookieHttpClient();
+    const QString examUrl = QStringLiteral("http://zhjw.scu.edu.cn/student/examinationManagement/examPlan/index");
+
+    HttpResponse response;
+    response.statusCode = 200;
+    response.finalUrl = QUrl(examUrl);
+    response.body = QStringLiteral("<html><body>暂无数据</body></html>").toUtf8();
+    fakeClient->responses.insert(examUrl, response);
+
+    FakeZhjwAuthService auth(fakeClient);
+    ZhjwApiService service(nullptr, &auth);
+    QList<ExamPlanItemDto> items;
+    ApiError result;
+    service.fetchExamPlan([&items, &result](const QList<ExamPlanItemDto>& exams, const ApiError& error) {
+        items = exams;
+        result = error;
+    });
+
+    QCOMPARE(result.type, ApiErrorType::Unknown);
+    QVERIFY(items.isEmpty());
+}
+
+// 验证无关页面会由 API 服务映射为解析失败，而不是成功空列表。
+void PersonBFoundationTest::zhjwApiMapsUnrelatedExamPageToParseFailure()
+{
+    auto* fakeClient = new FakeCookieHttpClient();
+    const QString examUrl = QStringLiteral("http://zhjw.scu.edu.cn/student/examinationManagement/examPlan/index");
+
+    HttpResponse response;
+    response.statusCode = 200;
+    response.finalUrl = QUrl(examUrl);
+    response.body = QStringLiteral("<html><body>教务系统维护中</body></html>").toUtf8();
+    fakeClient->responses.insert(examUrl, response);
+
+    FakeZhjwAuthService auth(fakeClient);
+    ZhjwApiService service(nullptr, &auth);
+    QList<ExamPlanItemDto> items;
+    ApiError result;
+    service.fetchExamPlan([&items, &result](const QList<ExamPlanItemDto>& exams, const ApiError& error) {
+        items = exams;
+        result = error;
+    });
+
+    QVERIFY(items.isEmpty());
+    QCOMPARE(result.type, ApiErrorType::ParseFailed);
+    QCOMPARE(result.message, QStringLiteral("考试安排页面结构无法识别"));
+    QCOMPARE(result.statusCode, 200);
+}
+
+// 验证已识别组件在字段改版后解析不到条目时同样映射为解析失败。
+void PersonBFoundationTest::zhjwApiMapsUnparseableExamWidgetToParseFailure()
+{
+    auto* fakeClient = new FakeCookieHttpClient();
+    const QString examUrl = QStringLiteral("http://zhjw.scu.edu.cn/student/examinationManagement/examPlan/index");
+
+    HttpResponse response;
+    response.statusCode = 200;
+    response.finalUrl = QUrl(examUrl);
+    response.body = QStringLiteral(
+        "<div class=\"widget-box widget-color-red\"><h5 class=\"renamed-title\">大学物理</h5></div>")
+                        .toUtf8();
+    fakeClient->responses.insert(examUrl, response);
+
+    FakeZhjwAuthService auth(fakeClient);
+    ZhjwApiService service(nullptr, &auth);
+    QList<ExamPlanItemDto> items;
+    ApiError result;
+    service.fetchExamPlan([&items, &result](const QList<ExamPlanItemDto>& exams, const ApiError& error) {
+        items = exams;
+        result = error;
+    });
+
+    QVERIFY(items.isEmpty());
+    QCOMPARE(result.type, ApiErrorType::ParseFailed);
+    QCOMPARE(result.message, QStringLiteral("考试安排页面结构无法识别"));
+}
+
+// 验证考表解析失败摘要会先规整空白、再脱敏，并截断到 500 字符。
+void PersonBFoundationTest::zhjwApiSanitizesExamParseFailureSummary()
+{
+    AuthLogger::instance().clear();
+    auto* fakeClient = new FakeCookieHttpClient();
+    const QString examUrl = QStringLiteral("http://zhjw.scu.edu.cn/student/examinationManagement/examPlan/index");
+    const QString body = QStringLiteral("<html>\n  <body>\tusername=202612345678  ")
+        + QString(700, QLatin1Char('x'))
+        + QStringLiteral("\n </body> </html>");
+
+    HttpResponse response;
+    response.statusCode = 200;
+    response.finalUrl = QUrl(examUrl);
+    response.body = body.toUtf8();
+    fakeClient->responses.insert(examUrl, response);
+
+    FakeZhjwAuthService auth(fakeClient);
+    ZhjwApiService service(nullptr, &auth);
+    ApiError result;
+    service.fetchExamPlan([&result](const QList<ExamPlanItemDto>&, const ApiError& error) {
+        result = error;
+    });
+
+    const QString expectedSummary = AuthLogRedactor::apply(body.simplified()).left(500);
+    QCOMPARE(result.type, ApiErrorType::ParseFailed);
+    QCOMPARE(result.debugBody, expectedSummary);
+    QCOMPARE(result.debugBody.size(), 500);
+    QVERIFY(result.debugBody.contains(QStringLiteral("username=<redacted>")));
+    QVERIFY(!result.debugBody.contains(QStringLiteral("202612345678")));
+    QVERIFY(!result.debugBody.contains(QLatin1Char('\n')));
+    QVERIFY(!result.debugBody.contains(QLatin1Char('\t')));
+    QVERIFY(!result.debugBody.contains(QStringLiteral("  ")));
+
+    const QList<AuthLogEntry> logs = AuthLogger::instance().entries();
+    QVERIFY(std::none_of(logs.cbegin(), logs.cend(), [&body](const AuthLogEntry& entry) {
+        return entry.message.contains(body) || entry.message.contains(QStringLiteral("202612345678"));
+    }));
 }
 
 // 验证成绩 index 页请求头与 Bugaoshan 保持一致，避免服务端返回非预期页面导致 callback 提取失败。

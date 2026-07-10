@@ -30,6 +30,12 @@ CookieHttpClient::Headers browserHtmlHeaders(const QString& referer)
     };
 }
 
+// 构造适合诊断的页面摘要，避免原始响应中的认证信息或完整 HTML 泄漏。
+QString safeBodySummary(const QString& body)
+{
+    return AuthLogRedactor::apply(body.simplified()).left(500);
+}
+
 }
 
 // 构造对象并初始化依赖关系。
@@ -140,7 +146,16 @@ void ZhjwApiService::fetchExamPlan(ExamPlanCallback callback)
             callback({}, error);
             return;
         }
-        callback(ZhjwParsers::parseExamPlan(QString::fromUtf8(response.body)), {});
+        const QString body = QString::fromUtf8(response.body);
+        const ZhjwParsers::ExamPlanParseResult parseResult = ZhjwParsers::parseExamPlanResult(body);
+        if (parseResult.items.isEmpty() && !parseResult.explicitlyEmpty) {
+            callback({}, makeError(ApiErrorType::ParseFailed,
+                                   QStringLiteral("考试安排页面结构无法识别"),
+                                   response.statusCode,
+                                   safeBodySummary(body)));
+            return;
+        }
+        callback(parseResult.items, {});
     });
 }
 

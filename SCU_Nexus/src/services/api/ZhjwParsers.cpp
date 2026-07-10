@@ -79,15 +79,20 @@ QList<SemesterDto> parseSemesters(const QString& html)
     return semesters;
 }
 
-// 解析外部数据并转换为内部结构。
-QList<ExamPlanItemDto> parseExamPlan(const QString& html)
+// 解析考表条目，并区分页面结构、明确空结果和无法识别的页面。
+ExamPlanParseResult parseExamPlanResult(const QString& html)
 {
-    QList<ExamPlanItemDto> items;
+    ExamPlanParseResult result;
+    result.explicitlyEmpty = html.contains(QStringLiteral("暂无考试安排"))
+        || html.contains(QStringLiteral("暂无数据"))
+        || html.contains(QStringLiteral("没有查询到"));
+
     const QRegularExpression blockRegex(
         R"((<div[^>]+class\s*=\s*"[^"]*widget-box\s+widget-color-[^"]*"[^>]*>.*?)(?=<div[^>]+class\s*=\s*"[^"]*widget-box\s+widget-color-|$))",
         QRegularExpression::DotMatchesEverythingOption);
     QRegularExpressionMatchIterator blocks = blockRegex.globalMatch(html);
     while (blocks.hasNext()) {
+        result.recognized = true;
         const QString block = blocks.next().captured(1);
         ExamPlanItemDto item;
         item.courseName = firstCapture(
@@ -107,10 +112,16 @@ QList<ExamPlanItemDto> parseExamPlan(const QString& html)
             item.tip = QStringLiteral("无");
         }
         if (!item.courseName.isEmpty()) {
-            items.append(item);
+            result.items.append(item);
         }
     }
-    return items;
+    return result;
+}
+
+// 保留旧调用接口，仅返回成功解析出的考表条目。
+QList<ExamPlanItemDto> parseExamPlan(const QString& html)
+{
+    return parseExamPlanResult(html).items;
 }
 
 // 提取培养方案成绩接口回调路径。

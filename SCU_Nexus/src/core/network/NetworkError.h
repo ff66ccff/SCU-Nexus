@@ -13,6 +13,10 @@ enum class ApiErrorType {
     RateLimited,
     InvalidCaptcha,
     InvalidCredential,
+    ParameterInvalid,
+    ConflictDetected,
+    DataWriteFailed,
+    EmptyResult,
     Unknown
 };
 
