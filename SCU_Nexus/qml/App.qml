@@ -18,7 +18,19 @@ ApplicationWindow {
     // 全局把 Fluent 控件的强调色设为四川大学品牌红（按钮、开关、焦点线等都会跟随）。
     palette.accent: Theme.accent
 
-    Component.onCompleted: appController.initialize()
+    Component.onCompleted: {
+        const geometry = appSettings.restoreWindowGeometry()
+        window.x = geometry.x
+        window.y = geometry.y
+        window.width = geometry.width
+        window.height = geometry.height
+        appController.initialize()
+    }
+
+    onClosing: function(close) {
+        appSettings.saveWindowGeometry(window.x, window.y, window.width, window.height)
+        close.accepted = true
+    }
 
     MainShell {
         anchors.fill: parent

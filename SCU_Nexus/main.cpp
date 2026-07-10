@@ -6,6 +6,7 @@
 #include <QtQuickControls2/QQuickStyle>
 
 #include "src/app/AppController.h"
+#include "src/app/AppSettings.h"
 #include "src/app/Router.h"
 #include "src/app/ThemeManager.h"
 #include "src/app/ToastManager.h"
@@ -37,6 +38,7 @@ int main(int argc, char *argv[])
 
     ScuAuthService scuAuthService;
     AppController appController(nullptr, &scuAuthService);
+    AppSettings appSettings;
     Router router;
     ThemeManager themeManager;
     ToastManager toastManager;
@@ -110,6 +112,7 @@ int main(int argc, char *argv[])
                      &toastManager, [&toastManager](const QString &message) { toastManager.show(message, QStringLiteral("warning")); });
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("appController", &appController);
+    engine.rootContext()->setContextProperty("appSettings", &appSettings);
     engine.rootContext()->setContextProperty("router", &router);
     engine.rootContext()->setContextProperty("themeManager", &themeManager);
     engine.rootContext()->setContextProperty("toastManager", &toastManager);

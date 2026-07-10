@@ -325,6 +325,8 @@ add_test(NAME schedule_tests COMMAND schedule_tests)
 
 qt_add_executable(app_foundation_tests
     tests/test_app_foundation.cpp
+    src/app/AppSettings.h
+    src/app/AppSettings.cpp
     src/common/QueryState.h
     src/common/QueryState.cpp
 )
