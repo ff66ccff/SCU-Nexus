@@ -56,15 +56,20 @@ QString CookieJar::cookieHeader(const QUrl& url) const
 }
 
 // 处理 Cookie 的解析、存储或输出。
-QString CookieJar::cookieHeaderForDebug() const
+QString CookieJar::cookieSummaryForDebug() const
 {
-    QStringList pairs;
+    qsizetype storedPairCount = 0;
+    QStringList names;
     for (auto host = m_cookiesByHost.cbegin(); host != m_cookiesByHost.cend(); ++host) {
         for (auto cookie = host.value().cbegin(); cookie != host.value().cend(); ++cookie) {
-            pairs.append(cookie.key() + "=" + cookie.value());
+            ++storedPairCount;
+            if (!names.contains(cookie.key())) {
+                names.append(cookie.key());
+            }
         }
     }
-    return pairs.join("; ");
+    names.sort(Qt::CaseSensitive);
+    return QStringLiteral("count=%1; names=%2").arg(storedPairCount).arg(names.join(QLatin1Char(',')));
 }
 
 // 清理内部状态或持久化数据。

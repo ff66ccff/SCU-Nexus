@@ -30,7 +30,7 @@ public:
     virtual void followRedirects(const QUrl& url, Callback callback, const Headers& headers = {}, int maxRedirects = 10);
 
     virtual void clearCookies();
-    virtual QString cookieHeaderForDebug() const;
+    virtual QString cookieSummaryForDebug() const;
 
 private:
     void send(QString method,

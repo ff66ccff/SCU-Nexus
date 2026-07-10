@@ -46,6 +46,24 @@ QString AuthLogRedactor::apply(QString text)
     text.replace(QRegularExpression(QStringLiteral(R"REGEX(("password"\s*:\s*)"[^"]*")REGEX"),
                                     QRegularExpression::CaseInsensitiveOption),
                  QStringLiteral(R"(\1"<redacted>")"));
+    text.replace(QRegularExpression(QStringLiteral(R"REGEX(("token"\s*:\s*)"[^"]*")REGEX"),
+                                    QRegularExpression::CaseInsensitiveOption),
+                 QStringLiteral(R"(\1"<redacted>")"));
+    text.replace(QRegularExpression(
+                     QStringLiteral(R"REGEX(("(?:username|studentId|captcha)"\s*:\s*)"[^"]*")REGEX"),
+                     QRegularExpression::CaseInsensitiveOption),
+                 QStringLiteral(R"(\1"<redacted>")"));
+    text.replace(QRegularExpression(
+                     QStringLiteral(R"((\b(?:username|studentId|captcha)\s*[:=]\s*)[^&;\s,}"]+)"),
+                     QRegularExpression::CaseInsensitiveOption),
+                 QStringLiteral(R"(\1<redacted>)"));
+    text.replace(QRegularExpression(
+                     QStringLiteral(R"(((?:^|[?&;\s])password\s*=\s*)[^&;\s"]+)"),
+                     QRegularExpression::CaseInsensitiveOption),
+                 QStringLiteral(R"(\1<redacted>)"));
+    text.replace(QRegularExpression(QStringLiteral(R"(((?:^|\s)Cookie\s*:\s*)[^\r\n]*)"),
+                                    QRegularExpression::CaseInsensitiveOption),
+                 QStringLiteral(R"(\1<redacted>)"));
     text.replace(QRegularExpression(QStringLiteral(R"((Bearer\s+)[A-Za-z0-9._\-]+)"),
                                     QRegularExpression::CaseInsensitiveOption),
                  QStringLiteral(R"(\1<redacted>)"));

@@ -187,7 +187,7 @@ void ScuAuthService::login(const QString& username,
         return;
     }
 
-    AuthLogger::instance().info(QStringLiteral("ScuAuth"), QStringLiteral("login start user=%1").arg(username));
+    AuthLogger::instance().info(QStringLiteral("ScuAuth"), QStringLiteral("login start"));
     auto* client = m_clientFactory(this);
     auto attempts = std::make_shared<int>(0);
     auto requestSm2 = std::make_shared<std::function<void()>>();

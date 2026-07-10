@@ -12,7 +12,7 @@ class CookieJar
 public:
     void storeFromSetCookie(const QUrl& url, const QList<QByteArray>& setCookieHeaders);
     QString cookieHeader(const QUrl& url) const;
-    QString cookieHeaderForDebug() const;
+    QString cookieSummaryForDebug() const;
     void clear();
 
 private:

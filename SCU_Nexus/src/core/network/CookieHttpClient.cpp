@@ -39,9 +39,9 @@ void CookieHttpClient::clearCookies()
 }
 
 // 处理 Cookie 的解析、存储或输出。
-QString CookieHttpClient::cookieHeaderForDebug() const
+QString CookieHttpClient::cookieSummaryForDebug() const
 {
-    return m_cookieJar.cookieHeaderForDebug();
+    return m_cookieJar.cookieSummaryForDebug();
 }
 
 void CookieHttpClient::send(QString method,

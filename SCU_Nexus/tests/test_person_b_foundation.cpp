@@ -240,10 +240,13 @@ private slots:
     void cookieJarRejectsUnrelatedDomain();
     void cookieJarIgnoresSetCookieDomainForSubsystemIsolation();
     void cookieJarParsesCommaSeparatedSetCookie();
+    void cookieJarDebugSummaryCountsPairsAndExcludesHostsAndValues();
     void cookieHttpClientReturnsHttpErrorResponsesWithBody();
     void cookieHttpClientReportsRedirectLimit();
     void cookieHttpClientSendsCookiesStoredDuringRedirect();
     void authLoggerRedactsSensitiveValues();
+    void authLoggerRedactsIdentityCaptchaAndCookieValues();
+    void authLoggerRedactsJsonTokenAndFormPasswordCaseInsensitively();
     void authLoggerCapsRingBuffer();
     void zhjwParsersExtractRequiredValues();
     void zhjwParsersDetectExpiredSessions();
@@ -315,6 +318,28 @@ void PersonBFoundationTest::cookieJarParsesCommaSeparatedSetCookie()
     const QString header = jar.cookieHeader(QUrl("https://id.scu.edu.cn/"));
     QVERIFY(header.contains("SESSION=abc"));
     QVERIFY(header.contains("lang=zh_CN"));
+}
+
+// 验证 Cookie 调试摘要仅包含排序后的唯一名称和实际存储对数。
+void PersonBFoundationTest::cookieJarDebugSummaryCountsPairsAndExcludesHostsAndValues()
+{
+    CookieJar jar;
+    jar.storeFromSetCookie(
+        QUrl(QStringLiteral("https://id.scu.edu.cn/login")),
+        {QByteArrayLiteral("TGC=first-secret; Path=/, JSESSIONID=second-secret; Path=/")});
+
+    QCOMPARE(jar.cookieSummaryForDebug(), QStringLiteral("count=2; names=JSESSIONID,TGC"));
+
+    jar.storeFromSetCookie(QUrl(QStringLiteral("https://zhjw.scu.edu.cn/login")),
+                           {QByteArrayLiteral("TGC=third-secret; Path=/")});
+    const QString summary = jar.cookieSummaryForDebug();
+
+    QCOMPARE(summary, QStringLiteral("count=3; names=JSESSIONID,TGC"));
+    QVERIFY(!summary.contains(QStringLiteral("first-secret")));
+    QVERIFY(!summary.contains(QStringLiteral("second-secret")));
+    QVERIFY(!summary.contains(QStringLiteral("third-secret")));
+    QVERIFY(!summary.contains(QStringLiteral("id.scu.edu.cn")));
+    QVERIFY(!summary.contains(QStringLiteral("zhjw.scu.edu.cn")));
 }
 
 // 验证 CookieHttpClient 的网络响应处理行为。
@@ -481,6 +506,7 @@ void PersonBFoundationTest::cookieHttpClientSendsCookiesStoredDuringRedirect()
     QCOMPARE(response.statusCode, 200);
     QCOMPARE(response.body, QByteArray("ok"));
     QVERIFY(finalRequestHadCookie);
+    QCOMPARE(client.cookieSummaryForDebug(), QStringLiteral("count=1; names=SESSION"));
 }
 
 // 验证认证日志记录与脱敏行为。
@@ -500,6 +526,32 @@ void PersonBFoundationTest::authLoggerRedactsSensitiveValues()
     QVERIFY(!message.contains(QStringLiteral("abc.def")));
     QVERIFY(!message.contains(QStringLiteral("secret")));
     QVERIFY(!message.contains(QStringLiteral("token-value")));
+}
+
+// 验证身份、验证码和 Cookie 字段不会出现在认证日志中。
+void PersonBFoundationTest::authLoggerRedactsIdentityCaptchaAndCookieValues()
+{
+    const QString redacted = AuthLogRedactor::apply(
+        QStringLiteral("username=202312345678 studentId: 202398765432 captcha=ABCD Cookie: TGC=secret"));
+
+    QCOMPARE(redacted,
+             QStringLiteral("username=<redacted> studentId: <redacted> captcha=<redacted> Cookie: <redacted>"));
+    QVERIFY(!redacted.contains(QStringLiteral("202312345678")));
+    QVERIFY(!redacted.contains(QStringLiteral("202398765432")));
+    QVERIFY(!redacted.contains(QStringLiteral("ABCD")));
+    QVERIFY(!redacted.contains(QStringLiteral("secret")));
+}
+
+// 验证 JSON token 与表单 password 字段按大小写无关方式脱敏。
+void PersonBFoundationTest::authLoggerRedactsJsonTokenAndFormPasswordCaseInsensitively()
+{
+    const QString redacted = AuthLogRedactor::apply(
+        QStringLiteral("payload {\"ToKeN\":\"json-secret\"} PASSWORD=form-secret&continue=1"));
+
+    QCOMPARE(redacted,
+             QStringLiteral("payload {\"ToKeN\":\"<redacted>\"} PASSWORD=<redacted>&continue=1"));
+    QVERIFY(!redacted.contains(QStringLiteral("json-secret")));
+    QVERIFY(!redacted.contains(QStringLiteral("form-secret")));
 }
 
 // 验证认证日志记录与脱敏行为。
@@ -742,6 +794,9 @@ void PersonBFoundationTest::scuAuthLoginRequestsSm2ThenTokenAndStoresToken()
     }));
     QVERIFY(std::none_of(logs.cbegin(), logs.cend(), [](const AuthLogEntry& entry) {
         return entry.message.contains(QStringLiteral("access-token-1"));
+    }));
+    QVERIFY(std::none_of(logs.cbegin(), logs.cend(), [](const AuthLogEntry& entry) {
+        return entry.message.contains(QStringLiteral("20260001"));
     }));
 }
 
