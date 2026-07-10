@@ -1,7 +1,10 @@
 #include <QtTest>
+#include <QTemporaryDir>
 #include "src/app/AppController.h"
 #include "src/app/AppSettings.h"
 #include "src/common/QueryState.h"
+#include "src/repositories/QueryCacheRepository.h"
+#include "src/viewmodels/QueryCacheViewModel.h"
 
 class AppFoundationTests final : public QObject
 {
@@ -128,6 +131,44 @@ private slots:
         QCOMPARE(AppSettings::sanitizedGeometry(QRect(-500, -500, 300, 200),
                                                  QRect(0, 0, 1024, 700)),
                  QRect(0, 0, 900, 620));
+    }
+
+    void queryCacheClearRemovesStoredEntries()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+
+        QueryCacheRepository repository(
+            directory.filePath(QStringLiteral("query-cache.sqlite")));
+        QVERIFY2(repository.open(), qPrintable(repository.lastError()));
+        QVERIFY2(repository.put(QStringLiteral("exam-plan"),
+                                QStringLiteral(R"({"items":[]})")),
+                 qPrintable(repository.lastError()));
+
+        QueryCacheEntry entry;
+        QVERIFY(repository.get(QStringLiteral("exam-plan"), &entry));
+
+        QueryCacheViewModel viewModel(&repository);
+        QSignalSpy clearedSpy(&viewModel, &QueryCacheViewModel::cacheCleared);
+        QSignalSpy errorSpy(&viewModel, &QueryCacheViewModel::errorMessageChanged);
+
+        QVERIFY(viewModel.clearAll());
+        QVERIFY(!repository.get(QStringLiteral("exam-plan"), &entry));
+        QVERIFY(viewModel.errorMessage().isEmpty());
+        QCOMPARE(clearedSpy.count(), 1);
+        QCOMPARE(errorSpy.count(), 0);
+    }
+
+    void queryCacheClearReportsUninitializedRepository()
+    {
+        QueryCacheViewModel viewModel(nullptr);
+        QSignalSpy clearedSpy(&viewModel, &QueryCacheViewModel::cacheCleared);
+        QSignalSpy errorSpy(&viewModel, &QueryCacheViewModel::errorMessageChanged);
+
+        QVERIFY(!viewModel.clearAll());
+        QCOMPARE(viewModel.errorMessage(), QStringLiteral("缓存仓库未初始化"));
+        QCOMPARE(clearedSpy.count(), 0);
+        QCOMPARE(errorSpy.count(), 1);
     }
 };
 

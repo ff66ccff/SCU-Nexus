@@ -19,6 +19,7 @@
 #include "src/viewmodels/AcademicCalendarViewModel.h"
 #include "src/viewmodels/ExamPlanViewModel.h"
 #include "src/viewmodels/GradesViewModel.h"
+#include "src/viewmodels/QueryCacheViewModel.h"
 #include "src/viewmodels/ScheduleViewModel.h"
 #include "src/viewmodels/ScheduleImportViewModel.h"
 #include "src/viewmodels/CourseEditViewModel.h"
@@ -65,6 +66,7 @@ int main(int argc, char *argv[])
     ZhjwApiQueryService zhjwQueryService(nullptr, &zhjwApiService);
     zhjwQueryService.setLoggedIn(appController.loggedIn());
 
+    QueryCacheViewModel queryCacheViewModel(&queryCache);
     AcademicCalendarViewModel academicCalendarViewModel(&queryCache);
     ExamPlanViewModel examPlanViewModel(&queryCache, &zhjwQueryService);
     GradesViewModel gradesViewModel(&queryCache, &zhjwQueryService);
@@ -127,6 +129,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("router", &router);
     engine.rootContext()->setContextProperty("themeManager", &themeManager);
     engine.rootContext()->setContextProperty("toastManager", &toastManager);
+    engine.rootContext()->setContextProperty("queryCacheViewModel", &queryCacheViewModel);
     engine.rootContext()->setContextProperty("academicCalendarViewModel", &academicCalendarViewModel);
     engine.rootContext()->setContextProperty("examPlanViewModel", &examPlanViewModel);
     engine.rootContext()->setContextProperty("gradesViewModel", &gradesViewModel);

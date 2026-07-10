@@ -348,6 +348,10 @@ qt_add_executable(app_foundation_tests
     src/services/auth/AuthViewModel.cpp
     src/services/auth/ScuAuthService.h
     src/services/auth/ScuAuthService.cpp
+    src/repositories/QueryCacheRepository.h
+    src/repositories/QueryCacheRepository.cpp
+    src/viewmodels/QueryCacheViewModel.h
+    src/viewmodels/QueryCacheViewModel.cpp
 )
 
 target_include_directories(app_foundation_tests PRIVATE

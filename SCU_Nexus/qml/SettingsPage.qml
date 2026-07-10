@@ -110,7 +110,7 @@ Item {
                     SectionHeader {
                         Layout.fillWidth: true
                         title: "数据管理"
-                        description: "实际清理动作由 C/D 对应 ViewModel 接入。"
+                        description: "清除本地课表或校历、考表、成绩查询缓存。"
                     }
 
                     RowLayout {
@@ -206,7 +206,10 @@ Item {
                 else
                     toastManager.show(scheduleViewModel.errorMessage, "error")
             } else if (pendingAction === "clearQuery") {
-                toastManager.show("清除查询缓存接口已预留")
+                if (queryCacheViewModel.clearAll())
+                    toastManager.show("已清除考表、成绩和校历查询缓存", "success")
+                else
+                    toastManager.show(queryCacheViewModel.errorMessage, "error")
             }
             pendingAction = ""
         }
