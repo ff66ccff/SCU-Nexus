@@ -93,6 +93,27 @@ qt_add_executable(SCU_Nexus
     src/viewmodels/GradesViewModel.cpp
     src/viewmodels/QueryCacheViewModel.h
     src/viewmodels/QueryCacheViewModel.cpp
+    src/models/Course.h
+    src/models/Course.cpp
+    src/models/ScheduleConfig.h
+    src/models/ScheduleConfig.cpp
+    src/models/TimeSlot.h
+    src/models/TimeSlot.cpp
+    src/models/WeekType.h
+    src/repositories/ScheduleRepository.h
+    src/repositories/ScheduleRepository.cpp
+    src/services/course/CourseLayoutService.h
+    src/services/course/CourseLayoutService.cpp
+    src/services/course/JwxtScheduleParser.h
+    src/services/course/JwxtScheduleParser.cpp
+    src/services/course/ScheduleImportService.h
+    src/services/course/ScheduleImportService.cpp
+    src/viewmodels/ScheduleViewModel.h
+    src/viewmodels/ScheduleViewModel.cpp
+    src/viewmodels/ScheduleImportViewModel.h
+    src/viewmodels/ScheduleImportViewModel.cpp
+    src/viewmodels/CourseEditViewModel.h
+    src/viewmodels/CourseEditViewModel.cpp
 )
 
 set_source_files_properties(qml/styles/Theme.qml
@@ -128,7 +149,6 @@ qt_add_qml_module(SCU_Nexus
         qml/components/query/LastUpdatedLabel.qml
         qml/components/query/RefreshButton.qml
         qml/components/query/QueryStatePane.qml
-        qml/pages/SchedulePagePlaceholder.qml
         qml/pages/AcademicCalendarPagePlaceholder.qml
         qml/pages/ExamPlanPagePlaceholder.qml
         qml/pages/GradesPagePlaceholder.qml
@@ -142,6 +162,18 @@ qt_add_qml_module(SCU_Nexus
         qml/pages/grades/CustomStatsTab.qml
         qml/pages/grades/GradeCourseCard.qml
         qml/pages/grades/GradeSummaryPanel.qml
+        qml/pages/schedule/SchedulePage.qml
+        qml/pages/schedule/CourseEditDialog.qml
+        qml/pages/schedule/ImportScheduleDialog.qml
+        qml/pages/schedule/ScheduleManagementDialog.qml
+        qml/pages/schedule/ScheduleSettingsDialog.qml
+        qml/pages/schedule/TimeSlotSettingsDialog.qml
+        qml/components/schedule/CourseGrid.qml
+        qml/components/schedule/CourseCard.qml
+        qml/components/schedule/WeekSwitcher.qml
+        qml/components/schedule/DayColumn.qml
+        qml/components/schedule/SectionColumn.qml
+        qml/components/schedule/CourseConflictBadge.qml
 )
 
 target_link_libraries(SCU_Nexus PRIVATE
@@ -252,6 +284,44 @@ target_link_libraries(person_d_query_tests PRIVATE
 )
 
 add_test(NAME person_d_query_tests COMMAND person_d_query_tests)
+
+qt_add_executable(schedule_tests
+    tests/test_schedule.cpp
+    src/models/TimeSlot.h
+    src/models/TimeSlot.cpp
+    src/models/ScheduleConfig.h
+    src/models/ScheduleConfig.cpp
+    src/models/Course.h
+    src/models/Course.cpp
+    src/models/WeekType.h
+    src/repositories/ScheduleRepository.h
+    src/repositories/ScheduleRepository.cpp
+    src/services/course/JwxtScheduleParser.h
+    src/services/course/JwxtScheduleParser.cpp
+    src/services/course/ScheduleImportService.h
+    src/services/course/ScheduleImportService.cpp
+    src/services/course/CourseLayoutService.h
+    src/services/course/CourseLayoutService.cpp
+    src/viewmodels/ScheduleViewModel.h
+    src/viewmodels/ScheduleViewModel.cpp
+    src/viewmodels/CourseEditViewModel.h
+    src/viewmodels/CourseEditViewModel.cpp
+    src/viewmodels/ScheduleImportViewModel.h
+    src/viewmodels/ScheduleImportViewModel.cpp
+)
+
+target_include_directories(schedule_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(schedule_tests PRIVATE
+    Qt6::Core
+    Qt6::Sql
+    Qt6::Test
+)
+
+add_test(NAME schedule_tests COMMAND schedule_tests)
 
 set_target_properties(SCU_Nexus PROPERTIES
     WIN32_EXECUTABLE ON

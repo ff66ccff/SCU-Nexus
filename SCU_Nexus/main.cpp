@@ -10,6 +10,7 @@
 #include "src/app/ThemeManager.h"
 #include "src/app/ToastManager.h"
 #include "src/repositories/QueryCacheRepository.h"
+#include "src/repositories/ScheduleRepository.h"
 #include "src/services/api/ZhjwApiService.h"
 #include "src/services/auth/ScuAuthService.h"
 #include "src/services/auth/ZhjwAuthService.h"
@@ -17,6 +18,9 @@
 #include "src/viewmodels/AcademicCalendarViewModel.h"
 #include "src/viewmodels/ExamPlanViewModel.h"
 #include "src/viewmodels/GradesViewModel.h"
+#include "src/viewmodels/ScheduleViewModel.h"
+#include "src/viewmodels/ScheduleImportViewModel.h"
+#include "src/viewmodels/CourseEditViewModel.h"
 
 // 初始化应用运行环境并进入主事件循环。
 int main(int argc, char *argv[])
@@ -51,6 +55,51 @@ int main(int argc, char *argv[])
     ExamPlanViewModel examPlanViewModel(&queryCache, &zhjwQueryService);
     GradesViewModel gradesViewModel(&queryCache, &zhjwQueryService);
 
+    SCUNexus::ScheduleRepository scheduleRepository;
+    SCUNexus::ScheduleViewModel scheduleViewModel;
+    SCUNexus::ScheduleImportViewModel scheduleImportViewModel;
+    SCUNexus::CourseEditViewModel courseEditViewModel;
+    scheduleViewModel.setRepository(&scheduleRepository);
+    scheduleImportViewModel.setRepository(&scheduleRepository);
+    courseEditViewModel.setRepository(&scheduleRepository);
+
+    scheduleImportViewModel.setRemoteApi(
+        [&zhjwApiService](SCUNexus::ScheduleImportViewModel::SemestersResult done) {
+            zhjwApiService.fetchSemesters(
+                [done = std::move(done)](const QList<SemesterDto>& semesters,
+                                         const ApiError& error) mutable {
+                    if (!error.message.isEmpty()) {
+                        done({}, error.message);
+                        return;
+                    }
+                    QVariantList result;
+                    for (const SemesterDto& semester : semesters) {
+                        QVariantMap item;
+                        item["planCode"] = semester.value;
+                        item["label"] = semester.label;
+                        item["isCurrent"] = semester.label.contains(QStringLiteral("（当前）"))
+                            || semester.label.contains(QStringLiteral("(当前)"));
+                        result.append(item);
+                    }
+                    done(result, {});
+                });
+        },
+        [&zhjwApiService](const QString& planCode,
+                          SCUNexus::ScheduleImportViewModel::ScheduleResult done) {
+            zhjwApiService.fetchJwxtSchedule(
+                planCode,
+                [done = std::move(done)](const QJsonObject& schedule,
+                                         const ApiError& error) mutable {
+                    done(schedule, error.message);
+                });
+        },
+        [&zhjwApiService](SCUNexus::ScheduleImportViewModel::WeekResult done) {
+            zhjwApiService.fetchCurrentWeek(
+                [done = std::move(done)](int week, const ApiError& error) mutable {
+                    done(week, error.message);
+                });
+        });
+
     QObject::connect(&appController, &AppController::loginStateChanged,
                      &zhjwQueryService, &ZhjwApiQueryService::setLoggedIn);
     QObject::connect(&academicCalendarViewModel, &AcademicCalendarViewModel::toastRequested,
@@ -59,7 +108,6 @@ int main(int argc, char *argv[])
                      &toastManager, [&toastManager](const QString &message) { toastManager.show(message, QStringLiteral("warning")); });
     QObject::connect(&gradesViewModel, &GradesViewModel::toastRequested,
                      &toastManager, [&toastManager](const QString &message) { toastManager.show(message, QStringLiteral("warning")); });
-
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("appController", &appController);
     engine.rootContext()->setContextProperty("router", &router);
@@ -68,6 +116,9 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("academicCalendarViewModel", &academicCalendarViewModel);
     engine.rootContext()->setContextProperty("examPlanViewModel", &examPlanViewModel);
     engine.rootContext()->setContextProperty("gradesViewModel", &gradesViewModel);
+    engine.rootContext()->setContextProperty("scheduleViewModel", &scheduleViewModel);
+    engine.rootContext()->setContextProperty("scheduleImportViewModel", &scheduleImportViewModel);
+    engine.rootContext()->setContextProperty("courseEditViewModel", &courseEditViewModel);
 
     const QUrl url("qrc:/SCU_Nexus/qml/App.qml");
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,

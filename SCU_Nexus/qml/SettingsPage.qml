@@ -201,7 +201,10 @@ Item {
                 appController.authViewModel.logout()
                 toastManager.show("已退出登录")
             } else if (pendingAction === "clearSchedule") {
-                toastManager.show("清除课表缓存接口已预留")
+                if (scheduleViewModel.clearAllCourseData())
+                    toastManager.show("已清除本地课表数据")
+                else
+                    toastManager.show(scheduleViewModel.errorMessage, "error")
             } else if (pendingAction === "clearQuery") {
                 toastManager.show("清除查询缓存接口已预留")
             }

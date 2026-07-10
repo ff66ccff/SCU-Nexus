@@ -242,7 +242,18 @@ Rectangle {
                         IconButton {
                             text: "↻"
                             tooltip: "刷新当前页面"
-                            onClicked: toastManager.show("刷新入口已预留，等待业务 ViewModel 接入。")
+                            onClicked: {
+                                if (router.currentRoute === "Schedule") {
+                                    scheduleViewModel.load()
+                                } else if (router.currentRoute === "AcademicCalendar") {
+                                    academicCalendarViewModel.refresh()
+                                } else if (router.currentRoute === "ExamPlan") {
+                                    examPlanViewModel.refresh()
+                                } else if (router.currentRoute === "Grades") {
+                                    gradesViewModel.refreshSchemeScores()
+                                    gradesViewModel.refreshPassingScores()
+                                }
+                            }
                         }
 
                         AppButton {
@@ -287,12 +298,12 @@ Rectangle {
 
     // 根据当前路由返回对应的 QML 页面资源路径。
     function pageSource(route) {
-        if (route === "Schedule") return "qrc:/SCU_Nexus/qml/pages/SchedulePagePlaceholder.qml"
+        if (route === "Schedule") return "qrc:/SCU_Nexus/qml/pages/schedule/SchedulePage.qml"
         if (route === "AcademicCalendar") return "qrc:/SCU_Nexus/qml/pages/calendar/AcademicCalendarPage.qml"
         if (route === "ExamPlan") return "qrc:/SCU_Nexus/qml/pages/exam/ExamPlanPage.qml"
         if (route === "Grades") return "qrc:/SCU_Nexus/qml/pages/grades/GradesPage.qml"
         if (route === "Settings") return "qrc:/SCU_Nexus/qml/SettingsPage.qml"
         if (route === "Login") return "qrc:/SCU_Nexus/qml/LoginPage.qml"
-        return "qrc:/SCU_Nexus/qml/pages/SchedulePagePlaceholder.qml"
+        return "qrc:/SCU_Nexus/qml/pages/schedule/SchedulePage.qml"
     }
 }
