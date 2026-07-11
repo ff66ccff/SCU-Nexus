@@ -22,6 +22,7 @@ public:
 
     // Initialize database: create tables, load metadata
     bool init();
+    bool initialized() const;
 
     // Schedule-level operations
     QString currentScheduleId() const;

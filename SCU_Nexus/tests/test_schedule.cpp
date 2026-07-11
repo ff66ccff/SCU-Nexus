@@ -62,6 +62,16 @@ QJsonObject validScheduleImportPayload(const QString& courseName)
     };
 }
 
+QSet<QString> sqlConnectionNames()
+{
+    QSet<QString> result;
+    const QStringList names = QSqlDatabase::connectionNames();
+    for (const QString& name : names) {
+        result.insert(name);
+    }
+    return result;
+}
+
 } // namespace
 
 class TestCourseModel : public QObject {
@@ -1369,9 +1379,113 @@ private slots:
         QVERIFY(roles.contains("totalTracks"));
     }
 
+    void testScheduleViewModelLoadDoesNotCreateStorageBeforeInitialization()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString databasePath = directory.filePath("pre-init.sqlite");
+
+        ScheduleRepository repo;
+        repo.setDatabasePath(databasePath);
+        ScheduleViewModel viewModel;
+        viewModel.setRepository(&repo);
+        const QSet<QString> connectionsBefore = sqlConnectionNames();
+
+        viewModel.load();
+
+        QVERIFY(!repo.initialized());
+        QCOMPARE(sqlConnectionNames(), connectionsBefore);
+        QVERIFY(!QFile::exists(databasePath));
+    }
+
+    void testScheduleViewModelLoadReportsUninitializedRepository()
+    {
+        ScheduleRepository repo;
+        repo.setDatabasePath(":memory:");
+        ScheduleViewModel viewModel;
+        viewModel.setRepository(&repo);
+
+        viewModel.load();
+
+        QCOMPARE(viewModel.errorMessage(), QStringLiteral("课表数据尚未初始化"));
+        QVERIFY(!viewModel.loading());
+    }
+
+    void testScheduleViewModelLoadWithoutRepositoryRemainsIdle()
+    {
+        ScheduleViewModel viewModel;
+        const QSet<QString> connectionsBefore = sqlConnectionNames();
+
+        viewModel.load();
+
+        QVERIFY(!viewModel.loading());
+        QCOMPARE(viewModel.errorMessage(), QString{});
+        QCOMPARE(sqlConnectionNames(), connectionsBefore);
+    }
+
+    void testScheduleRepositoryInitAndViewModelLoadReuseConnection()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString databasePath = directory.filePath("initialized.sqlite");
+        const QSet<QString> connectionsBefore = sqlConnectionNames();
+
+        ScheduleRepository repo;
+        repo.setDatabasePath(databasePath);
+        ScheduleViewModel viewModel;
+        viewModel.setRepository(&repo);
+        QVERIFY(!repo.initialized());
+
+        viewModel.load();
+        QCOMPARE(viewModel.errorMessage(), QStringLiteral("课表数据尚未初始化"));
+
+        QVERIFY(repo.init());
+        QVERIFY(repo.initialized());
+
+        const QSet<QString> connectionsAfterInit = sqlConnectionNames();
+        const QSet<QString> addedConnections = connectionsAfterInit - connectionsBefore;
+        QCOMPARE(addedConnections.size(), 1);
+        const QString connectionName = *addedConnections.cbegin();
+        {
+            QSqlDatabase database = QSqlDatabase::database(connectionName, false);
+            QVERIFY(database.isValid());
+            QVERIFY(database.isOpen());
+            QCOMPARE(database.databaseName(), databasePath);
+            QSqlQuery marker(database);
+            QVERIFY(marker.exec("CREATE TEMP TABLE task6_connection_marker (value INTEGER)"));
+            QVERIFY(marker.exec("INSERT INTO task6_connection_marker VALUES (1)"));
+        }
+
+        QVERIFY(repo.init());
+        QVERIFY(repo.initialized());
+        QCOMPARE(sqlConnectionNames(), connectionsAfterInit);
+
+        const ScheduleConfig config = ScheduleConfig::createDefault("initialized");
+        QVERIFY(repo.addSchedule(config));
+        viewModel.load();
+
+        QVERIFY(!viewModel.loading());
+        QCOMPARE(viewModel.errorMessage(), QString{});
+        QVERIFY(viewModel.hasSchedule());
+        QCOMPARE(viewModel.currentScheduleName(), config.semesterName);
+        QCOMPARE(sqlConnectionNames(), connectionsAfterInit);
+        {
+            QSqlDatabase database = QSqlDatabase::database(connectionName, false);
+            QVERIFY(database.isValid());
+            QVERIFY(database.isOpen());
+            QCOMPARE(database.connectionName(), connectionName);
+            QCOMPARE(database.databaseName(), databasePath);
+            QSqlQuery marker(database);
+            QVERIFY(marker.exec("SELECT value FROM task6_connection_marker"));
+            QVERIFY(marker.next());
+            QCOMPARE(marker.value(0).toInt(), 1);
+        }
+    }
+
     void testScheduleViewModelManagesSchedules() {
         ScheduleRepository repo;
         repo.setDatabasePath(":memory:");
+        QVERIFY(repo.init());
 
         ScheduleViewModel viewModel;
         viewModel.setRepository(&repo);
@@ -1507,6 +1621,7 @@ private slots:
     void testScheduleViewModelSavesCustomTimeSlots() {
         ScheduleRepository repo;
         repo.setDatabasePath(":memory:");
+        QVERIFY(repo.init());
 
         ScheduleViewModel viewModel;
         viewModel.setRepository(&repo);

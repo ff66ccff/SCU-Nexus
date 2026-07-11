@@ -131,6 +131,10 @@ bool ScheduleRepository::init() {
     return true;
 }
 
+bool ScheduleRepository::initialized() const {
+    return m_initialized;
+}
+
 bool ScheduleRepository::createTables() {
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
     QSqlQuery query(db);

@@ -100,12 +100,17 @@ void ScheduleViewModel::load() {
     m_loading = true;
     emit loadingChanged();
 
-    if (!m_repo->init()) {
-        m_errorMessage = QStringLiteral("数据库初始化失败");
+    if (!m_repo->initialized()) {
+        m_errorMessage = QStringLiteral("课表数据尚未初始化");
         m_loading = false;
         emit errorChanged();
         emit loadingChanged();
         return;
+    }
+
+    if (!m_errorMessage.isEmpty()) {
+        m_errorMessage.clear();
+        emit errorChanged();
     }
 
     loadCurrentWeek();
