@@ -1435,6 +1435,50 @@ private slots:
         QCOMPARE(repo.currentScheduleConfig().timeSlots.first().endTime, QTime(8, 15));
     }
 
+    void testScheduleImportClassifiesCourseValidationFailure()
+    {
+        ScheduleRepository repo;
+        repo.setDatabasePath(":memory:");
+        QVERIFY(repo.init());
+
+        const QJsonObject timePlace{
+            {"classDay", 1},
+            {"classSessions", 13},
+            {"continuingSession", 1},
+            {"classWeek", "11111111111111111111"},
+        };
+        const QJsonObject detail{
+            {"courseName", "越界课程"},
+            {"timeAndPlaceList", QJsonArray{timePlace}},
+        };
+        const QJsonObject payload{
+            {"xkxx", QJsonArray{QJsonObject{{"course", detail}}}},
+        };
+
+        const auto parsed = JwxtScheduleParser::parse(payload);
+        QVERIFY(parsed.success);
+        const auto validation = ScheduleImportService::validateCourses(
+            parsed.courses,
+            ScheduleImportService::createImportConfig(QStringLiteral("格式异常学期"),
+                                                       QDate::currentDate()));
+        QVERIFY(!validation.valid);
+        QVERIFY(!validation.errors.isEmpty());
+        const QString validationDetails = validation.errors.join(QStringLiteral("\n"));
+
+        ScheduleImportViewModel importer;
+        importer.setRepository(&repo);
+
+        QVERIFY(!importer.importFromJson(QStringLiteral("plan"),
+                                         QStringLiteral("格式异常学期"),
+                                         payload));
+        QCOMPARE(importer.errorMessage(),
+                 QStringLiteral("导入数据格式异常：\n") + validationDetails);
+        QVERIFY(!importer.loading());
+        QVERIFY(!importer.importComplete());
+        QVERIFY(repo.allSchedules().isEmpty());
+        QVERIFY(repo.currentCourses().isEmpty());
+    }
+
     void testScheduleImportUsesInjectedRemoteApi() {
         ScheduleRepository repo;
         repo.setDatabasePath(":memory:");

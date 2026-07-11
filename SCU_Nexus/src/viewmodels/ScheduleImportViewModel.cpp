@@ -128,7 +128,8 @@ bool ScheduleImportViewModel::importFromJson(const QString& planCode, const QStr
     // Validate courses
     auto validation = ScheduleImportService::validateCourses(parseResult.courses, config);
     if (!validation.valid) {
-        setError(validation.errors.join(QStringLiteral("\n")));
+        setError(QStringLiteral("导入数据格式异常：\n")
+                 + validation.errors.join(QStringLiteral("\n")));
         m_loading = false;
         emit loadingChanged();
         return false;
