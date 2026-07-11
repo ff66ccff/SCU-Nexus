@@ -92,6 +92,24 @@ private slots:
         QVERIFY(a.conflictsWith(b));
     }
 
+    void testCourseConflictExcludeIdOnlySkipsReceiver()
+    {
+        Course candidate;
+        candidate.id = QStringLiteral("candidate");
+        candidate.name = QStringLiteral("候选课程");
+        candidate.dayOfWeek = 1;
+        candidate.startSection = 1;
+        candidate.endSection = 2;
+        candidate.startWeek = 1;
+        candidate.endWeek = 16;
+        candidate.weekType = WeekType::Every;
+        Course existing = candidate;
+        existing.id = QStringLiteral("existing");
+        existing.name = QStringLiteral("已有课程");
+        QVERIFY(!candidate.conflictsWith(existing, QStringLiteral("candidate")));
+        QVERIFY(candidate.conflictsWith(existing, QStringLiteral("existing")));
+    }
+
     void testCourseConflictsWith_DifferentDay() {
         Course a;
         a.id = "a";

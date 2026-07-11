@@ -41,10 +41,8 @@ bool Course::hasSharedWeekWith(const Course& other) const {
 
 bool Course::conflictsWith(const Course& other, const QString& excludeId) const {
     // Self-check: exclude by id
-    if (!excludeId.isEmpty()) {
-        if (id == excludeId || other.id == excludeId) {
-            return false;
-        }
+    if (!excludeId.isEmpty() && id == excludeId) {
+        return false;
     }
 
     // Different day of week -> no conflict
