@@ -1,4 +1,5 @@
 #include "CourseEditViewModel.h"
+#include "../services/course/CourseValidator.h"
 #include <QUuid>
 #include <QDebug>
 
@@ -77,6 +78,7 @@ bool CourseEditViewModel::save() {
         return false;
     }
 
+    const Course candidate = buildCourse();
     QString error;
     if (!validateInternal(error)) {
         m_errorMessage = error;
@@ -84,28 +86,11 @@ bool CourseEditViewModel::save() {
         return false;
     }
 
-    // Check conflicts
-    const Course candidate = buildCourse();
-    for (const Course& existing : m_repo->currentCourses()) {
-        if (m_isEditMode && existing.id == m_editingCourse.id) {
-            continue;
-        }
-        if (candidate.conflictsWith(existing)) {
-            m_errorMessage = QStringLiteral("课程时间冲突：与“%1”（周%2，第 %3-%4 节）冲突。")
-                .arg(existing.name)
-                .arg(existing.dayOfWeek)
-                .arg(existing.startSection)
-                .arg(existing.endSection);
-            emit errorChanged();
-            return false;
-        }
-    }
-
     bool ok;
     if (m_isEditMode) {
-        ok = m_repo->updateCourse(buildCourse());
+        ok = m_repo->updateCourse(candidate);
     } else {
-        ok = m_repo->addCourse(buildCourse());
+        ok = m_repo->addCourse(candidate);
     }
 
     if (!ok) {
@@ -133,60 +118,17 @@ bool CourseEditViewModel::validate() {
 }
 
 bool CourseEditViewModel::validateInternal(QString& outError) const {
-    if (m_editingCourse.name.trimmed().isEmpty()) {
-        outError = QStringLiteral("课程名不能为空");
-        return false;
-    }
-
-    if (m_editingCourse.startWeek > m_editingCourse.endWeek) {
-        outError = QStringLiteral("起始周不能大于结束周");
-        return false;
-    }
-
-    if (m_editingCourse.startSection > m_editingCourse.endSection) {
-        outError = QStringLiteral("起始节不能大于结束节");
-        return false;
-    }
-
-    if (m_editingCourse.dayOfWeek < 1 || m_editingCourse.dayOfWeek > 7) {
-        outError = QStringLiteral("星期必须在 1 到 7 之间");
-        return false;
-    }
-
-    if (m_repo) {
-        ScheduleConfig config = m_repo->currentScheduleConfig();
-        int totalSections = config.sectionsPerDay();
-
-        if (m_editingCourse.startWeek < 1 || m_editingCourse.endWeek > config.totalWeeks) {
-            outError = QStringLiteral("周次必须在 1 到 %1 之间").arg(config.totalWeeks);
-            return false;
-        }
-
-        if (m_editingCourse.startSection < 1) {
-            outError = QStringLiteral("节次必须从 1 开始");
-            return false;
-        }
-
-        if (m_editingCourse.endSection > totalSections) {
-            outError = QStringLiteral("节次不能超过当前配置（%1）").arg(totalSections);
-            return false;
-        }
-
-        // Check cross-period
-        int morningEnd = config.morningSections;
-        int afternoonEnd = morningEnd + config.afternoonSections;
-
-        if (m_editingCourse.startSection <= morningEnd && m_editingCourse.endSection > morningEnd) {
-            outError = QStringLiteral("一门课不能跨越上午、下午或晚上时段。");
-            return false;
-        }
-        if (m_editingCourse.startSection <= afternoonEnd && m_editingCourse.endSection > afternoonEnd) {
-            outError = QStringLiteral("一门课不能跨越上午、下午或晚上时段。");
-            return false;
-        }
-    }
-
-    return true;
+    const ScheduleConfig config = m_repo
+        ? m_repo->currentScheduleConfig()
+        : ScheduleConfig();
+    const QList<Course> existing = m_repo
+        ? m_repo->currentCourses()
+        : QList<Course>{};
+    const QString excludeId = m_isEditMode ? m_editingCourse.id : QString{};
+    const CourseValidationResult result = CourseValidator::validate(
+        buildCourse(), config, existing, excludeId);
+    outError = result.message;
+    return result.valid;
 }
 
 Course CourseEditViewModel::buildCourse() const {

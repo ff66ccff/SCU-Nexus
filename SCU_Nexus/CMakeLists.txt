@@ -104,6 +104,8 @@ qt_add_executable(SCU_Nexus
     src/repositories/ScheduleRepository.cpp
     src/services/course/CourseLayoutService.h
     src/services/course/CourseLayoutService.cpp
+    src/services/course/CourseValidator.h
+    src/services/course/CourseValidator.cpp
     src/services/course/JwxtScheduleParser.h
     src/services/course/JwxtScheduleParser.cpp
     src/services/course/ScheduleImportService.h
@@ -299,6 +301,8 @@ qt_add_executable(schedule_tests
     src/services/course/ScheduleImportService.cpp
     src/services/course/CourseLayoutService.h
     src/services/course/CourseLayoutService.cpp
+    src/services/course/CourseValidator.h
+    src/services/course/CourseValidator.cpp
     src/viewmodels/ScheduleViewModel.h
     src/viewmodels/ScheduleViewModel.cpp
     src/viewmodels/CourseEditViewModel.h

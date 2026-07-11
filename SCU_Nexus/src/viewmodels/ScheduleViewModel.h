@@ -89,8 +89,8 @@ public:
     Q_INVOKABLE void goToCurrentWeek();
 
     // Course CRUD via QML
-    Q_INVOKABLE void addCourse(const QVariantMap& data);
-    Q_INVOKABLE void updateCourse(const QString& id, const QVariantMap& data);
+    Q_INVOKABLE bool addCourse(const QVariantMap& data);
+    Q_INVOKABLE bool updateCourse(const QString& id, const QVariantMap& data);
     Q_INVOKABLE void deleteCourse(const QString& id);
     Q_INVOKABLE bool clearAllCourseData();
     Q_INVOKABLE QVariantMap courseById(const QString& id) const;

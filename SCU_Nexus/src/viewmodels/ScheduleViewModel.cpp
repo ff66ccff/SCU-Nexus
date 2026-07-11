@@ -1,4 +1,5 @@
 #include "ScheduleViewModel.h"
+#include "../services/course/CourseValidator.h"
 #include <QUuid>
 #include <QDebug>
 #include <QDate>
@@ -380,32 +381,60 @@ void ScheduleViewModel::goToCurrentWeek() {
     emit currentWeekChanged();
 }
 
-void ScheduleViewModel::addCourse(const QVariantMap& data) {
-    if (!m_repo || !hasSchedule()) return;
+bool ScheduleViewModel::addCourse(const QVariantMap& data) {
+    if (!m_repo) {
+        setError(QStringLiteral("数据仓库未初始化"));
+        return false;
+    }
+    if (!hasSchedule()) {
+        setError(QStringLiteral("当前没有课表"));
+        return false;
+    }
 
+    const ScheduleConfig config = m_repo->currentScheduleConfig();
     Course course;
     course.id = data.value("id", QUuid::createUuid().toString(QUuid::WithoutBraces)).toString();
     course.name = data.value("name").toString();
     course.teacher = data.value("teacher").toString();
     course.location = data.value("location").toString();
     course.startWeek = data.value("startWeek", 1).toInt();
-    course.endWeek = data.value("endWeek", m_repo->currentScheduleConfig().totalWeeks).toInt();
+    course.endWeek = data.value("endWeek", config.totalWeeks).toInt();
     course.dayOfWeek = data.value("dayOfWeek", 1).toInt();
     course.startSection = data.value("startSection", 1).toInt();
     course.endSection = data.value("endSection", 2).toInt();
     course.colorValue = static_cast<quint32>(data.value("colorValue", 0xFF42A5F5).toUInt());
     course.weekType = intToWeekType(data.value("weekType", 0).toInt());
 
-    if (m_repo->addCourse(course)) {
-        refreshCourses();
+    const CourseValidationResult validation = CourseValidator::validate(
+        course, config, m_repo->currentCourses());
+    if (!validation.valid) {
+        setError(validation.message);
+        return false;
     }
+
+    const bool added = m_repo->addCourse(course);
+    if (!added) {
+        setError(QStringLiteral("保存失败，请重试"));
+        return false;
+    }
+
+    setError({});
+    refreshCourses();
+    return added;
 }
 
-void ScheduleViewModel::updateCourse(const QString& id, const QVariantMap& data) {
-    if (!m_repo || !hasSchedule()) return;
+bool ScheduleViewModel::updateCourse(const QString& id, const QVariantMap& data) {
+    if (!m_repo) {
+        setError(QStringLiteral("数据仓库未初始化"));
+        return false;
+    }
+    if (!hasSchedule()) {
+        setError(QStringLiteral("当前没有课表"));
+        return false;
+    }
 
-    QList<Course> courses = m_repo->currentCourses();
-    for (auto& course : courses) {
+    const QList<Course> courses = m_repo->currentCourses();
+    for (Course course : courses) {
         if (course.id == id) {
             if (data.contains("name")) course.name = data["name"].toString();
             if (data.contains("teacher")) course.teacher = data["teacher"].toString();
@@ -418,12 +447,27 @@ void ScheduleViewModel::updateCourse(const QString& id, const QVariantMap& data)
             if (data.contains("colorValue")) course.colorValue = static_cast<quint32>(data["colorValue"].toUInt());
             if (data.contains("weekType")) course.weekType = intToWeekType(data["weekType"].toInt());
 
-            if (m_repo->updateCourse(course)) {
-                refreshCourses();
+            const CourseValidationResult validation = CourseValidator::validate(
+                course, m_repo->currentScheduleConfig(), courses, id);
+            if (!validation.valid) {
+                setError(validation.message);
+                return false;
             }
-            return;
+
+            const bool updated = m_repo->updateCourse(course);
+            if (!updated) {
+                setError(QStringLiteral("保存失败，请重试"));
+                return false;
+            }
+
+            setError({});
+            refreshCourses();
+            return updated;
         }
     }
+
+    setError(QStringLiteral("课程不存在"));
+    return false;
 }
 
 void ScheduleViewModel::deleteCourse(const QString& id) {

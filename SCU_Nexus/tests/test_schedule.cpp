@@ -8,6 +8,7 @@
 #include "../src/models/TimeSlot.h"
 #include "../src/repositories/ScheduleRepository.h"
 #include "../src/services/course/JwxtScheduleParser.h"
+#include "../src/services/course/CourseValidator.h"
 #include "../src/services/course/ScheduleImportService.h"
 #include "../src/services/course/CourseLayoutService.h"
 #include "../src/viewmodels/ScheduleViewModel.h"
@@ -15,6 +16,31 @@
 #include "../src/viewmodels/ScheduleImportViewModel.h"
 
 using namespace SCUNexus;
+
+namespace {
+
+ScheduleConfig courseValidationConfig()
+{
+    return ScheduleConfig::createDefault(QStringLiteral("validation"));
+}
+
+Course validCourseForValidation()
+{
+    Course course;
+    course.id = QStringLiteral("candidate");
+    course.name = QStringLiteral("高等数学");
+    course.teacher = QStringLiteral("张老师");
+    course.location = QStringLiteral("一教A101");
+    course.startWeek = 1;
+    course.endWeek = 20;
+    course.dayOfWeek = 1;
+    course.startSection = 1;
+    course.endSection = 2;
+    course.weekType = WeekType::Every;
+    return course;
+}
+
+} // namespace
 
 class TestCourseModel : public QObject {
     Q_OBJECT
@@ -236,6 +262,222 @@ private slots:
         QCOMPARE(copied.teacher, original.teacher);
         QCOMPARE(copied.location, original.location);
         QCOMPARE(copied.startWeek, 3);
+    }
+
+    // ========== Shared Course Validation Tests ==========
+
+    void testCourseValidatorRejectsTrimmedEmptyName()
+    {
+        Course course = validCourseForValidation();
+        course.name = QStringLiteral(" \t\n ");
+
+        const CourseValidationResult result = CourseValidator::validate(
+            course, courseValidationConfig());
+
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("课程名")), qPrintable(result.message));
+    }
+
+    void testCourseValidatorRejectsWeekdayOutsideOneToSeven()
+    {
+        Course course = validCourseForValidation();
+        course.dayOfWeek = 8;
+
+        const CourseValidationResult result = CourseValidator::validate(
+            course, courseValidationConfig());
+
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("星期")), qPrintable(result.message));
+    }
+
+    void testCourseValidatorRejectsWeekBelowRange()
+    {
+        Course course = validCourseForValidation();
+        course.startWeek = 0;
+
+        CourseValidationResult result = CourseValidator::validate(
+            course, courseValidationConfig());
+
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("周次")), qPrintable(result.message));
+
+        course = validCourseForValidation();
+        course.endWeek = 0;
+        result = CourseValidator::validate(course, courseValidationConfig());
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("周次")), qPrintable(result.message));
+    }
+
+    void testCourseValidatorRejectsWeekAboveConfiguredRange()
+    {
+        Course course = validCourseForValidation();
+        course.endWeek = courseValidationConfig().totalWeeks + 1;
+
+        CourseValidationResult result = CourseValidator::validate(
+            course, courseValidationConfig());
+
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("周次")), qPrintable(result.message));
+
+        course = validCourseForValidation();
+        course.startWeek = courseValidationConfig().totalWeeks + 1;
+        result = CourseValidator::validate(course, courseValidationConfig());
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("周次")), qPrintable(result.message));
+    }
+
+    void testCourseValidatorRejectsReversedWeekRange()
+    {
+        Course course = validCourseForValidation();
+        course.startWeek = 10;
+        course.endWeek = 9;
+
+        const CourseValidationResult result = CourseValidator::validate(
+            course, courseValidationConfig());
+
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("起始周")), qPrintable(result.message));
+    }
+
+    void testCourseValidatorRejectsSectionBelowRange()
+    {
+        Course course = validCourseForValidation();
+        course.startSection = 0;
+
+        CourseValidationResult result = CourseValidator::validate(
+            course, courseValidationConfig());
+
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("节次")), qPrintable(result.message));
+
+        course = validCourseForValidation();
+        course.endSection = 0;
+        result = CourseValidator::validate(course, courseValidationConfig());
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("节次")), qPrintable(result.message));
+    }
+
+    void testCourseValidatorRejectsSectionAboveConfiguredRange()
+    {
+        Course course = validCourseForValidation();
+        course.endSection = courseValidationConfig().sectionsPerDay() + 1;
+
+        CourseValidationResult result = CourseValidator::validate(
+            course, courseValidationConfig());
+
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("节次")), qPrintable(result.message));
+
+        course = validCourseForValidation();
+        course.startSection = courseValidationConfig().sectionsPerDay() + 1;
+        result = CourseValidator::validate(course, courseValidationConfig());
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("节次")), qPrintable(result.message));
+    }
+
+    void testCourseValidatorRejectsReversedSectionRange()
+    {
+        Course course = validCourseForValidation();
+        course.startSection = 3;
+        course.endSection = 2;
+
+        const CourseValidationResult result = CourseValidator::validate(
+            course, courseValidationConfig());
+
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("起始节")), qPrintable(result.message));
+    }
+
+    void testCourseValidatorRejectsMorningToAfternoonCrossing()
+    {
+        const ScheduleConfig config = courseValidationConfig();
+        Course course = validCourseForValidation();
+        course.startSection = config.morningSections;
+        course.endSection = config.morningSections + 1;
+
+        const CourseValidationResult result = CourseValidator::validate(course, config);
+
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("跨越")), qPrintable(result.message));
+    }
+
+    void testCourseValidatorRejectsAfternoonToEveningCrossing()
+    {
+        const ScheduleConfig config = courseValidationConfig();
+        Course course = validCourseForValidation();
+        course.startSection = config.morningSections + config.afternoonSections;
+        course.endSection = course.startSection + 1;
+
+        const CourseValidationResult result = CourseValidator::validate(course, config);
+
+        QVERIFY(!result.valid);
+        QVERIFY2(result.message.contains(QStringLiteral("跨越")), qPrintable(result.message));
+    }
+
+    void testCourseValidatorRejectsRealConflict()
+    {
+        Course candidate = validCourseForValidation();
+        Course existing = candidate;
+        existing.id = QStringLiteral("existing");
+        existing.name = QStringLiteral("已有课程");
+
+        const CourseValidationResult result = CourseValidator::validate(
+            candidate, courseValidationConfig(), {existing});
+
+        QVERIFY(!result.valid);
+        QCOMPARE(result.conflictCourseId, existing.id);
+        QVERIFY2(result.message.contains(existing.name), qPrintable(result.message));
+        QVERIFY2(result.message.contains(QStringLiteral("周1")), qPrintable(result.message));
+        QVERIFY2(result.message.contains(QStringLiteral("1-2")), qPrintable(result.message));
+    }
+
+    void testCourseValidatorSkipsExistingCourseByExcludedId()
+    {
+        Course candidate = validCourseForValidation();
+        Course editingCourse = candidate;
+        editingCourse.id = QStringLiteral("editing");
+
+        const CourseValidationResult result = CourseValidator::validate(
+            candidate, courseValidationConfig(), {editingCourse}, editingCourse.id);
+
+        QVERIFY(result.valid);
+        QVERIFY(result.message.isEmpty());
+        QVERIFY(result.conflictCourseId.isEmpty());
+    }
+
+    void testCourseValidatorUsesDeterministicRuleOrder()
+    {
+        const ScheduleConfig config = courseValidationConfig();
+        Course course = validCourseForValidation();
+        Course existing = course;
+        existing.id = QStringLiteral("existing");
+        existing.name = QStringLiteral("已有课程");
+
+        course.name = QStringLiteral("  ");
+        course.dayOfWeek = 8;
+        course.startWeek = 0;
+        course.startSection = 0;
+        QCOMPARE(CourseValidator::validate(course, config, {existing}).message,
+                 QStringLiteral("课程名不能为空"));
+
+        course.name = QStringLiteral("候选课程");
+        QCOMPARE(CourseValidator::validate(course, config, {existing}).message,
+                 QStringLiteral("星期必须在 1 到 7 之间"));
+
+        course.dayOfWeek = 1;
+        QCOMPARE(CourseValidator::validate(course, config, {existing}).message,
+                 QStringLiteral("周次必须在 1 到 20 之间"));
+
+        course.startWeek = 1;
+        QCOMPARE(CourseValidator::validate(course, config, {existing}).message,
+                 QStringLiteral("节次必须从 1 开始"));
+
+        course.startSection = config.morningSections;
+        course.endSection = config.morningSections + 1;
+        existing.startSection = course.startSection;
+        existing.endSection = course.endSection;
+        QCOMPARE(CourseValidator::validate(course, config, {existing}).message,
+                 QStringLiteral("一门课不能跨越上午、下午或晚上时段。"));
     }
 
     // ========== ScheduleConfig Tests ==========
@@ -719,6 +961,26 @@ private slots:
         QVERIFY(!result.valid);
     }
 
+    void testImportValidationUsesSharedDeterministicMessage()
+    {
+        Course course = validCourseForValidation();
+        course.name = QStringLiteral("违规课程");
+        course.dayOfWeek = 8;
+        course.startWeek = 0;
+        const ScheduleConfig config = courseValidationConfig();
+        const CourseValidationResult sharedResult = CourseValidator::validate(course, config);
+
+        const auto importResult = ScheduleImportService::validateCourses({course}, config);
+
+        QVERIFY(!importResult.valid);
+        QCOMPARE(importResult.errors.size(), 1);
+        QVERIFY2(importResult.errors.first().contains(course.name),
+                 qPrintable(importResult.errors.first()));
+        QVERIFY2(importResult.errors.first().endsWith(sharedResult.message),
+                 qPrintable(importResult.errors.first()));
+        QVERIFY(importResult.validatedCourses.isEmpty());
+    }
+
     // ========== Course Layout Service Tests ==========
 
     void testMergeSameSlotCourses() {
@@ -909,6 +1171,27 @@ private slots:
         QCOMPARE(repo.currentCourses().size(), 1);
     }
 
+    void testCourseEditValidationUsesSharedConflictRule()
+    {
+        ScheduleRepository repo;
+        repo.setDatabasePath(":memory:");
+        QVERIFY(repo.init());
+        QVERIFY(repo.addSchedule(ScheduleConfig::createDefault("conflict-validation")));
+
+        Course existing = validCourseForValidation();
+        existing.id = QStringLiteral("existing-validation");
+        existing.name = QStringLiteral("已有课程");
+        QVERIFY(repo.addCourse(existing));
+
+        CourseEditViewModel editor;
+        editor.setRepository(&repo);
+        editor.initForAdd(existing.dayOfWeek, existing.startSection);
+        editor.setName(QStringLiteral("冲突课程"));
+
+        QVERIFY(!editor.validate());
+        QVERIFY(editor.errorMessage().contains(existing.name));
+    }
+
     void testCourseEditAddsAndUpdatesCourse() {
         ScheduleRepository repo;
         repo.setDatabasePath(":memory:");
@@ -1013,6 +1296,120 @@ private slots:
 
         QVERIFY(viewModel.deleteSchedule(id));
         QVERIFY(!viewModel.hasSchedule());
+    }
+
+    void testScheduleViewModelRejectsInvalidCourseWithoutPersistence()
+    {
+        ScheduleRepository repo;
+        repo.setDatabasePath(":memory:");
+        QVERIFY(repo.init());
+        QVERIFY(repo.addSchedule(ScheduleConfig::createDefault("validation")));
+
+        ScheduleViewModel viewModel;
+        viewModel.setRepository(&repo);
+        const QVariantMap invalidMap{
+            {QStringLiteral("name"), QStringLiteral(" \t ")},
+            {QStringLiteral("dayOfWeek"), 1},
+            {QStringLiteral("startWeek"), 1},
+            {QStringLiteral("endWeek"), 20},
+            {QStringLiteral("startSection"), 1},
+            {QStringLiteral("endSection"), 2},
+        };
+
+        QVERIFY(!viewModel.addCourse(invalidMap));
+        QVERIFY(viewModel.errorMessage().contains(QStringLiteral("课程名")));
+        QCOMPARE(repo.currentCourses().size(), 0);
+    }
+
+    void testScheduleViewModelCourseWritesExposeBooleanResults()
+    {
+        ScheduleViewModel viewModel;
+        const QMetaObject *metaObject = viewModel.metaObject();
+        const int addIndex = metaObject->indexOfMethod("addCourse(QVariantMap)");
+        const int updateIndex = metaObject->indexOfMethod("updateCourse(QString,QVariantMap)");
+
+        QVERIFY(addIndex >= 0);
+        QVERIFY(updateIndex >= 0);
+        QCOMPARE(metaObject->method(addIndex).returnMetaType().id(), QMetaType::Bool);
+        QCOMPARE(metaObject->method(updateIndex).returnMetaType().id(), QMetaType::Bool);
+    }
+
+    void testScheduleViewModelRejectsConflictingUpdateWithoutPersistence()
+    {
+        ScheduleRepository repo;
+        repo.setDatabasePath(":memory:");
+        QVERIFY(repo.init());
+        QVERIFY(repo.addSchedule(ScheduleConfig::createDefault("validation")));
+
+        Course existing = validCourseForValidation();
+        existing.id = QStringLiteral("existing");
+        existing.name = QStringLiteral("已有课程");
+        QVERIFY(repo.addCourse(existing));
+
+        Course target = validCourseForValidation();
+        target.id = QStringLiteral("target");
+        target.name = QStringLiteral("待更新课程");
+        target.dayOfWeek = 2;
+        target.startSection = 3;
+        target.endSection = 4;
+        QVERIFY(repo.addCourse(target));
+
+        ScheduleViewModel viewModel;
+        viewModel.setRepository(&repo);
+        const QVariantMap conflictingUpdate{
+            {QStringLiteral("dayOfWeek"), existing.dayOfWeek},
+            {QStringLiteral("startSection"), existing.startSection},
+            {QStringLiteral("endSection"), existing.endSection},
+        };
+
+        QVERIFY(!viewModel.updateCourse(target.id, conflictingUpdate));
+        QCOMPARE(repo.currentCourses().size(), 2);
+        QCOMPARE(repo.currentCourses().at(1).dayOfWeek, target.dayOfWeek);
+        QCOMPARE(repo.currentCourses().at(1).startSection, target.startSection);
+        QCOMPARE(repo.currentCourses().at(1).endSection, target.endSection);
+        QVERIFY(viewModel.errorMessage().contains(existing.name));
+    }
+
+    void testScheduleViewModelUpdateRetainsOmittedFields()
+    {
+        ScheduleRepository repo;
+        repo.setDatabasePath(":memory:");
+        QVERIFY(repo.init());
+        QVERIFY(repo.addSchedule(ScheduleConfig::createDefault("partial-update")));
+
+        Course original = validCourseForValidation();
+        original.id = QStringLiteral("partial-target");
+        original.name = QStringLiteral("大学英语");
+        original.teacher = QStringLiteral("李老师");
+        original.location = QStringLiteral("一教A101");
+        original.startWeek = 2;
+        original.endWeek = 18;
+        original.dayOfWeek = 3;
+        original.startSection = 3;
+        original.endSection = 4;
+        original.colorValue = 0xFF26A69A;
+        original.weekType = WeekType::Odd;
+        QVERIFY(repo.addCourse(original));
+
+        ScheduleViewModel viewModel;
+        viewModel.setRepository(&repo);
+        const QVariantMap partialUpdate{
+            {QStringLiteral("location"), QStringLiteral("二教B202")},
+        };
+
+        QVERIFY(viewModel.updateCourse(original.id, partialUpdate));
+        const Course updated = repo.currentCourses().first();
+        QCOMPARE(updated.id, original.id);
+        QCOMPARE(updated.name, original.name);
+        QCOMPARE(updated.teacher, original.teacher);
+        QCOMPARE(updated.location, QStringLiteral("二教B202"));
+        QCOMPARE(updated.startWeek, original.startWeek);
+        QCOMPARE(updated.endWeek, original.endWeek);
+        QCOMPARE(updated.dayOfWeek, original.dayOfWeek);
+        QCOMPARE(updated.startSection, original.startSection);
+        QCOMPARE(updated.endSection, original.endSection);
+        QCOMPARE(updated.colorValue, original.colorValue);
+        QCOMPARE(updated.weekType, original.weekType);
     }
 
     void testScheduleViewModelSavesCustomTimeSlots() {
