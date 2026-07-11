@@ -5,6 +5,21 @@
 #include <QMap>
 
 namespace {
+// 将 JSON 标量无损转换为界面文本，结构化值保持为空。
+QString jsonScalarText(const QJsonValue &value)
+{
+    if (value.isString()) {
+        return value.toString();
+    }
+    if (value.isDouble()) {
+        return QString::number(value.toDouble(), 'g', 15);
+    }
+    if (value.isBool()) {
+        return value.toBool() ? QStringLiteral("true") : QStringLiteral("false");
+    }
+    return {};
+}
+
 // 将统计结果四舍五入到两位小数。
 double rounded(double value)
 {
@@ -92,16 +107,19 @@ QVariantMap GradeCourseItem::toVariant() const
 GradeCourseItem GradeCourseItem::fromJson(const QJsonObject &object)
 {
     GradeCourseItem item;
-    item.courseName = object.value(QStringLiteral("courseName")).toString();
-    item.englishCourseName = object.value(QStringLiteral("englishCourseName")).toString();
-    item.courseAttributeName = object.value(QStringLiteral("courseAttributeName")).toString();
-    item.credit = object.value(QStringLiteral("credit")).toString();
-    item.rawScore = object.value(QStringLiteral("cj")).toString();
+    item.courseName = jsonScalarText(object.value(QStringLiteral("courseName")));
+    item.englishCourseName = jsonScalarText(object.value(QStringLiteral("englishCourseName")));
+    item.courseAttributeName = jsonScalarText(object.value(QStringLiteral("courseAttributeName")));
+    item.credit = jsonScalarText(object.value(QStringLiteral("credit")));
+    item.rawScore = jsonScalarText(object.value(QStringLiteral("cj")));
+    if (item.rawScore.isEmpty()) {
+        item.rawScore = jsonScalarText(object.value(QStringLiteral("courseScore")));
+    }
     item.courseScore = object.value(QStringLiteral("courseScore")).toDouble(0.0);
     item.gradePointScore = object.value(QStringLiteral("gradePointScore")).toDouble(0.0);
-    item.gradeName = object.value(QStringLiteral("gradeName")).toString();
-    item.academicYearCode = object.value(QStringLiteral("academicYearCode")).toString();
-    item.termName = object.value(QStringLiteral("termName")).toString();
+    item.gradeName = jsonScalarText(object.value(QStringLiteral("gradeName")));
+    item.academicYearCode = jsonScalarText(object.value(QStringLiteral("academicYearCode")));
+    item.termName = jsonScalarText(object.value(QStringLiteral("termName")));
     item.passed = item.gradeName != QStringLiteral("F") && !item.gradeName.isEmpty();
     item.hasEffectiveScore = item.courseScore >= 0.0 && item.gradePointScore >= 0.0;
     return item;
@@ -217,7 +235,7 @@ SchemeScoreSummary SchemeScoreSummary::fromJson(const QJsonObject &root)
     summary.passedCount = first.value(QStringLiteral("tgms")).toInt();
     summary.failedCount = first.value(QStringLiteral("wtgms")).toInt();
     summary.totalCount = first.value(QStringLiteral("zms")).toInt();
-    summary.scoreType = first.value(QStringLiteral("cjlx")).toString();
+    summary.scoreType = jsonScalarText(first.value(QStringLiteral("cjlx")));
 
     const QJsonArray courses = first.value(QStringLiteral("cjList")).toArray();
     for (const QJsonValue &value : courses) {
@@ -229,13 +247,21 @@ SchemeScoreSummary SchemeScoreSummary::fromJson(const QJsonObject &root)
     if (summary.totalCount == 0) {
         summary.totalCount = summary.items.size();
     }
-    if (summary.passedCount == 0) {
+    if (!first.contains(QStringLiteral("tgms")) || !first.contains(QStringLiteral("wtgms"))) {
+        int localPassedCount = 0;
+        int localFailedCount = 0;
         for (const GradeCourseItem &item : summary.items) {
             if (!item.hasEffectiveScore) {
                 continue;
             }
-            summary.passedCount += item.passed ? 1 : 0;
-            summary.failedCount += item.passed ? 0 : 1;
+            localPassedCount += item.passed ? 1 : 0;
+            localFailedCount += item.passed ? 0 : 1;
+        }
+        if (!first.contains(QStringLiteral("tgms"))) {
+            summary.passedCount = localPassedCount;
+        }
+        if (!first.contains(QStringLiteral("wtgms"))) {
+            summary.failedCount = localFailedCount;
         }
     }
     return summary;
@@ -338,7 +364,7 @@ PassingScoreResult PassingScoreResult::fromJson(const QJsonObject &root)
         }
         const QJsonObject object = value.toObject();
         PassingScoreGroup group;
-        group.label = object.value(QStringLiteral("cjlx")).toString();
+        group.label = jsonScalarText(object.value(QStringLiteral("cjlx")));
         const QJsonArray courses = object.value(QStringLiteral("cjList")).toArray();
         for (const QJsonValue &courseValue : courses) {
             if (courseValue.isObject()) {
