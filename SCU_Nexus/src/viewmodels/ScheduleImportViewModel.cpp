@@ -1,5 +1,4 @@
 #include "ScheduleImportViewModel.h"
-#include <QUuid>
 #include <QDebug>
 #include <QPointer>
 #include <algorithm>
@@ -184,16 +183,9 @@ void ScheduleImportViewModel::resolveConflict(const QString& strategy) {
         if (conflicts.isEmpty()) return;
 
         QString existingId = conflicts.first().existingScheduleId;
-        // Generate new IDs for courses
-        QList<Course> newCourses;
-        for (auto course : m_pendingCourses) {
-            course.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-            newCourses.append(course);
-        }
-
-        if (m_repo->replaceScheduleCoursesAndSwitch(existingId, newCourses)) {
+        if (m_repo->replaceScheduleCoursesAndSwitch(existingId, m_pendingCourses)) {
             m_importComplete = true;
-            m_statusMessage = QStringLiteral("已更新课表，共 %1 门课程").arg(newCourses.size());
+            m_statusMessage = QStringLiteral("已更新课表，共 %1 门课程").arg(m_pendingCourses.size());
             emit importCompleteChanged();
             emit statusChanged();
             emit importFinished(existingId);

@@ -14,7 +14,8 @@ static const QString METADATA_KEY_CURRENT_SCHEDULE = QStringLiteral("currentSche
 
 namespace {
 
-bool insertCourses(QSqlDatabase& db, const QString& scheduleId, const QList<Course>& courses) {
+bool insertCourses(QSqlDatabase& db, const QString& scheduleId,
+                   const QList<Course>& courses, bool regenerateIds) {
     QSqlQuery query(db);
     query.prepare(QStringLiteral(
         "INSERT INTO courses (id, schedule_id, name, teacher, location, "
@@ -22,7 +23,7 @@ bool insertCourses(QSqlDatabase& db, const QString& scheduleId, const QList<Cour
         "color_value, week_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
 
     for (const Course& course : courses) {
-        const QString id = course.id.isEmpty()
+        const QString id = regenerateIds || course.id.isEmpty()
             ? QUuid::createUuid().toString(QUuid::WithoutBraces)
             : course.id;
         query.addBindValue(id);
@@ -563,36 +564,9 @@ bool ScheduleRepository::replaceScheduleCourses(const QString& scheduleId, const
         return false;
     }
 
-    // Insert new courses (generate new IDs to avoid PK conflicts)
-    QSqlQuery insQuery(db);
-    insQuery.prepare(QStringLiteral(
-        "INSERT INTO courses (id, schedule_id, name, teacher, location, "
-        "start_week, end_week, day_of_week, start_section, end_section, "
-        "color_value, week_type) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
-
-    for (const auto& course : courses) {
-        QString newId = course.id.isEmpty()
-            ? QUuid::createUuid().toString(QUuid::WithoutBraces)
-            : course.id;
-        insQuery.addBindValue(newId);
-        insQuery.addBindValue(scheduleId);
-        insQuery.addBindValue(course.name);
-        insQuery.addBindValue(course.teacher);
-        insQuery.addBindValue(course.location);
-        insQuery.addBindValue(course.startWeek);
-        insQuery.addBindValue(course.endWeek);
-        insQuery.addBindValue(course.dayOfWeek);
-        insQuery.addBindValue(course.startSection);
-        insQuery.addBindValue(course.endSection);
-        insQuery.addBindValue(static_cast<int>(course.colorValue));
-        insQuery.addBindValue(weekTypeToInt(course.weekType));
-
-        if (!insQuery.exec()) {
-            db.rollback();
-            qWarning() << "Failed to insert course during replace:" << insQuery.lastError().text();
-            return false;
-        }
+    if (!insertCourses(db, scheduleId, courses, true)) {
+        db.rollback();
+        return false;
     }
 
     if (!db.commit()) {
@@ -630,7 +604,7 @@ bool ScheduleRepository::addScheduleWithCoursesAndSwitch(
     scheduleQuery.addBindValue(
         QString::fromUtf8(QJsonDocument(config.toJson()).toJson(QJsonDocument::Compact)));
     if (!scheduleQuery.exec()
-        || !insertCourses(db, config.id, courses)
+        || !insertCourses(db, config.id, courses, false)
         || !writeCurrentScheduleMetadata(db, config.id)
         || !db.commit()) {
         db.rollback();
@@ -659,7 +633,7 @@ bool ScheduleRepository::replaceScheduleCoursesAndSwitch(
     deleteQuery.prepare(QStringLiteral("DELETE FROM courses WHERE schedule_id = ?"));
     deleteQuery.addBindValue(scheduleId);
     if (!deleteQuery.exec()
-        || !insertCourses(db, scheduleId, courses)
+        || !insertCourses(db, scheduleId, courses, true)
         || !writeCurrentScheduleMetadata(db, scheduleId)
         || !db.commit()) {
         db.rollback();

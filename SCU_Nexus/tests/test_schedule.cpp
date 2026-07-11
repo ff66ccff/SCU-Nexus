@@ -811,6 +811,76 @@ private slots:
         QCOMPARE(repo.currentCourses().size(), 5);
     }
 
+    void testRepositoryReplaceScheduleCoursesRegeneratesIncomingIds() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+
+        ScheduleRepository repo;
+        repo.setDatabasePath(directory.filePath("replace-fresh-ids.sqlite"));
+        QVERIFY(repo.init());
+
+        const ScheduleConfig config = ScheduleConfig::createDefault("替换课表");
+        QVERIFY(repo.addSchedule(config));
+
+        Course first;
+        first.id = QStringLiteral("incoming-replace-first");
+        first.name = QStringLiteral("第一门课程");
+        Course second;
+        second.id = QStringLiteral("incoming-replace-second");
+        second.name = QStringLiteral("第二门课程");
+        const QList<Course> incomingCourses{first, second};
+        const QSet<QString> incomingIds{first.id, second.id};
+
+        QVERIFY(repo.replaceScheduleCourses(config.id, incomingCourses));
+        const QList<Course> storedCourses = repo.coursesForSchedule(config.id);
+        QCOMPARE(storedCourses.size(), 2);
+
+        QSet<QString> storedIds;
+        for (const Course& course : storedCourses) {
+            QVERIFY(!course.id.isEmpty());
+            QVERIFY(!incomingIds.contains(course.id));
+            storedIds.insert(course.id);
+        }
+        QCOMPARE(storedIds.size(), storedCourses.size());
+    }
+
+    void testRepositoryReplaceScheduleCoursesAndSwitchRegeneratesIncomingIds() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+
+        ScheduleRepository repo;
+        repo.setDatabasePath(directory.filePath("replace-switch-fresh-ids.sqlite"));
+        QVERIFY(repo.init());
+
+        const ScheduleConfig current = ScheduleConfig::createDefault("当前课表");
+        const ScheduleConfig replacement = ScheduleConfig::createDefault("待替换课表");
+        QVERIFY(repo.addSchedule(current));
+        QVERIFY(repo.addSchedule(replacement));
+        QCOMPARE(repo.currentScheduleId(), current.id);
+
+        Course first;
+        first.id = QStringLiteral("incoming-switch-first");
+        first.name = QStringLiteral("第一门课程");
+        Course second;
+        second.id = QStringLiteral("incoming-switch-second");
+        second.name = QStringLiteral("第二门课程");
+        const QList<Course> incomingCourses{first, second};
+        const QSet<QString> incomingIds{first.id, second.id};
+
+        QVERIFY(repo.replaceScheduleCoursesAndSwitch(replacement.id, incomingCourses));
+        QCOMPARE(repo.currentScheduleId(), replacement.id);
+        const QList<Course> storedCourses = repo.coursesForSchedule(replacement.id);
+        QCOMPARE(storedCourses.size(), 2);
+
+        QSet<QString> storedIds;
+        for (const Course& course : storedCourses) {
+            QVERIFY(!course.id.isEmpty());
+            QVERIFY(!incomingIds.contains(course.id));
+            storedIds.insert(course.id);
+        }
+        QCOMPARE(storedIds.size(), storedCourses.size());
+    }
+
     void testRepositoryDeleteSchedule() {
         ScheduleRepository repo;
         repo.setDatabasePath(":memory:");
