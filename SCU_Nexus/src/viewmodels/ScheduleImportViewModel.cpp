@@ -22,20 +22,45 @@ void ScheduleImportViewModel::setRemoteApi(FetchSemesters fetchSemesters,
     m_fetchWeek = std::move(fetchWeek);
 }
 
+void ScheduleImportViewModel::setLoggedIn(bool loggedIn) {
+    const bool changed = m_loggedIn != loggedIn;
+    if (changed) {
+        m_loggedIn = loggedIn;
+        ++m_loginGeneration;
+    }
+
+    if (!loggedIn) {
+        clearLoggedOutState();
+    }
+
+    if (changed) {
+        emit loginStateChanged();
+    }
+}
+
 bool ScheduleImportViewModel::loadSemesters() {
+    if (!ensureLoggedIn()) {
+        return false;
+    }
+
+    const quint64 actionGeneration = beginAction();
     if (!m_fetchSemesters) {
+        setLoading(false);
         setError(QStringLiteral("教务系统接口未初始化"));
         return false;
     }
 
-    m_loading = true;
-    setError({});
-    emit loadingChanged();
+    setLoading(true);
 
     QPointer<ScheduleImportViewModel> self(this);
-    m_fetchSemesters([self](QVariantList semesters, QString error) {
-        if (!self) return;
-        self->m_loading = false;
+    const quint64 loginGeneration = m_loginGeneration;
+    m_fetchSemesters([self, loginGeneration, actionGeneration](QVariantList semesters, QString error) {
+        if (!self || !self->m_loggedIn
+            || self->m_loginGeneration != loginGeneration
+            || self->m_actionGeneration != actionGeneration) {
+            return;
+        }
+        self->setLoading(false);
         if (!error.isEmpty()) {
             self->setError(error);
         } else {
@@ -43,7 +68,6 @@ bool ScheduleImportViewModel::loadSemesters() {
             self->setError({});
             emit self->semestersChanged();
         }
-        emit self->loadingChanged();
     });
     return true;
 }
@@ -53,33 +77,35 @@ QVariantList ScheduleImportViewModel::availableSemesters() const {
 }
 
 bool ScheduleImportViewModel::importSchedule(const QString& planCode, const QString& semesterLabel) {
+    if (!ensureLoggedIn()) {
+        return false;
+    }
+
+    const quint64 actionGeneration = beginAction();
     if (!m_repo) {
+        setLoading(false);
         setError(QStringLiteral("数据仓库未初始化"));
         return false;
     }
 
-    m_loading = true;
-    if (m_importComplete) {
-        m_importComplete = false;
-        emit importCompleteChanged();
-    }
-    setError({});
-    emit loadingChanged();
-
     if (!m_fetchSchedule) {
-        m_loading = false;
+        setLoading(false);
         setError(QStringLiteral("教务系统接口未初始化"));
-        emit loadingChanged();
         return false;
     }
 
+    setLoading(true);
     QPointer<ScheduleImportViewModel> self(this);
-    m_fetchSchedule(planCode, [self, planCode, semesterLabel](QJsonObject rawJson, QString error) {
-        if (!self) return;
+    const quint64 loginGeneration = m_loginGeneration;
+    m_fetchSchedule(planCode, [self, loginGeneration, actionGeneration, planCode, semesterLabel](QJsonObject rawJson, QString error) {
+        if (!self || !self->m_loggedIn
+            || self->m_loginGeneration != loginGeneration
+            || self->m_actionGeneration != actionGeneration) {
+            return;
+        }
         if (!error.isEmpty()) {
-            self->m_loading = false;
+            self->setLoading(false);
             self->setError(error);
-            emit self->loadingChanged();
             return;
         }
         self->importFromJson(planCode, semesterLabel, rawJson);
@@ -91,25 +117,20 @@ bool ScheduleImportViewModel::importSchedule(const QString& planCode, const QStr
 bool ScheduleImportViewModel::importFromJson(const QString& planCode, const QString& semesterLabel,
                                               const QJsonObject& rawJson) {
     Q_UNUSED(planCode)
+    beginAction();
     if (!m_repo) {
+        setLoading(false);
         setError(QStringLiteral("数据仓库未初始化"));
         return false;
     }
 
-    m_loading = true;
-    if (m_importComplete) {
-        m_importComplete = false;
-        emit importCompleteChanged();
-    }
-    setError({});
-    emit loadingChanged();
+    setLoading(true);
 
     // Parse
     auto parseResult = JwxtScheduleParser::parse(rawJson);
     if (!parseResult.success) {
         setError(parseResult.errorMessage);
-        m_loading = false;
-        emit loadingChanged();
+        setLoading(false);
         return false;
     }
 
@@ -129,8 +150,7 @@ bool ScheduleImportViewModel::importFromJson(const QString& planCode, const QStr
     if (!validation.valid) {
         setError(QStringLiteral("导入数据格式异常：\n")
                  + validation.errors.join(QStringLiteral("\n")));
-        m_loading = false;
-        emit loadingChanged();
+        setLoading(false);
         return false;
     }
 
@@ -141,24 +161,21 @@ bool ScheduleImportViewModel::importFromJson(const QString& planCode, const QStr
         m_pendingSemesterName = cleanedLabel;
         m_hasConflict = true;
         m_conflictMessage = QStringLiteral("已存在同名课表 \"%1\"，请选择处理方式：").arg(cleanedLabel);
-        m_loading = false;
+        setLoading(false);
         emit conflictChanged();
-        emit loadingChanged();
         return true; // Not an error - waiting for user decision
     }
 
     // Persist the schedule, courses, and current-schedule switch as one unit.
     if (!m_repo->addScheduleWithCoursesAndSwitch(config, validation.validatedCourses)) {
         setError(QStringLiteral("导入课程失败"));
-        m_loading = false;
-        emit loadingChanged();
+        setLoading(false);
         return false;
     }
 
-    m_loading = false;
+    setLoading(false);
     m_importComplete = true;
     m_statusMessage = QStringLiteral("成功导入 %1 门课程").arg(validation.validatedCourses.size());
-    emit loadingChanged();
     emit statusChanged();
     emit importCompleteChanged();
     emit importFinished(config.id);
@@ -230,27 +247,33 @@ void ScheduleImportViewModel::resolveConflict(const QString& strategy) {
 }
 
 bool ScheduleImportViewModel::syncCurrentWeek() {
+    if (!ensureLoggedIn()) {
+        return false;
+    }
+
+    const quint64 actionGeneration = beginAction();
     if (!m_repo || m_repo->currentScheduleId().isEmpty()) {
+        setLoading(false);
         setError(QStringLiteral("当前没有可同步的课表"));
         return false;
     }
     if (!m_fetchWeek) {
+        setLoading(false);
         setError(QStringLiteral("教务系统接口未初始化"));
         return false;
     }
 
-    m_loading = true;
-    if (m_importComplete) {
-        m_importComplete = false;
-        emit importCompleteChanged();
-    }
-    setError({});
-    emit loadingChanged();
+    setLoading(true);
 
     QPointer<ScheduleImportViewModel> self(this);
-    m_fetchWeek([self](int week, QString error) {
-        if (!self) return;
-        self->m_loading = false;
+    const quint64 loginGeneration = m_loginGeneration;
+    m_fetchWeek([self, loginGeneration, actionGeneration](int week, QString error) {
+        if (!self || !self->m_loggedIn
+            || self->m_loginGeneration != loginGeneration
+            || self->m_actionGeneration != actionGeneration) {
+            return;
+        }
+        self->setLoading(false);
         if (!error.isEmpty() || week < 1) {
             self->setError(error.isEmpty() ? QStringLiteral("当前教学周无效") : error);
         } else if (self->applyCurrentWeek(week)) {
@@ -258,9 +281,62 @@ bool ScheduleImportViewModel::syncCurrentWeek() {
             self->m_statusMessage = QStringLiteral("已同步到第 %1 教学周").arg(week);
             emit self->statusChanged();
         }
-        emit self->loadingChanged();
     });
     return true;
+}
+
+bool ScheduleImportViewModel::ensureLoggedIn() {
+    if (m_loggedIn) {
+        return true;
+    }
+
+    clearLoggedOutState();
+    setError(QStringLiteral("请先登录后导入教务课表"));
+    return false;
+}
+
+quint64 ScheduleImportViewModel::beginAction() {
+    ++m_actionGeneration;
+    clearActionPresentationState();
+    return m_actionGeneration;
+}
+
+void ScheduleImportViewModel::clearActionPresentationState() {
+    setError({});
+    if (!m_statusMessage.isEmpty()) {
+        m_statusMessage.clear();
+        emit statusChanged();
+    }
+    if (m_importComplete) {
+        m_importComplete = false;
+        emit importCompleteChanged();
+    }
+}
+
+void ScheduleImportViewModel::clearLoggedOutState() {
+    setLoading(false);
+    if (!m_semesters.isEmpty()) {
+        m_semesters.clear();
+        emit semestersChanged();
+    }
+
+    m_pendingCourses.clear();
+    m_pendingSemesterName.clear();
+    if (m_hasConflict || !m_conflictMessage.isEmpty()) {
+        m_hasConflict = false;
+        m_conflictMessage.clear();
+        emit conflictChanged();
+    }
+
+    clearActionPresentationState();
+}
+
+void ScheduleImportViewModel::setLoading(bool loading) {
+    if (m_loading == loading) {
+        return;
+    }
+    m_loading = loading;
+    emit loadingChanged();
 }
 
 bool ScheduleImportViewModel::applyCurrentWeek(int currentWeek) {
@@ -290,5 +366,7 @@ QString ScheduleImportViewModel::statusMessage() const { return m_statusMessage;
 bool ScheduleImportViewModel::hasConflict() const { return m_hasConflict; }
 QString ScheduleImportViewModel::conflictMessage() const { return m_conflictMessage; }
 bool ScheduleImportViewModel::importComplete() const { return m_importComplete; }
+bool ScheduleImportViewModel::loggedIn() const { return m_loggedIn; }
+bool ScheduleImportViewModel::loginRequired() const { return !m_loggedIn; }
 
 } // namespace SCUNexus

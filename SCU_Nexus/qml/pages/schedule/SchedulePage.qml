@@ -75,7 +75,10 @@ Page {
     Connections {
         target: scheduleImportViewModel
         function onConflictChanged() {
-            if (scheduleImportViewModel.hasConflict) conflictDialog.open()
+            if (scheduleImportViewModel.hasConflict)
+                conflictDialog.open()
+            else
+                conflictDialog.close()
         }
         function onImportFinished(scheduleId) {
             importDialog.close()
@@ -121,6 +124,10 @@ Page {
                 text: "导入课表"
                 type: "secondary"
                 onClicked: {
+                    if (scheduleImportViewModel.loginRequired) {
+                        router.navigate("Login")
+                        return
+                    }
                     importDialog.open()
                     scheduleImportViewModel.loadSemesters()
                 }
@@ -175,8 +182,14 @@ Page {
                 AppButton {
                     text: "同步教学周"
                     type: "secondary"
-                    enabled: appController.loggedIn && !scheduleImportViewModel.loading
-                    onClicked: scheduleImportViewModel.syncCurrentWeek()
+                    enabled: !scheduleImportViewModel.loading
+                    onClicked: {
+                        if (scheduleImportViewModel.loginRequired) {
+                            router.navigate("Login")
+                            return
+                        }
+                        scheduleImportViewModel.syncCurrentWeek()
+                    }
                 }
             }
         }

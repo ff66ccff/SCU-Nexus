@@ -76,6 +76,7 @@ int main(int argc, char *argv[])
     SCUNexus::CourseEditViewModel courseEditViewModel;
     scheduleViewModel.setRepository(&scheduleRepository);
     scheduleImportViewModel.setRepository(&scheduleRepository);
+    scheduleImportViewModel.setLoggedIn(appController.loggedIn());
     courseEditViewModel.setRepository(&scheduleRepository);
 
     scheduleImportViewModel.setRemoteApi(
@@ -117,6 +118,8 @@ int main(int argc, char *argv[])
 
     QObject::connect(&appController, &AppController::loginStateChanged,
                      &zhjwQueryService, &ZhjwApiQueryService::setLoggedIn);
+    QObject::connect(&appController, &AppController::loginStateChanged,
+                     &scheduleImportViewModel, &SCUNexus::ScheduleImportViewModel::setLoggedIn);
     QObject::connect(&academicCalendarViewModel, &AcademicCalendarViewModel::toastRequested,
                      &toastManager, [&toastManager](const QString &message) { toastManager.show(message, QStringLiteral("warning")); });
     QObject::connect(&examPlanViewModel, &ExamPlanViewModel::toastRequested,

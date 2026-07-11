@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import "../../components"
 import "../../styles"
 
 Dialog {
@@ -22,9 +23,13 @@ Dialog {
     signal importClicked(string planCode, string label)
     signal refreshClicked()
 
+    onSemestersChanged: root.selectedIndex = -1
+    onOpened: root.selectedIndex = -1
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 12
+        visible: !scheduleImportViewModel.loginRequired
 
         Text {
             Layout.fillWidth: true
@@ -85,12 +90,26 @@ Dialog {
             Button {
                 text: "导入所选学期"
                 highlighted: true
-                enabled: root.selectedIndex >= 0 && !root.loading
+                enabled: root.selectedIndex >= 0
+                         && root.selectedIndex < root.semesters.length
+                         && !root.loading
                 onClicked: {
+                    if (root.selectedIndex < 0 || root.selectedIndex >= root.semesters.length)
+                        return
                     var semester = root.semesters[root.selectedIndex]
                     root.importClicked(semester.planCode, semester.label)
                 }
             }
+        }
+    }
+
+    LoginRequiredView {
+        anchors.fill: parent
+        visible: scheduleImportViewModel.loginRequired
+        message: "导入教务课表需要先登录"
+        onLoginRequested: {
+            root.close()
+            router.navigate("Login")
         }
     }
 }

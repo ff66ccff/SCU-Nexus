@@ -1,4 +1,5 @@
 #include <QtTest>
+#include <QFile>
 #include <QTemporaryDir>
 #include <QSet>
 #include <QSqlDatabase>
@@ -38,6 +39,27 @@ Course validCourseForValidation()
     course.endSection = 2;
     course.weekType = WeekType::Every;
     return course;
+}
+
+QJsonObject validScheduleImportPayload(const QString& courseName)
+{
+    const QJsonObject timePlace{
+        {"classDay", 1},
+        {"classSessions", 1},
+        {"continuingSession", 2},
+        {"teachingBuildingName", "一教"},
+        {"classroomName", "A101"},
+        {"classWeek", "11111111111111111111"},
+    };
+    const QJsonObject detail{
+        {"courseName", courseName},
+        {"id", QJsonObject{{"coureSequenceNumber", "01"}}},
+        {"attendClassTeacher", "张老师"},
+        {"timeAndPlaceList", QJsonArray{timePlace}},
+    };
+    return QJsonObject{
+        {"xkxx", QJsonArray{QJsonObject{{"course", detail}}}},
+    };
 }
 
 } // namespace
@@ -1549,6 +1571,260 @@ private slots:
         QVERIFY(repo.currentCourses().isEmpty());
     }
 
+    void testScheduleImportRejectsLoggedOutRemoteActionsWithoutCallbacks()
+    {
+        ScheduleRepository repo;
+        repo.setDatabasePath(":memory:");
+        QVERIFY(repo.init());
+        QVERIFY(repo.addSchedule(ScheduleConfig::createDefault(QStringLiteral("本地课表"))));
+
+        ScheduleImportViewModel importer;
+        importer.setRepository(&repo);
+
+        int semesterCallbacks = 0;
+        int scheduleCallbacks = 0;
+        int weekCallbacks = 0;
+        importer.setRemoteApi(
+            [&semesterCallbacks](ScheduleImportViewModel::SemestersResult done) {
+                ++semesterCallbacks;
+                done(QVariantList{QVariantMap{{QStringLiteral("planCode"),
+                                               QStringLiteral("plan-1")}}}, {});
+            },
+            [&scheduleCallbacks](const QString&,
+                                 ScheduleImportViewModel::ScheduleResult) {
+                ++scheduleCallbacks;
+            },
+            [&weekCallbacks](ScheduleImportViewModel::WeekResult done) {
+                ++weekCallbacks;
+                done(2, {});
+            });
+
+        importer.setLoggedIn(false);
+        QVERIFY(!importer.loadSemesters());
+        QCOMPARE(semesterCallbacks, 0);
+        QCOMPARE(importer.errorMessage(), QStringLiteral("请先登录后导入教务课表"));
+
+        QVERIFY(!importer.importSchedule(
+            QStringLiteral("plan-1"), QStringLiteral("2026 春")));
+        QCOMPARE(scheduleCallbacks, 0);
+        QCOMPARE(importer.errorMessage(), QStringLiteral("请先登录后导入教务课表"));
+
+        QVERIFY(!importer.syncCurrentWeek());
+        QCOMPARE(weekCallbacks, 0);
+        QCOMPARE(importer.errorMessage(), QStringLiteral("请先登录后导入教务课表"));
+
+        QCOMPARE(importer.property("loggedIn").toBool(), false);
+        QCOMPARE(importer.property("loginRequired").toBool(), true);
+
+        importer.setLoggedIn(true);
+        QVERIFY(importer.loadSemesters());
+        QCOMPARE(semesterCallbacks, 1);
+        QCOMPARE(scheduleCallbacks, 0);
+        QCOMPARE(weekCallbacks, 0);
+        QCOMPARE(importer.property("loggedIn").toBool(), true);
+        QCOMPARE(importer.property("loginRequired").toBool(), false);
+    }
+
+    void testScheduleImportIgnoresSupersededSameSessionCallback()
+    {
+        ScheduleImportViewModel importer;
+        importer.setLoggedIn(true);
+
+        QList<ScheduleImportViewModel::SemestersResult> pendingResults;
+        importer.setRemoteApi(
+            [&pendingResults](ScheduleImportViewModel::SemestersResult done) {
+                pendingResults.append(std::move(done));
+            },
+            {},
+            {});
+
+        QVERIFY(importer.loadSemesters());
+        QVERIFY(importer.loadSemesters());
+        QCOMPARE(pendingResults.size(), 2);
+        QVERIFY(importer.loading());
+
+        pendingResults.at(0)(
+            QVariantList{QVariantMap{{QStringLiteral("planCode"),
+                                      QStringLiteral("superseded")}}}, {});
+        QVERIFY(importer.loading());
+        QVERIFY(importer.availableSemesters().isEmpty());
+
+        pendingResults.at(1)(
+            QVariantList{QVariantMap{{QStringLiteral("planCode"),
+                                      QStringLiteral("current")}}}, {});
+        QVERIFY(!importer.loading());
+        QCOMPARE(importer.availableSemesters().size(), 1);
+        QCOMPARE(importer.availableSemesters().first().toMap().value("planCode").toString(),
+                 QStringLiteral("current"));
+    }
+
+    void testImportDialogResetsAndBoundsSemesterSelection()
+    {
+        const QString path = QFINDTESTDATA(
+            "../qml/pages/schedule/ImportScheduleDialog.qml");
+        QVERIFY2(!path.isEmpty(), "ImportScheduleDialog.qml test data was not found");
+        QFile dialogFile(path);
+        QVERIFY2(dialogFile.open(QIODevice::ReadOnly),
+                 qPrintable(dialogFile.errorString()));
+        const QString source = QString::fromUtf8(dialogFile.readAll());
+
+        QVERIFY2(source.contains(
+                     QStringLiteral("onSemestersChanged: root.selectedIndex = -1")),
+                 "semester model changes must reset the selection");
+        QVERIFY2(source.contains(
+                     QStringLiteral("onOpened: root.selectedIndex = -1")),
+                 "opening a fresh import flow must reset the selection");
+        QVERIFY2(source.contains(
+                     QStringLiteral("root.selectedIndex < root.semesters.length")),
+                 "the import button must require an in-range selection");
+        QVERIFY2(source.contains(QStringLiteral(
+                     "if (root.selectedIndex < 0 || root.selectedIndex >= root.semesters.length)")),
+                 "the click handler must reject an out-of-range selection");
+    }
+
+    void testScheduleImportLogoutClearsPresentationAndInFlightState()
+    {
+        ScheduleRepository repo;
+        repo.setDatabasePath(":memory:");
+        QVERIFY(repo.init());
+
+        ScheduleImportViewModel importer;
+        importer.setRepository(&repo);
+        importer.setLoggedIn(true);
+        const QJsonObject payload = validScheduleImportPayload(QStringLiteral("状态清理课程"));
+
+        QVERIFY(importer.importFromJson(
+            QStringLiteral("state-plan"), QStringLiteral("状态清理学期"), payload));
+        QVERIFY(importer.importComplete());
+        QVERIFY(!importer.statusMessage().isEmpty());
+
+        importer.setLoggedIn(false);
+        QCOMPARE(importer.statusMessage(), QString{});
+        QVERIFY(!importer.importComplete());
+
+        importer.setLoggedIn(true);
+        QVERIFY(!importer.importFromJson(
+            QStringLiteral("invalid"), QStringLiteral("无效学期"), QJsonObject{}));
+        QVERIFY(!importer.errorMessage().isEmpty());
+        importer.setLoggedIn(false);
+        QCOMPARE(importer.errorMessage(), QString{});
+
+        importer.setLoggedIn(true);
+        importer.setRemoteApi(
+            [](ScheduleImportViewModel::SemestersResult done) {
+                done(QVariantList{QVariantMap{{QStringLiteral("planCode"),
+                                               QStringLiteral("state-plan")}}}, {});
+            },
+            {},
+            {});
+        QVERIFY(importer.loadSemesters());
+        QCOMPARE(importer.availableSemesters().size(), 1);
+        importer.setLoggedIn(false);
+        QVERIFY(importer.availableSemesters().isEmpty());
+
+        importer.setLoggedIn(true);
+        QVERIFY(importer.importFromJson(
+            QStringLiteral("state-plan"), QStringLiteral("状态清理学期"), payload));
+        QVERIFY(importer.hasConflict());
+        QVERIFY(!importer.conflictMessage().isEmpty());
+
+        ScheduleImportViewModel::SemestersResult staleSemestersResult;
+        importer.setRemoteApi(
+            [&staleSemestersResult](ScheduleImportViewModel::SemestersResult done) {
+                staleSemestersResult = std::move(done);
+            },
+            {},
+            {});
+        QVERIFY(importer.loadSemesters());
+        QVERIFY(importer.loading());
+        const int scheduleCount = repo.allSchedules().size();
+
+        importer.setLoggedIn(false);
+        QVERIFY(!importer.loading());
+        QVERIFY(!importer.hasConflict());
+        QCOMPARE(importer.conflictMessage(), QString{});
+        QVERIFY(importer.availableSemesters().isEmpty());
+
+        importer.setLoggedIn(true);
+        importer.resolveConflict(QStringLiteral("addSuffix"));
+        QCOMPARE(repo.allSchedules().size(), scheduleCount);
+        QVERIFY(static_cast<bool>(staleSemestersResult));
+        staleSemestersResult(
+            QVariantList{QVariantMap{{QStringLiteral("planCode"),
+                                      QStringLiteral("stale-plan")}}}, {});
+        QVERIFY(importer.availableSemesters().isEmpty());
+        QVERIFY(!importer.loading());
+
+    }
+
+    void testScheduleImportNewActionsClearStalePresentationState()
+    {
+        ScheduleRepository repo;
+        repo.setDatabasePath(":memory:");
+        QVERIFY(repo.init());
+
+        ScheduleImportViewModel importer;
+        importer.setRepository(&repo);
+        importer.setLoggedIn(true);
+        const QJsonObject payload = validScheduleImportPayload(QStringLiteral("陈旧状态课程"));
+
+        ScheduleImportViewModel::SemestersResult semestersResult;
+        ScheduleImportViewModel::ScheduleResult scheduleResult;
+        ScheduleImportViewModel::WeekResult weekResult;
+        importer.setRemoteApi(
+            [&semestersResult](ScheduleImportViewModel::SemestersResult done) {
+                semestersResult = std::move(done);
+            },
+            [&scheduleResult](const QString&, ScheduleImportViewModel::ScheduleResult done) {
+                scheduleResult = std::move(done);
+            },
+            [&weekResult](ScheduleImportViewModel::WeekResult done) {
+                weekResult = std::move(done);
+            });
+
+        QVERIFY(importer.importFromJson(
+            QStringLiteral("stale-1"), QStringLiteral("陈旧状态学期一"), payload));
+        QVERIFY(importer.importComplete());
+        QVERIFY(!importer.statusMessage().isEmpty());
+        QVERIFY(importer.loadSemesters());
+        QVERIFY(importer.loading());
+        QCOMPARE(importer.errorMessage(), QString{});
+        QCOMPARE(importer.statusMessage(), QString{});
+        QVERIFY(!importer.importComplete());
+        QVERIFY(static_cast<bool>(semestersResult));
+        semestersResult({}, QStringLiteral("学期列表加载失败"));
+        QVERIFY(!importer.loading());
+        QCOMPARE(importer.errorMessage(), QStringLiteral("学期列表加载失败"));
+
+        QVERIFY(importer.importFromJson(
+            QStringLiteral("stale-2"), QStringLiteral("陈旧状态学期二"), payload));
+        QCOMPARE(importer.errorMessage(), QString{});
+        QVERIFY(importer.importComplete());
+        QVERIFY(!importer.statusMessage().isEmpty());
+        QVERIFY(importer.importSchedule(
+            QStringLiteral("stale-3"), QStringLiteral("陈旧状态学期三")));
+        QVERIFY(importer.loading());
+        QCOMPARE(importer.errorMessage(), QString{});
+        QCOMPARE(importer.statusMessage(), QString{});
+        QVERIFY(!importer.importComplete());
+        QVERIFY(static_cast<bool>(scheduleResult));
+        scheduleResult(payload, {});
+        QVERIFY(!importer.loading());
+        QVERIFY(importer.importComplete());
+        QVERIFY(!importer.statusMessage().isEmpty());
+
+        QVERIFY(importer.syncCurrentWeek());
+        QVERIFY(importer.loading());
+        QCOMPARE(importer.errorMessage(), QString{});
+        QCOMPARE(importer.statusMessage(), QString{});
+        QVERIFY(!importer.importComplete());
+        QVERIFY(static_cast<bool>(weekResult));
+        weekResult(3, {});
+        QVERIFY(!importer.loading());
+        QCOMPARE(importer.statusMessage(), QStringLiteral("已同步到第 3 教学周"));
+
+    }
+
     void testScheduleImportUsesInjectedRemoteApi() {
         ScheduleRepository repo;
         repo.setDatabasePath(":memory:");
@@ -1594,6 +1870,8 @@ private slots:
             [](ScheduleImportViewModel::WeekResult done) {
                 done(3, {});
             });
+
+        importer.setLoggedIn(true);
 
         QVERIFY(importer.loadSemesters());
         QCOMPARE(importer.availableSemesters().size(), 1);

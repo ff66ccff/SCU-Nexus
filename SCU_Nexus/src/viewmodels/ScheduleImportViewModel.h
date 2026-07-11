@@ -26,6 +26,8 @@ class ScheduleImportViewModel : public QObject {
     Q_PROPERTY(QString conflictMessage READ conflictMessage NOTIFY conflictChanged)
     Q_PROPERTY(bool importComplete READ importComplete NOTIFY importCompleteChanged)
     Q_PROPERTY(QVariantList semesters READ availableSemesters NOTIFY semestersChanged)
+    Q_PROPERTY(bool loggedIn READ loggedIn NOTIFY loginStateChanged)
+    Q_PROPERTY(bool loginRequired READ loginRequired NOTIFY loginStateChanged)
 
 public:
     using SemestersResult = std::function<void(QVariantList semesters, QString error)>;
@@ -41,6 +43,7 @@ public:
     void setRemoteApi(FetchSemesters fetchSemesters,
                       FetchSchedule fetchSchedule,
                       FetchWeek fetchWeek);
+    void setLoggedIn(bool loggedIn);
 
     Q_INVOKABLE bool loadSemesters();
     Q_INVOKABLE QVariantList availableSemesters() const;
@@ -65,6 +68,8 @@ public:
     bool hasConflict() const;
     QString conflictMessage() const;
     bool importComplete() const;
+    bool loggedIn() const;
+    bool loginRequired() const;
 
 signals:
     void loadingChanged();
@@ -73,10 +78,16 @@ signals:
     void conflictChanged();
     void importCompleteChanged();
     void semestersChanged();
+    void loginStateChanged();
     void importFinished(const QString& scheduleId);
     void currentWeekSynced(int week);
 
 private:
+    bool ensureLoggedIn();
+    quint64 beginAction();
+    void clearActionPresentationState();
+    void clearLoggedOutState();
+    void setLoading(bool loading);
     bool applyCurrentWeek(int currentWeek);
     void setError(const QString& message);
 
@@ -91,6 +102,9 @@ private:
     bool m_hasConflict = false;
     QString m_conflictMessage;
     bool m_importComplete = false;
+    bool m_loggedIn = false;
+    quint64 m_loginGeneration = 0;
+    quint64 m_actionGeneration = 0;
 
     // Pending import data for conflict resolution
     QList<Course> m_pendingCourses;
