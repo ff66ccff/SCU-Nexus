@@ -241,6 +241,35 @@ private slots:
         QCOMPARE(config.currentWeek(QDate(2026, 8, 1)), 20);
     }
 
+    void testScheduleConfigReadsLegacyEndDate()
+    {
+        const auto config = ScheduleConfig::fromJson({
+            {"semesterStartDate", "2026-02-23"},
+            {"semesterEndDate", "2026-06-28"}
+        });
+        QCOMPARE(config.totalWeeks, 18);
+    }
+
+    void testScheduleConfigSplitsLegacySectionsPerDay()
+    {
+        const auto config = ScheduleConfig::fromJson({{"sectionsPerDay", 10}});
+        QCOMPARE(config.morningSections, 4);
+        QCOMPARE(config.afternoonSections, 5);
+        QCOMPARE(config.eveningSections, 1);
+    }
+
+    void testScheduleConfigCreatesMissingTimeSlots()
+    {
+        const auto config = ScheduleConfig::fromJson({
+            {"morningSections", 2}, {"afternoonSections", 1}, {"eveningSections", 1},
+            {"courseDuration", 45}, {"breakDuration", 10}
+        });
+        QCOMPARE(config.timeSlots.size(), 4);
+        QCOMPARE(config.timeSlots.at(0).startTime, QTime(8, 0));
+        QCOMPARE(config.timeSlots.at(2).startTime, QTime(14, 0));
+        QCOMPARE(config.timeSlots.at(3).startTime, QTime(19, 0));
+    }
+
     void testJiangAnTimeSlots() {
         const auto timeSlots = ScheduleConfig::jiangAnTimeSlots();
         QCOMPARE(timeSlots.size(), 12);

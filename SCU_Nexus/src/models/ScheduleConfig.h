@@ -33,6 +33,8 @@ public:
     static ScheduleConfig fromJson(const QJsonObject& json);
 
     // Default time slot presets
+    static QVector<TimeSlot> defaultTimeSlots(int morning, int afternoon, int evening,
+                                              int courseDuration, int breakDuration);
     static QVector<TimeSlot> jiangAnTimeSlots();
     static QVector<TimeSlot> wangJiangHuaXiTimeSlots();
     static std::optional<QVector<TimeSlot>> timeSlotsForCampusName(const QString& campusName);
