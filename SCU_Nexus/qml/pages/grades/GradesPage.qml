@@ -8,6 +8,12 @@ import "../../styles"
 Item {
     id: root
 
+    readonly property bool refreshing: gradesViewModel.schemeState === 3
+        || gradesViewModel.passingState === 3
+    readonly property bool queryBusy: root.refreshing
+        || gradesViewModel.schemeState === 1
+        || gradesViewModel.passingState === 1
+
     Component.onCompleted: gradesViewModel.load()
 
     ColumnLayout {
@@ -21,11 +27,13 @@ Item {
             ModuleHeader {
                 Layout.fillWidth: true
                 title: "教务成绩"
-                subtitle: "方案成绩、及格成绩和自定义统计"
+                subtitle: root.refreshing
+                    ? "正在刷新，当前显示缓存成绩"
+                    : "方案成绩、及格成绩和自定义统计"
             }
 
             RefreshButton {
-                loading: gradesViewModel.schemeState === 1 || gradesViewModel.passingState === 1
+                loading: root.queryBusy
                 onRefreshRequested: {
                     if (tabs.currentIndex === 0 || tabs.currentIndex === 2) gradesViewModel.refreshSchemeScores()
                     else gradesViewModel.refreshPassingScores()

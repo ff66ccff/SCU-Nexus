@@ -25,7 +25,10 @@ ExamPlanViewModel::ExamPlanViewModel(QueryCacheRepository *cache, ZhjwQueryServi
 // 返回当前查询状态。
 QueryState ExamPlanViewModel::state() const { return m_state; }
 // 加载当前模块数据并同步界面状态。
-bool ExamPlanViewModel::loading() const { return m_state == QueryState::Loading; }
+bool ExamPlanViewModel::loading() const
+{
+    return m_state == QueryState::Loading || m_state == QueryState::Refreshing;
+}
 // 返回当前错误提示文本。
 QString ExamPlanViewModel::errorMessage() const { return m_errorMessage; }
 // 返回数据最近更新时间。
@@ -64,7 +67,7 @@ void ExamPlanViewModel::load()
 // 刷新远端数据并更新缓存状态。
 void ExamPlanViewModel::refresh()
 {
-    if (m_state == QueryState::Loading) {
+    if (m_state == QueryState::Loading || m_state == QueryState::Refreshing) {
         return;
     }
     if (!loggedIn()) {
@@ -78,7 +81,7 @@ void ExamPlanViewModel::refresh()
     }
 
     setError(QString());
-    setState(QueryState::Loading);
+    setState(m_hasCache ? QueryState::Refreshing : QueryState::Loading);
     m_api->fetchExamPlan([this](const QList<ExamPlanItemDto> &dtos, const ApiError &error) {
         if (error.type != ApiErrorType::Unknown) {
             setError(error.message);

@@ -19,7 +19,9 @@ Item {
             ModuleHeader {
                 Layout.fillWidth: true
                 title: "考表"
-                subtitle: "按考试开始时间排序"
+                subtitle: examPlanViewModel.loading && examPlanViewModel.hasCache
+                    ? "正在刷新，当前显示缓存考表"
+                    : "按考试开始时间排序"
             }
 
             RefreshButton {

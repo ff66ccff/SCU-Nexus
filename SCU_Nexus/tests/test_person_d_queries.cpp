@@ -258,6 +258,14 @@ private slots:
     void excludesIneffectiveCoursesFromCreditStats();
     void ignoresDuplicateExamRefreshWhileLoading();
     void ignoresDuplicateGradeRefreshesWhileLoading();
+    void cachedExamRefreshUsesRefreshingAndKeepsContent();
+    void cachedSchemeRefreshUsesRefreshingAndKeepsContent();
+    void cachedPassingRefreshUsesRefreshingAndKeepsContent();
+    void emptyCachedSchemeRefreshFailureReturnsEmpty();
+    void emptyCachedGradeRefreshWhileLoggedOutStaysEmpty_data();
+    void emptyCachedGradeRefreshWhileLoggedOutStaysEmpty();
+    void noCacheRefreshFailureStates_data();
+    void noCacheRefreshFailureStates();
     void repositoryOpenClearsPreviousError();
     void repositoryPutClearsPreviousError();
     void repositoryGetMissClearsPreviousError();
@@ -720,6 +728,370 @@ void PersonDQueryTest::ignoresDuplicateGradeRefreshesWhileLoading()
     service.completePassing(QJsonObject{{QStringLiteral("lnList"), QJsonArray{}}});
     QCOMPARE(model.schemeState(), QueryState::Empty);
     QCOMPARE(model.passingState(), QueryState::Empty);
+}
+
+void PersonDQueryTest::cachedExamRefreshUsesRefreshingAndKeepsContent()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+
+    const QDateTime cachedAt = QDateTime::fromString(
+        QStringLiteral("2025-01-02T03:04:05.000Z"), Qt::ISODateWithMs);
+    ExamPlanItem cachedItem;
+    cachedItem.courseName = QStringLiteral("缓存考试");
+    cachedItem.date = QStringLiteral("2026-01-08");
+    cachedItem.timeRange = QStringLiteral("09:00-11:00");
+    const QString payload = QString::fromUtf8(
+        QJsonDocument(examPlanItemsToJson({cachedItem})).toJson(QJsonDocument::Compact));
+    QVERIFY2(cache.put(QString::fromLatin1(ExamPlanCacheKey), payload, cachedAt),
+             qPrintable(cache.lastError()));
+
+    DeferredZhjwQueryService service;
+    service.loggedInValue = false;
+    ExamPlanViewModel model(&cache, &service);
+    model.load();
+    QCOMPARE(model.state(), QueryState::Loaded);
+    const QVariantList cachedExams = model.exams();
+    QCOMPARE(model.lastUpdated(), cachedAt);
+    QVERIFY(model.hasCache());
+
+    service.setLoggedIn(true);
+    QSignalSpy toastSpy(&model, &ExamPlanViewModel::toastRequested);
+    model.refresh();
+
+    QCOMPARE(model.state(), QueryState::Refreshing);
+    QVERIFY(model.loading());
+    QCOMPARE(model.exams(), cachedExams);
+    QCOMPARE(model.lastUpdated(), cachedAt);
+    QVERIFY(model.hasCache());
+    QCOMPARE(service.examFetchCount, 1);
+
+    model.refresh();
+    QCOMPARE(service.examFetchCount, 1);
+
+    const QString errorMessage = QStringLiteral("考试会话已过期，请重新登录");
+    service.completeExam({}, ApiError{
+        ApiErrorType::SessionExpired, errorMessage, 401});
+
+    QCOMPARE(model.state(), QueryState::Loaded);
+    QCOMPARE(model.exams(), cachedExams);
+    QCOMPARE(model.lastUpdated(), cachedAt);
+    QVERIFY(model.hasCache());
+    QCOMPARE(model.errorMessage(), errorMessage);
+    QCOMPARE(toastSpy.count(), 1);
+    QCOMPARE(toastSpy.first().first().toString(), errorMessage);
+
+    QueryCacheEntry preservedEntry;
+    QVERIFY2(cache.get(QString::fromLatin1(ExamPlanCacheKey), &preservedEntry),
+             qPrintable(cache.lastError()));
+    QCOMPARE(preservedEntry.payloadJson, payload);
+    QCOMPARE(preservedEntry.updatedAt, cachedAt);
+}
+
+void PersonDQueryTest::cachedSchemeRefreshUsesRefreshingAndKeepsContent()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+
+    const QDateTime cachedAt = QDateTime::fromString(
+        QStringLiteral("2025-02-03T04:05:06.000Z"), Qt::ISODateWithMs);
+    const QString schemePayload = QString::fromUtf8(
+        QJsonDocument(sampleSchemeRoot()).toJson(QJsonDocument::Compact));
+    const QString passingPayload = QString::fromUtf8(
+        QJsonDocument(QJsonObject{{QStringLiteral("lnList"), QJsonArray{}}})
+            .toJson(QJsonDocument::Compact));
+    QVERIFY2(cache.put(QString::fromLatin1(SchemeCacheKey), schemePayload, cachedAt),
+             qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(PassingCacheKey), passingPayload, cachedAt),
+             qPrintable(cache.lastError()));
+
+    DeferredZhjwQueryService service;
+    GradesViewModel model(&cache, &service);
+    model.load();
+    QCOMPARE(model.schemeState(), QueryState::Loaded);
+    const QVariantList cachedGroups = model.schemeGroups();
+    const QVariantMap cachedSummary = model.schemeSummary();
+    QCOMPARE(model.schemeLastUpdated(), cachedAt);
+
+    QSignalSpy toastSpy(&model, &GradesViewModel::toastRequested);
+    model.refreshSchemeScores();
+
+    QCOMPARE(model.schemeState(), QueryState::Refreshing);
+    QCOMPARE(model.schemeGroups(), cachedGroups);
+    QCOMPARE(model.schemeSummary(), cachedSummary);
+    QCOMPARE(model.schemeLastUpdated(), cachedAt);
+    QCOMPARE(service.schemeFetchCount, 1);
+
+    model.refreshSchemeScores();
+    QCOMPARE(service.schemeFetchCount, 1);
+
+    const QString errorMessage = QStringLiteral("方案成绩网络暂不可用");
+    service.completeScheme({}, ApiError{
+        ApiErrorType::Network, errorMessage, 503});
+
+    QCOMPARE(model.schemeState(), QueryState::Loaded);
+    QCOMPARE(model.schemeGroups(), cachedGroups);
+    QCOMPARE(model.schemeSummary(), cachedSummary);
+    QCOMPARE(model.schemeLastUpdated(), cachedAt);
+    QCOMPARE(model.schemeErrorMessage(), errorMessage);
+    QCOMPARE(toastSpy.count(), 1);
+    QCOMPARE(toastSpy.first().first().toString(), errorMessage);
+
+    QueryCacheEntry preservedEntry;
+    QVERIFY2(cache.get(QString::fromLatin1(SchemeCacheKey), &preservedEntry),
+             qPrintable(cache.lastError()));
+    QCOMPARE(preservedEntry.payloadJson, schemePayload);
+    QCOMPARE(preservedEntry.updatedAt, cachedAt);
+}
+
+void PersonDQueryTest::cachedPassingRefreshUsesRefreshingAndKeepsContent()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+
+    const QDateTime cachedAt = QDateTime::fromString(
+        QStringLiteral("2025-03-04T05:06:07.000Z"), Qt::ISODateWithMs);
+    const QString schemePayload = QString::fromUtf8(
+        QJsonDocument(QJsonObject{{QStringLiteral("lnList"), QJsonArray{}}})
+            .toJson(QJsonDocument::Compact));
+    const QString passingPayload = QString::fromUtf8(
+        QJsonDocument(samplePassingRoot()).toJson(QJsonDocument::Compact));
+    QVERIFY2(cache.put(QString::fromLatin1(SchemeCacheKey), schemePayload, cachedAt),
+             qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(PassingCacheKey), passingPayload, cachedAt),
+             qPrintable(cache.lastError()));
+
+    DeferredZhjwQueryService service;
+    GradesViewModel model(&cache, &service);
+    model.load();
+    QCOMPARE(model.passingState(), QueryState::Loaded);
+    const QVariantList cachedGroups = model.passingGroups();
+    const QVariantMap cachedSummary = model.passingSummary();
+    QCOMPARE(model.passingLastUpdated(), cachedAt);
+
+    QSignalSpy toastSpy(&model, &GradesViewModel::toastRequested);
+    model.refreshPassingScores();
+
+    QCOMPARE(model.passingState(), QueryState::Refreshing);
+    QCOMPARE(model.passingGroups(), cachedGroups);
+    QCOMPARE(model.passingSummary(), cachedSummary);
+    QCOMPARE(model.passingLastUpdated(), cachedAt);
+    QCOMPARE(service.passingFetchCount, 1);
+
+    model.refreshPassingScores();
+    QCOMPARE(service.passingFetchCount, 1);
+
+    const QString errorMessage = QStringLiteral("及格成绩登录已失效");
+    service.completePassing({}, ApiError{
+        ApiErrorType::Unauthenticated, errorMessage, 401});
+
+    QCOMPARE(model.passingState(), QueryState::Loaded);
+    QCOMPARE(model.passingGroups(), cachedGroups);
+    QCOMPARE(model.passingSummary(), cachedSummary);
+    QCOMPARE(model.passingLastUpdated(), cachedAt);
+    QCOMPARE(model.passingErrorMessage(), errorMessage);
+    QCOMPARE(toastSpy.count(), 1);
+    QCOMPARE(toastSpy.first().first().toString(), errorMessage);
+
+    QueryCacheEntry preservedEntry;
+    QVERIFY2(cache.get(QString::fromLatin1(PassingCacheKey), &preservedEntry),
+             qPrintable(cache.lastError()));
+    QCOMPARE(preservedEntry.payloadJson, passingPayload);
+    QCOMPARE(preservedEntry.updatedAt, cachedAt);
+}
+
+void PersonDQueryTest::emptyCachedSchemeRefreshFailureReturnsEmpty()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+
+    const QDateTime cachedAt = QDateTime::fromString(
+        QStringLiteral("2025-04-05T06:07:08.000Z"), Qt::ISODateWithMs);
+    const QString emptyPayload = QString::fromUtf8(
+        QJsonDocument(QJsonObject{{QStringLiteral("lnList"), QJsonArray{}}})
+            .toJson(QJsonDocument::Compact));
+    QVERIFY2(cache.put(QString::fromLatin1(SchemeCacheKey), emptyPayload, cachedAt),
+             qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(PassingCacheKey), emptyPayload, cachedAt),
+             qPrintable(cache.lastError()));
+
+    DeferredZhjwQueryService service;
+    GradesViewModel model(&cache, &service);
+    model.load();
+    QCOMPARE(model.schemeState(), QueryState::Empty);
+    QVERIFY(model.schemeGroups().isEmpty());
+    const QVariantMap cachedSummary = model.schemeSummary();
+    QCOMPARE(model.schemeLastUpdated(), cachedAt);
+
+    QSignalSpy toastSpy(&model, &GradesViewModel::toastRequested);
+    model.refreshSchemeScores();
+    QCOMPARE(model.schemeState(), QueryState::Refreshing);
+    QVERIFY(model.schemeGroups().isEmpty());
+    QCOMPARE(model.schemeSummary(), cachedSummary);
+    QCOMPARE(model.schemeLastUpdated(), cachedAt);
+    QCOMPARE(service.schemeFetchCount, 1);
+
+    model.refreshSchemeScores();
+    QCOMPARE(service.schemeFetchCount, 1);
+
+    const QString errorMessage = QStringLiteral("空方案成绩刷新失败");
+    service.completeScheme({}, ApiError{
+        ApiErrorType::Network, errorMessage, 503});
+
+    QCOMPARE(model.schemeState(), QueryState::Empty);
+    QVERIFY(model.schemeGroups().isEmpty());
+    QCOMPARE(model.schemeSummary(), cachedSummary);
+    QCOMPARE(model.schemeLastUpdated(), cachedAt);
+    QCOMPARE(model.schemeErrorMessage(), errorMessage);
+    QCOMPARE(toastSpy.count(), 1);
+    QCOMPARE(toastSpy.first().first().toString(), errorMessage);
+
+    QueryCacheEntry preservedEntry;
+    QVERIFY2(cache.get(QString::fromLatin1(SchemeCacheKey), &preservedEntry),
+             qPrintable(cache.lastError()));
+    QCOMPARE(preservedEntry.payloadJson, emptyPayload);
+    QCOMPARE(preservedEntry.updatedAt, cachedAt);
+}
+
+void PersonDQueryTest::emptyCachedGradeRefreshWhileLoggedOutStaysEmpty_data()
+{
+    QTest::addColumn<bool>("scheme");
+
+    QTest::newRow("scheme") << true;
+    QTest::newRow("passing") << false;
+}
+
+void PersonDQueryTest::emptyCachedGradeRefreshWhileLoggedOutStaysEmpty()
+{
+    QFETCH(bool, scheme);
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+
+    const QDateTime cachedAt = QDateTime::fromString(
+        QStringLiteral("2025-05-06T07:08:09.000Z"), Qt::ISODateWithMs);
+    const QString emptyPayload = QString::fromUtf8(
+        QJsonDocument(QJsonObject{{QStringLiteral("lnList"), QJsonArray{}}})
+            .toJson(QJsonDocument::Compact));
+    QVERIFY2(cache.put(QString::fromLatin1(SchemeCacheKey), emptyPayload, cachedAt),
+             qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(PassingCacheKey), emptyPayload, cachedAt),
+             qPrintable(cache.lastError()));
+
+    DeferredZhjwQueryService service;
+    service.loggedInValue = false;
+    GradesViewModel model(&cache, &service);
+    model.load();
+    QCOMPARE(model.schemeState(), QueryState::Empty);
+    QCOMPARE(model.passingState(), QueryState::Empty);
+
+    QSignalSpy toastSpy(&model, &GradesViewModel::toastRequested);
+    if (scheme) {
+        model.refreshSchemeScores();
+        QCOMPARE(model.schemeState(), QueryState::Empty);
+        QCOMPARE(model.schemeLastUpdated(), cachedAt);
+        QCOMPARE(service.schemeFetchCount, 0);
+    } else {
+        model.refreshPassingScores();
+        QCOMPARE(model.passingState(), QueryState::Empty);
+        QCOMPARE(model.passingLastUpdated(), cachedAt);
+        QCOMPARE(service.passingFetchCount, 0);
+    }
+    QCOMPARE(toastSpy.count(), 1);
+}
+
+void PersonDQueryTest::noCacheRefreshFailureStates_data()
+{
+    QTest::addColumn<QString>("entryPoint");
+    QTest::addColumn<int>("errorType");
+
+    for (const QString &entryPoint : {
+             QStringLiteral("exam"),
+             QStringLiteral("scheme"),
+             QStringLiteral("passing")}) {
+        QTest::newRow(qPrintable(entryPoint + QStringLiteral("-network")))
+            << entryPoint << static_cast<int>(ApiErrorType::Network);
+        QTest::newRow(qPrintable(entryPoint + QStringLiteral("-session-expired")))
+            << entryPoint << static_cast<int>(ApiErrorType::SessionExpired);
+    }
+}
+
+void PersonDQueryTest::noCacheRefreshFailureStates()
+{
+    QFETCH(QString, entryPoint);
+    QFETCH(int, errorType);
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+
+    const ApiErrorType type = static_cast<ApiErrorType>(errorType);
+    const QueryState expectedState = type == ApiErrorType::SessionExpired
+        ? QueryState::LoginRequired
+        : QueryState::Error;
+    const QString errorMessage = QStringLiteral("安全查询错误：%1").arg(entryPoint);
+    const ApiError error{type, errorMessage, type == ApiErrorType::SessionExpired ? 401 : 503};
+    DeferredZhjwQueryService service;
+
+    if (entryPoint == QStringLiteral("exam")) {
+        ExamPlanViewModel model(&cache, &service);
+        QSignalSpy toastSpy(&model, &ExamPlanViewModel::toastRequested);
+
+        model.refresh();
+        QCOMPARE(model.state(), QueryState::Loading);
+        QCOMPARE(service.examFetchCount, 1);
+        model.refresh();
+        QCOMPARE(service.examFetchCount, 1);
+        service.completeExam({}, error);
+
+        QCOMPARE(model.state(), expectedState);
+        QCOMPARE(model.errorMessage(), errorMessage);
+        QCOMPARE(model.count(), 0);
+        QVERIFY(!model.hasCache());
+        QVERIFY(!model.lastUpdated().isValid());
+        QCOMPARE(toastSpy.count(), 0);
+        return;
+    }
+
+    GradesViewModel model(&cache, &service);
+    QSignalSpy toastSpy(&model, &GradesViewModel::toastRequested);
+    if (entryPoint == QStringLiteral("scheme")) {
+        model.refreshSchemeScores();
+        QCOMPARE(model.schemeState(), QueryState::Loading);
+        QCOMPARE(service.schemeFetchCount, 1);
+        model.refreshSchemeScores();
+        QCOMPARE(service.schemeFetchCount, 1);
+        service.completeScheme({}, error);
+
+        QCOMPARE(model.schemeState(), expectedState);
+        QCOMPARE(model.schemeErrorMessage(), errorMessage);
+        QVERIFY(model.schemeGroups().isEmpty());
+        QVERIFY(!model.schemeLastUpdated().isValid());
+    } else {
+        model.refreshPassingScores();
+        QCOMPARE(model.passingState(), QueryState::Loading);
+        QCOMPARE(service.passingFetchCount, 1);
+        model.refreshPassingScores();
+        QCOMPARE(service.passingFetchCount, 1);
+        service.completePassing({}, error);
+
+        QCOMPARE(model.passingState(), expectedState);
+        QCOMPARE(model.passingErrorMessage(), errorMessage);
+        QVERIFY(model.passingGroups().isEmpty());
+        QVERIFY(!model.passingLastUpdated().isValid());
+    }
+    QCOMPARE(toastSpy.count(), 0);
 }
 
 void PersonDQueryTest::repositoryOpenClearsPreviousError()

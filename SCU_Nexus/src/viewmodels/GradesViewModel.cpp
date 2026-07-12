@@ -94,11 +94,13 @@ void GradesViewModel::load()
 // 刷新远端数据并更新缓存状态。
 void GradesViewModel::refreshSchemeScores()
 {
-    if (m_schemeState == QueryState::Loading) {
+    if (m_schemeState == QueryState::Loading || m_schemeState == QueryState::Refreshing) {
         return;
     }
     if (!loggedIn()) {
-        m_schemeState = m_hasSchemeCache ? QueryState::Loaded : QueryState::LoginRequired;
+        m_schemeState = m_hasSchemeCache
+            ? (m_scheme.items.isEmpty() ? QueryState::Empty : QueryState::Loaded)
+            : QueryState::LoginRequired;
         emit schemeChanged();
         if (m_hasSchemeCache) {
             emit toastRequested(QStringLiteral("登录已失效，正在显示缓存方案成绩。"));
@@ -107,7 +109,7 @@ void GradesViewModel::refreshSchemeScores()
     }
 
     m_schemeError.clear();
-    m_schemeState = QueryState::Loading;
+    m_schemeState = m_hasSchemeCache ? QueryState::Refreshing : QueryState::Loading;
     emit schemeChanged();
     m_api->fetchSchemeScores([this](const QJsonObject &root, const ApiError &error) {
         if (error.type != ApiErrorType::Unknown) {
@@ -127,11 +129,13 @@ void GradesViewModel::refreshSchemeScores()
 // 刷新远端数据并更新缓存状态。
 void GradesViewModel::refreshPassingScores()
 {
-    if (m_passingState == QueryState::Loading) {
+    if (m_passingState == QueryState::Loading || m_passingState == QueryState::Refreshing) {
         return;
     }
     if (!loggedIn()) {
-        m_passingState = m_hasPassingCache ? QueryState::Loaded : QueryState::LoginRequired;
+        m_passingState = m_hasPassingCache
+            ? (m_passing.groups.isEmpty() ? QueryState::Empty : QueryState::Loaded)
+            : QueryState::LoginRequired;
         emit passingChanged();
         if (m_hasPassingCache) {
             emit toastRequested(QStringLiteral("登录已失效，正在显示缓存及格成绩。"));
@@ -140,7 +144,7 @@ void GradesViewModel::refreshPassingScores()
     }
 
     m_passingError.clear();
-    m_passingState = QueryState::Loading;
+    m_passingState = m_hasPassingCache ? QueryState::Refreshing : QueryState::Loading;
     emit passingChanged();
     m_api->fetchPassingScores([this](const QJsonObject &root, const ApiError &error) {
         if (error.type != ApiErrorType::Unknown) {
@@ -480,7 +484,7 @@ void GradesViewModel::handleSchemeError(const ApiError &error)
 {
     m_schemeError = error.message;
     if (m_hasSchemeCache) {
-        m_schemeState = QueryState::Loaded;
+        m_schemeState = m_scheme.items.isEmpty() ? QueryState::Empty : QueryState::Loaded;
         emit toastRequested(error.message);
     } else {
         m_schemeState = error.type == ApiErrorType::Unauthenticated || error.type == ApiErrorType::SessionExpired
@@ -494,7 +498,7 @@ void GradesViewModel::handlePassingError(const ApiError &error)
 {
     m_passingError = error.message;
     if (m_hasPassingCache) {
-        m_passingState = QueryState::Loaded;
+        m_passingState = m_passing.groups.isEmpty() ? QueryState::Empty : QueryState::Loaded;
         emit toastRequested(error.message);
     } else {
         m_passingState = error.type == ApiErrorType::Unauthenticated || error.type == ApiErrorType::SessionExpired
