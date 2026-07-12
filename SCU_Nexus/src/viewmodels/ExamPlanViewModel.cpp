@@ -5,6 +5,10 @@
 
 namespace {
 constexpr auto ExamPlanKey = "exam_plan.latest";
+const QString DamagedCacheMessage = QStringLiteral("考试缓存已损坏，已移除。");
+const QString DamagedCacheRemovalMessage = QStringLiteral("移除损坏的考试缓存失败，请重试。");
+const QString CacheReadMessage = QStringLiteral("读取考试缓存失败，请重试。");
+const QString CacheRemovalMessage = QStringLiteral("清除考试缓存失败，请重试。");
 }
 
 // 构造对象并初始化依赖关系。
@@ -109,13 +113,28 @@ void ExamPlanViewModel::refresh()
 // 清理本模块缓存并重置相关状态。
 void ExamPlanViewModel::clearCache()
 {
-    if (m_cache) {
-        m_cache->remove(QString::fromLatin1(ExamPlanKey));
+    if (m_cache && !m_cache->remove(QString::fromLatin1(ExamPlanKey))) {
+        setError(CacheRemovalMessage);
+        setState(QueryState::Error);
+        return;
     }
+
+    const bool itemsDidChange = !m_exams.isEmpty();
+    const bool cacheDidChange = m_hasCache;
+    const bool updatedDidChange = m_lastUpdated.isValid();
     m_exams.clear();
     m_hasCache = false;
-    emit examsChanged();
-    emit cacheChanged();
+    m_lastUpdated = {};
+    if (itemsDidChange) {
+        emit examsChanged();
+    }
+    if (cacheDidChange) {
+        emit cacheChanged();
+    }
+    if (updatedDidChange) {
+        emit lastUpdatedChanged();
+    }
+    setError(QString());
     setState(QueryState::Idle);
 }
 
@@ -172,9 +191,62 @@ void ExamPlanViewModel::readCache()
     }
     QueryCacheEntry entry;
     if (!m_cache->get(QString::fromLatin1(ExamPlanKey), &entry)) {
+        if (!m_cache->lastError().isEmpty() && !loggedIn()) {
+            const bool itemsDidChange = !m_exams.isEmpty();
+            const bool cacheDidChange = m_hasCache;
+            const bool updatedDidChange = m_lastUpdated.isValid();
+            const bool notify = itemsDidChange || cacheDidChange || updatedDidChange
+                || m_state != QueryState::LoginRequired || m_errorMessage != CacheReadMessage;
+            m_exams.clear();
+            m_hasCache = false;
+            m_lastUpdated = {};
+            if (itemsDidChange) {
+                emit examsChanged();
+            }
+            if (cacheDidChange) {
+                emit cacheChanged();
+            }
+            if (updatedDidChange) {
+                emit lastUpdatedChanged();
+            }
+            setError(CacheReadMessage);
+            setState(QueryState::LoginRequired);
+            if (notify) {
+                emit toastRequested(CacheReadMessage);
+            }
+        }
         return;
     }
-    m_exams = examPlanItemsFromJson(QJsonDocument::fromJson(entry.payloadJson.toUtf8()).array());
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(entry.payloadJson.toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isArray()) {
+        const bool removed = m_cache->remove(QString::fromLatin1(ExamPlanKey));
+        const bool itemsDidChange = !m_exams.isEmpty();
+        const bool cacheDidChange = m_hasCache;
+        const bool updatedDidChange = m_lastUpdated.isValid();
+        m_exams.clear();
+        m_hasCache = false;
+        m_lastUpdated = {};
+        if (itemsDidChange) {
+            emit examsChanged();
+        }
+        if (cacheDidChange) {
+            emit cacheChanged();
+        }
+        if (updatedDidChange) {
+            emit lastUpdatedChanged();
+        }
+        const QString diagnostic = !removed ? DamagedCacheRemovalMessage
+            : (!loggedIn() ? DamagedCacheMessage : QString());
+        setError(diagnostic);
+        if (!diagnostic.isEmpty()) {
+            emit toastRequested(diagnostic);
+        }
+        return;
+    }
+
+    m_exams = examPlanItemsFromJson(document.array());
     m_lastUpdated = entry.updatedAt;
     m_hasCache = true;
     emit examsChanged();

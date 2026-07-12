@@ -25,6 +25,7 @@ QueryCacheRepository::~QueryCacheRepository()
 // 打开数据库连接并初始化缓存表结构。
 bool QueryCacheRepository::open()
 {
+    m_lastError.clear();
     QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), m_connectionName);
     db.setDatabaseName(m_databasePath);
     if (!db.open()) {
@@ -48,6 +49,7 @@ bool QueryCacheRepository::open()
 // 写入或更新缓存记录。
 bool QueryCacheRepository::put(const QString &key, const QString &payloadJson, const QDateTime &updatedAt)
 {
+    m_lastError.clear();
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
     QSqlQuery query(db);
     query.prepare(QStringLiteral(
@@ -66,6 +68,7 @@ bool QueryCacheRepository::put(const QString &key, const QString &payloadJson, c
 // 读取指定资源并返回结果。
 bool QueryCacheRepository::get(const QString &key, QueryCacheEntry *entry) const
 {
+    m_lastError.clear();
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
     QSqlQuery query(db);
     query.prepare(QStringLiteral("SELECT cache_key, payload_json, updated_at FROM query_cache WHERE cache_key = ?"));
@@ -88,6 +91,7 @@ bool QueryCacheRepository::get(const QString &key, QueryCacheEntry *entry) const
 // 移除指定数据记录。
 bool QueryCacheRepository::remove(const QString &key)
 {
+    m_lastError.clear();
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
     QSqlQuery query(db);
     query.prepare(QStringLiteral("DELETE FROM query_cache WHERE cache_key = ?"));
@@ -102,6 +106,7 @@ bool QueryCacheRepository::remove(const QString &key)
 // 清理内部状态或持久化数据。
 bool QueryCacheRepository::clear()
 {
+    m_lastError.clear();
     QSqlDatabase db = QSqlDatabase::database(m_connectionName);
     QSqlQuery query(db);
     const bool ok = query.exec(QStringLiteral("DELETE FROM query_cache"));

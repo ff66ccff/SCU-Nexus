@@ -6,6 +6,30 @@
 namespace {
 constexpr auto SchemeKey = "grades.scheme_scores";
 constexpr auto PassingKey = "grades.passing_scores";
+const QString DamagedSchemeCacheMessage = QStringLiteral("方案成绩缓存已损坏，已移除。");
+const QString DamagedPassingCacheMessage = QStringLiteral("及格成绩缓存已损坏，已移除。");
+const QString DamagedSchemeRemovalMessage = QStringLiteral("移除损坏的方案成绩缓存失败，请重试。");
+const QString DamagedPassingRemovalMessage = QStringLiteral("移除损坏的及格成绩缓存失败，请重试。");
+const QString SchemeCacheReadMessage = QStringLiteral("读取方案成绩缓存失败，请重试。");
+const QString PassingCacheReadMessage = QStringLiteral("读取及格成绩缓存失败，请重试。");
+const QString SchemeCacheRemovalMessage = QStringLiteral("清除方案成绩缓存失败，请重试。");
+const QString PassingCacheRemovalMessage = QStringLiteral("清除及格成绩缓存失败，请重试。");
+const QString CacheRemovalFailureMessage = QStringLiteral("清除成绩缓存失败，请重试。");
+
+bool parseGradeCachePayload(const QString &payload, QJsonObject *root)
+{
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(payload.toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        return false;
+    }
+    const QJsonObject object = document.object();
+    if (!object.value(QStringLiteral("lnList")).isArray()) {
+        return false;
+    }
+    *root = object;
+    return true;
+}
 }
 
 // 构造对象并初始化依赖关系。
@@ -49,11 +73,11 @@ void GradesViewModel::load()
 {
     readSchemeCache();
     readPassingCache();
-    if (!loggedIn() && !m_hasSchemeCache) {
+    if (!loggedIn() && !m_hasSchemeCache && m_schemeState != QueryState::LoginRequired) {
         m_schemeState = QueryState::LoginRequired;
         emit schemeChanged();
     }
-    if (!loggedIn() && !m_hasPassingCache) {
+    if (!loggedIn() && !m_hasPassingCache && m_passingState != QueryState::LoginRequired) {
         m_passingState = QueryState::LoginRequired;
         emit passingChanged();
     }
@@ -201,18 +225,56 @@ QVariantMap GradesViewModel::customStatsForSelected(QVariantList selectedKeys) c
 // 清理本模块缓存并重置相关状态。
 void GradesViewModel::clearCache()
 {
-    if (m_cache) {
-        m_cache->remove(QString::fromLatin1(SchemeKey));
-        m_cache->remove(QString::fromLatin1(PassingKey));
+    const bool schemeRemoved = !m_cache || m_cache->remove(QString::fromLatin1(SchemeKey));
+    const bool passingRemoved = !m_cache || m_cache->remove(QString::fromLatin1(PassingKey));
+
+    bool notifyScheme = false;
+    bool notifyPassing = false;
+    if (schemeRemoved) {
+        notifyScheme = m_hasSchemeCache || !m_scheme.items.isEmpty()
+            || m_schemeState != QueryState::Idle || !m_schemeError.isEmpty()
+            || m_schemeLastUpdated.isValid();
+        m_scheme = {};
+        m_hasSchemeCache = false;
+        m_schemeState = QueryState::Idle;
+        m_schemeError.clear();
+        m_schemeLastUpdated = {};
+    } else {
+        notifyScheme = m_schemeState != QueryState::Error
+            || m_schemeError != SchemeCacheRemovalMessage;
+        m_schemeState = QueryState::Error;
+        m_schemeError = SchemeCacheRemovalMessage;
     }
-    m_scheme = {};
-    m_passing = {};
-    m_hasSchemeCache = false;
-    m_hasPassingCache = false;
-    m_schemeState = QueryState::Idle;
-    m_passingState = QueryState::Idle;
-    emit schemeChanged();
-    emit passingChanged();
+
+    if (passingRemoved) {
+        notifyPassing = m_hasPassingCache || !m_passing.groups.isEmpty()
+            || m_passingState != QueryState::Idle || !m_passingError.isEmpty()
+            || m_passingLastUpdated.isValid();
+        m_passing = {};
+        m_hasPassingCache = false;
+        m_passingState = QueryState::Idle;
+        m_passingError.clear();
+        m_passingLastUpdated = {};
+    } else {
+        notifyPassing = m_passingState != QueryState::Error
+            || m_passingError != PassingCacheRemovalMessage;
+        m_passingState = QueryState::Error;
+        m_passingError = PassingCacheRemovalMessage;
+    }
+
+    if (notifyScheme) {
+        emit schemeChanged();
+    }
+    if (notifyPassing) {
+        emit passingChanged();
+    }
+    if (schemeRemoved && passingRemoved && !m_searchQuery.isEmpty()) {
+        m_searchQuery.clear();
+        emit searchQueryChanged();
+    }
+    if (!schemeRemoved || !passingRemoved) {
+        emit toastRequested(CacheRemovalFailureMessage);
+    }
 }
 
 // 读取方案成绩缓存并恢复统计状态。
@@ -223,9 +285,57 @@ void GradesViewModel::readSchemeCache()
     }
     QueryCacheEntry entry;
     if (!m_cache->get(QString::fromLatin1(SchemeKey), &entry)) {
+        if (!m_cache->lastError().isEmpty()) {
+            if (loggedIn()) {
+                if (m_hasSchemeCache) {
+                    refreshSchemeScores();
+                }
+            } else {
+                const bool notify = m_hasSchemeCache || !m_scheme.items.isEmpty()
+                    || m_schemeLastUpdated.isValid()
+                    || m_schemeState != QueryState::LoginRequired
+                    || m_schemeError != SchemeCacheReadMessage;
+                m_scheme = {};
+                m_hasSchemeCache = false;
+                m_schemeLastUpdated = {};
+                m_schemeState = QueryState::LoginRequired;
+                m_schemeError = SchemeCacheReadMessage;
+                if (notify) {
+                    emit schemeChanged();
+                    emit toastRequested(SchemeCacheReadMessage);
+                }
+            }
+        }
         return;
     }
-    m_scheme = m_stats.parseSchemeScores(QJsonDocument::fromJson(entry.payloadJson.toUtf8()).object());
+
+    QJsonObject root;
+    if (!parseGradeCachePayload(entry.payloadJson, &root)) {
+        const bool removed = m_cache->remove(QString::fromLatin1(SchemeKey));
+        const bool canRefresh = loggedIn();
+        const QString diagnostic = !removed ? DamagedSchemeRemovalMessage
+            : (!canRefresh ? DamagedSchemeCacheMessage : QString());
+        const bool notify = m_hasSchemeCache || !m_scheme.items.isEmpty()
+            || (!canRefresh && m_schemeState != QueryState::LoginRequired)
+            || m_schemeLastUpdated.isValid()
+            || m_schemeError != diagnostic;
+        m_scheme = {};
+        m_hasSchemeCache = false;
+        if (!canRefresh) {
+            m_schemeState = QueryState::LoginRequired;
+        }
+        m_schemeLastUpdated = {};
+        m_schemeError = diagnostic;
+        if (!canRefresh && notify) {
+            emit schemeChanged();
+        }
+        if (!diagnostic.isEmpty()) {
+            emit toastRequested(diagnostic);
+        }
+        return;
+    }
+
+    m_scheme = m_stats.parseSchemeScores(root);
     m_schemeLastUpdated = entry.updatedAt;
     m_hasSchemeCache = true;
     m_schemeState = m_scheme.items.isEmpty() ? QueryState::Empty : QueryState::Loaded;
@@ -240,9 +350,57 @@ void GradesViewModel::readPassingCache()
     }
     QueryCacheEntry entry;
     if (!m_cache->get(QString::fromLatin1(PassingKey), &entry)) {
+        if (!m_cache->lastError().isEmpty()) {
+            if (loggedIn()) {
+                if (m_hasPassingCache) {
+                    refreshPassingScores();
+                }
+            } else {
+                const bool notify = m_hasPassingCache || !m_passing.groups.isEmpty()
+                    || m_passingLastUpdated.isValid()
+                    || m_passingState != QueryState::LoginRequired
+                    || m_passingError != PassingCacheReadMessage;
+                m_passing = {};
+                m_hasPassingCache = false;
+                m_passingLastUpdated = {};
+                m_passingState = QueryState::LoginRequired;
+                m_passingError = PassingCacheReadMessage;
+                if (notify) {
+                    emit passingChanged();
+                    emit toastRequested(PassingCacheReadMessage);
+                }
+            }
+        }
         return;
     }
-    m_passing = m_stats.parsePassingScores(QJsonDocument::fromJson(entry.payloadJson.toUtf8()).object());
+
+    QJsonObject root;
+    if (!parseGradeCachePayload(entry.payloadJson, &root)) {
+        const bool removed = m_cache->remove(QString::fromLatin1(PassingKey));
+        const bool canRefresh = loggedIn();
+        const QString diagnostic = !removed ? DamagedPassingRemovalMessage
+            : (!canRefresh ? DamagedPassingCacheMessage : QString());
+        const bool notify = m_hasPassingCache || !m_passing.groups.isEmpty()
+            || (!canRefresh && m_passingState != QueryState::LoginRequired)
+            || m_passingLastUpdated.isValid()
+            || m_passingError != diagnostic;
+        m_passing = {};
+        m_hasPassingCache = false;
+        if (!canRefresh) {
+            m_passingState = QueryState::LoginRequired;
+        }
+        m_passingLastUpdated = {};
+        m_passingError = diagnostic;
+        if (!canRefresh && notify) {
+            emit passingChanged();
+        }
+        if (!diagnostic.isEmpty()) {
+            emit toastRequested(diagnostic);
+        }
+        return;
+    }
+
+    m_passing = m_stats.parsePassingScores(root);
     m_passingLastUpdated = entry.updatedAt;
     m_hasPassingCache = true;
     m_passingState = m_passing.groups.isEmpty() ? QueryState::Empty : QueryState::Loaded;
