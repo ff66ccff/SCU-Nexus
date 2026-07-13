@@ -13,6 +13,8 @@
 #include "src/viewmodels/ExamPlanViewModel.h"
 #include "src/viewmodels/GradesViewModel.h"
 
+#include <QCryptographicHash>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -32,6 +34,39 @@ namespace {
 constexpr auto ExamPlanCacheKey = "exam_plan.latest";
 constexpr auto SchemeCacheKey = "grades.scheme_scores";
 constexpr auto PassingCacheKey = "grades.passing_scores";
+constexpr auto CalendarEntriesCacheKey = "academic_calendar.entries";
+constexpr auto CalendarSelectedCacheKey = "academic_calendar.selected_year";
+constexpr auto CalendarLegacyImagesCacheKey = "academic_calendar.images";
+
+QString calendarImagesCacheKey(const QString &path)
+{
+    return QStringLiteral("academic_calendar.images.%1")
+        .arg(QString::fromLatin1(
+            QCryptographicHash::hash(path.toUtf8(), QCryptographicHash::Sha256).toHex()));
+}
+
+QString calendarEntriesPayload(const QList<AcademicCalendarEntry> &entries)
+{
+    return QString::fromUtf8(
+        QJsonDocument(academicCalendarEntriesToJson(entries)).toJson(QJsonDocument::Compact));
+}
+
+QString calendarSelectedPayload(const AcademicCalendarEntry &entry)
+{
+    return QString::fromUtf8(QJsonDocument(QJsonObject{
+        {QStringLiteral("path"), entry.path},
+        {QStringLiteral("title"), entry.title}
+    }).toJson(QJsonDocument::Compact));
+}
+
+QString calendarImagesPayload(const QStringList &images)
+{
+    QJsonArray array;
+    for (const QString &image : images) {
+        array.append(image);
+    }
+    return QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact));
+}
 
 struct StaticNetworkResponse
 {
@@ -164,6 +199,11 @@ bool blockCacheDelete(const QString &databasePath, const QString &cacheKey)
         "CREATE TRIGGER block_cache_delete BEFORE DELETE ON query_cache "
         "WHEN OLD.cache_key = '%1' "
         "BEGIN SELECT RAISE(ABORT, 'blocked cache delete'); END").arg(cacheKey));
+}
+
+bool unblockCacheDelete(const QString &databasePath)
+{
+    return executeCacheSql(databasePath, QStringLiteral("DROP TRIGGER block_cache_delete"));
 }
 
 ExamPlanItemDto sampleExamDto()
@@ -363,6 +403,29 @@ private slots:
     void calendarExplicitEmptyListClearsPriorDetail();
     void calendarRefreshIgnoresStaleDetail_data();
     void calendarRefreshIgnoresStaleDetail();
+    void calendarImageCachesAreEntrySpecific();
+    void calendarEntrySwitchRestoresListTimestamp_data();
+    void calendarEntrySwitchRestoresListTimestamp();
+    void calendarSelectionSurvivesReorderedEntries();
+    void calendarRejectsMalformedCaches_data();
+    void calendarRejectsMalformedCaches();
+    void calendarMalformedEntriesCleanLegacyState_data();
+    void calendarMalformedEntriesCleanLegacyState();
+    void calendarKeepsValidEmptyImageCache();
+    void calendarMigratesLegacySelectionAndImages();
+    void calendarDoesNotMigrateLegacyImagesToDuplicateTitle();
+    void calendarDropsUnmatchedLegacySelectionAndImages();
+    void calendarCachePutFailuresKeepNetworkData();
+    void calendarMalformedCacheRemovalFailureIsSafe();
+    void calendarClearRemovesKnownKeysAndResetsState();
+    void calendarClearRemovesStaleSelectedPathImages();
+    void calendarClearPartialFailureKeepsDataAndCanRetry();
+    void calendarCachedRequestsRefreshAndRetainOnFailure_data();
+    void calendarCachedRequestsRefreshAndRetainOnFailure();
+    void calendarEmptyCachesAndVisibleEntriesRefreshSafely_data();
+    void calendarEmptyCachesAndVisibleEntriesRefreshSafely();
+    void calendarLoadWithoutCacheStartsListRequest();
+    void calendarImageViewerShowsLoadingAndFailureFallback();
     void sortsExamItemsByStartTimeWithUnparsedAtEnd();
     void calculatesSchemeAndCustomGradeStats();
     void parsesNumericGradeScalarsAsText();
@@ -732,6 +795,7 @@ void PersonDQueryTest::calendarViewModelPreservesExplicitEmptyCache()
     QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
     QVERIFY2(cache.open(), qPrintable(cache.lastError()));
     AcademicCalendarViewModel writer(&cache);
+    QSignalSpy writerToastSpy(&writer, &AcademicCalendarViewModel::toastRequested);
 
     writer.applyEntries({}, true);
 
@@ -739,6 +803,7 @@ void PersonDQueryTest::calendarViewModelPreservesExplicitEmptyCache()
     QVERIFY(writer.hasCache());
     QVERIFY(writer.entries().isEmpty());
     QVERIFY(writer.lastUpdated().isValid());
+    QCOMPARE(writerToastSpy.count(), 0);
 
     QueryCacheEntry cacheEntry;
     QVERIFY2(cache.get(QStringLiteral("academic_calendar.entries"), &cacheEntry),
@@ -764,15 +829,17 @@ void PersonDQueryTest::calendarViewModelPreservesExplicitEmptyCache()
 
 void PersonDQueryTest::calendarExplicitEmptyListClearsPriorDetail()
 {
+    const AcademicCalendarEntry oldEntry{
+        QStringLiteral("2024-2025"), QStringLiteral("info/1101/1111.htm")};
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
     QVERIFY2(cache.open(), qPrintable(cache.lastError()));
-    QVERIFY2(cache.put(QStringLiteral("academic_calendar.images"),
+    QVERIFY2(cache.put(calendarImagesCacheKey(oldEntry.path),
                        QStringLiteral("[\"https://example.invalid/old-calendar.png\"]")),
              qPrintable(cache.lastError()));
     AcademicCalendarViewModel model(&cache);
-    model.m_entries = {{QStringLiteral("2024-2025"), QStringLiteral("info/1101/1111.htm")}};
+    model.m_entries = {oldEntry};
     model.m_selectedIndex = 0;
     model.m_imageUrls = {QStringLiteral("https://example.invalid/old-calendar.png")};
     model.m_hasCache = true;
@@ -791,7 +858,7 @@ void PersonDQueryTest::calendarExplicitEmptyListClearsPriorDetail()
                                     Qt::ISODateWithMs));
 
     QueryCacheEntry imageCache;
-    QVERIFY2(cache.get(QStringLiteral("academic_calendar.images"), &imageCache),
+    QVERIFY2(cache.get(calendarImagesCacheKey(oldEntry.path), &imageCache),
              qPrintable(cache.lastError()));
     QCOMPARE(imageCache.payloadJson, QStringLiteral("[]"));
 
@@ -879,6 +946,852 @@ void PersonDQueryTest::calendarRefreshIgnoresStaleDetail()
     QCOMPARE(toastSpy.count(), 0);
     QCOMPARE(detailSignalCount, 0);
     QCOMPARE(failureSignalCount, 0);
+}
+
+void PersonDQueryTest::calendarImageCachesAreEntrySpecific()
+{
+    const AcademicCalendarEntry first{
+        QStringLiteral("2024-2025"), QStringLiteral("info/1101/1111.htm")};
+    const AcademicCalendarEntry second{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    const QStringList firstImages{QStringLiteral("https://example.invalid/first.png")};
+    const QStringList secondImages{QStringLiteral("https://example.invalid/second.png")};
+
+    QCOMPARE(AcademicCalendarViewModel::imagesCacheKey(first.path),
+             QStringLiteral("academic_calendar.images."
+                            "b5e5e517605bb052d4e450f2091afca2c8a6f886e92a76badff039e9d7eefb38"));
+    QVERIFY(AcademicCalendarViewModel::imagesCacheKey(first.path)
+            != AcademicCalendarViewModel::imagesCacheKey(second.path));
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({first, second})), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       calendarSelectedPayload(second)), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(calendarImagesCacheKey(first.path),
+                       calendarImagesPayload(firstImages)), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(calendarImagesCacheKey(second.path),
+                       calendarImagesPayload(secondImages)), qPrintable(cache.lastError()));
+
+    StaticNetworkAccessManager network;
+    network.responses = {
+        {QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"), 200,
+         QNetworkReply::NoError, true},
+        {QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"), 200,
+         QNetworkReply::NoError, true}
+    };
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(&cache, &service, nullptr);
+
+    model.readCache();
+
+    QCOMPARE(model.selectedIndex(), 1);
+    QCOMPARE(model.imageUrls(), secondImages);
+
+    model.selectEntry(0);
+    QCOMPARE(model.selectedIndex(), 0);
+    QCOMPARE(model.imageUrls(), firstImages);
+
+    model.selectEntry(1);
+    QCOMPARE(model.selectedIndex(), 1);
+    QCOMPARE(model.imageUrls(), secondImages);
+    QCOMPARE(network.requests.size(), 2);
+}
+
+void PersonDQueryTest::calendarEntrySwitchRestoresListTimestamp_data()
+{
+    QTest::addColumn<QString>("secondImagePayload");
+
+    QTest::newRow("uncached") << QString();
+    QTest::newRow("malformed-cache") << QStringLiteral("{not-json");
+}
+
+void PersonDQueryTest::calendarEntrySwitchRestoresListTimestamp()
+{
+    QFETCH(QString, secondImagePayload);
+
+    const AcademicCalendarEntry first{
+        QStringLiteral("2024-2025"), QStringLiteral("info/1101/1111.htm")};
+    const AcademicCalendarEntry second{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    const QDateTime entriesAt = QDateTime::fromString(
+        QStringLiteral("2026-01-02T03:04:05.000Z"), Qt::ISODateWithMs);
+    const QDateTime firstImagesAt = entriesAt.addDays(1);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({first, second}), entriesAt),
+             qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       calendarSelectedPayload(first), entriesAt), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(calendarImagesCacheKey(first.path),
+                       calendarImagesPayload({QStringLiteral("https://example.invalid/first.png")}),
+                       firstImagesAt), qPrintable(cache.lastError()));
+    if (!secondImagePayload.isNull()) {
+        QVERIFY2(cache.put(calendarImagesCacheKey(second.path), secondImagePayload,
+                           firstImagesAt.addDays(1)), qPrintable(cache.lastError()));
+    }
+
+    StaticNetworkAccessManager network;
+    network.responses.append({QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"), 200,
+                              QNetworkReply::NoError, true});
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(&cache, &service, nullptr);
+    model.readCache();
+    QCOMPARE(model.lastUpdated(), firstImagesAt);
+    QSignalSpy updatedSpy(&model, &AcademicCalendarViewModel::lastUpdatedChanged);
+
+    model.selectEntry(1);
+
+    QCOMPARE(model.selectedIndex(), 1);
+    QVERIFY(model.imageUrls().isEmpty());
+    QCOMPARE(model.lastUpdated(), entriesAt);
+    QCOMPARE(updatedSpy.count(), 1);
+    QCOMPARE(model.state(), QueryState::Refreshing);
+    QCOMPARE(network.requests.size(), 1);
+    if (!secondImagePayload.isNull()) {
+        QueryCacheEntry removed;
+        QVERIFY(!cache.get(calendarImagesCacheKey(second.path), &removed));
+    }
+}
+
+void PersonDQueryTest::calendarSelectionSurvivesReorderedEntries()
+{
+    const AcademicCalendarEntry first{
+        QStringLiteral("2024-2025"), QStringLiteral("info/1101/1111.htm")};
+    const AcademicCalendarEntry second{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    const AcademicCalendarEntry renamedPath{
+        second.title, QStringLiteral("info/1101/3333.htm")};
+    const AcademicCalendarEntry fallback{
+        QStringLiteral("2026-2027"), QStringLiteral("info/1101/4444.htm")};
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({first, second})), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       calendarSelectedPayload(second)), qPrintable(cache.lastError()));
+
+    StaticNetworkAccessManager network;
+    for (int i = 0; i < 3; ++i) {
+        network.responses.append({QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"),
+                                  200, QNetworkReply::NoError, true});
+    }
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(&cache, &service, nullptr);
+    model.readCache();
+
+    model.applyEntries({second, first}, true);
+    QCOMPARE(model.selectedIndex(), 0);
+    QCOMPARE(model.entries().at(model.selectedIndex()).toMap().value(QStringLiteral("path")).toString(),
+             second.path);
+
+    model.applyEntries({first, renamedPath}, true);
+    QCOMPARE(model.selectedIndex(), 1);
+    QCOMPARE(model.entries().at(model.selectedIndex()).toMap().value(QStringLiteral("path")).toString(),
+             renamedPath.path);
+
+    model.applyEntries({fallback, first}, true);
+    QCOMPARE(model.selectedIndex(), 0);
+    QCOMPARE(model.entries().at(model.selectedIndex()).toMap().value(QStringLiteral("path")).toString(),
+             fallback.path);
+
+    QueryCacheEntry selectedCache;
+    QVERIFY2(cache.get(QString::fromLatin1(CalendarSelectedCacheKey), &selectedCache),
+             qPrintable(cache.lastError()));
+    QJsonParseError parseError;
+    const QJsonDocument selectedDocument = QJsonDocument::fromJson(
+        selectedCache.payloadJson.toUtf8(), &parseError);
+    QCOMPARE(parseError.error, QJsonParseError::NoError);
+    QCOMPARE(selectedDocument.object().value(QStringLiteral("title")).toString(), fallback.title);
+    QCOMPARE(selectedDocument.object().value(QStringLiteral("path")).toString(), fallback.path);
+}
+
+void PersonDQueryTest::calendarRejectsMalformedCaches_data()
+{
+    QTest::addColumn<int>("cacheKind");
+    QTest::addColumn<QString>("payload");
+
+    QTest::newRow("entries-malformed") << 0 << QStringLiteral("{not-json");
+    QTest::newRow("entries-wrong-root") << 0 << QStringLiteral("{}");
+    QTest::newRow("entries-wrong-item")
+        << 0 << QStringLiteral("[{\"title\":\"2025-2026\",\"path\":7}]");
+    QTest::newRow("selected-malformed") << 1 << QStringLiteral("[1]");
+    QTest::newRow("selected-wrong-field")
+        << 1 << QStringLiteral("{\"title\":\"2025-2026\",\"path\":7}");
+    QTest::newRow("images-malformed") << 2 << QStringLiteral("{not-json");
+    QTest::newRow("images-wrong-root") << 2 << QStringLiteral("{}");
+    QTest::newRow("images-wrong-item")
+        << 2 << QStringLiteral("[\"https://example.invalid/calendar.png\",7]");
+}
+
+void PersonDQueryTest::calendarRejectsMalformedCaches()
+{
+    QFETCH(int, cacheKind);
+    QFETCH(QString, payload);
+
+    const AcademicCalendarEntry entry{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+
+    const QString targetKey = cacheKind == 0
+        ? QString::fromLatin1(CalendarEntriesCacheKey)
+        : (cacheKind == 1 ? QString::fromLatin1(CalendarSelectedCacheKey)
+                          : calendarImagesCacheKey(entry.path));
+    if (cacheKind != 0) {
+        QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                           calendarEntriesPayload({entry})), qPrintable(cache.lastError()));
+    }
+    if (cacheKind == 2) {
+        QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                           calendarSelectedPayload(entry)), qPrintable(cache.lastError()));
+    }
+    QVERIFY2(cache.put(targetKey, payload), qPrintable(cache.lastError()));
+
+    AcademicCalendarViewModel model(&cache);
+    model.readCache();
+
+    QueryCacheEntry damaged;
+    QVERIFY(!cache.get(targetKey, &damaged));
+    QVERIFY(cache.lastError().isEmpty());
+    if (cacheKind == 0) {
+        QVERIFY(model.entries().isEmpty());
+        QVERIFY(!model.hasCache());
+    } else if (cacheKind == 1) {
+        QCOMPARE(model.selectedIndex(), 0);
+    } else {
+        QVERIFY(model.imageUrls().isEmpty());
+    }
+}
+
+void PersonDQueryTest::calendarMalformedEntriesCleanLegacyState_data()
+{
+    QTest::addColumn<QString>("blockedKey");
+
+    QTest::newRow("all-removals-succeed") << QString();
+    QTest::newRow("selection-removal-fails")
+        << QString::fromLatin1(CalendarSelectedCacheKey);
+    QTest::newRow("global-images-removal-fails")
+        << QString::fromLatin1(CalendarLegacyImagesCacheKey);
+}
+
+void PersonDQueryTest::calendarMalformedEntriesCleanLegacyState()
+{
+    QFETCH(QString, blockedKey);
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString databasePath = dir.filePath(QStringLiteral("query-cache.sqlite"));
+    QueryCacheRepository cache(databasePath);
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       QStringLiteral("{not-json")), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       QStringLiteral(R"({"title":"2025-2026"})")),
+             qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarLegacyImagesCacheKey),
+                       calendarImagesPayload({QStringLiteral("https://example.invalid/legacy.png")})),
+             qPrintable(cache.lastError()));
+    if (!blockedKey.isNull()) {
+        QVERIFY(blockCacheDelete(databasePath, blockedKey));
+    }
+
+    AcademicCalendarViewModel model(&cache);
+    QSignalSpy toastSpy(&model, &AcademicCalendarViewModel::toastRequested);
+    model.readCache();
+
+    QVERIFY(model.entries().isEmpty());
+    QCOMPARE(model.selectedIndex(), -1);
+    QVERIFY(model.imageUrls().isEmpty());
+    QVERIFY(!model.hasCache());
+
+    QueryCacheEntry remaining;
+    QVERIFY(!cache.get(QString::fromLatin1(CalendarEntriesCacheKey), &remaining));
+    const QStringList legacyKeys{
+        QString::fromLatin1(CalendarSelectedCacheKey),
+        QString::fromLatin1(CalendarLegacyImagesCacheKey)
+    };
+    for (const QString &key : legacyKeys) {
+        QCOMPARE(cache.get(key, &remaining), key == blockedKey);
+    }
+    QCOMPARE(toastSpy.count(), blockedKey.isNull() ? 0 : 1);
+    if (!blockedKey.isNull()) {
+        QCOMPARE(toastSpy.first().first().toString(),
+                 QStringLiteral("移除损坏的校历缓存失败，请重试。"));
+    }
+}
+
+void PersonDQueryTest::calendarKeepsValidEmptyImageCache()
+{
+    const AcademicCalendarEntry entry{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({entry})), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       calendarSelectedPayload(entry)), qPrintable(cache.lastError()));
+    const QString imagesKey = calendarImagesCacheKey(entry.path);
+    QVERIFY2(cache.put(imagesKey, QStringLiteral("[]")), qPrintable(cache.lastError()));
+
+    AcademicCalendarViewModel model(&cache);
+    model.readCache();
+
+    QVERIFY(model.imageUrls().isEmpty());
+    QueryCacheEntry cachedImages;
+    QVERIFY2(cache.get(imagesKey, &cachedImages), qPrintable(cache.lastError()));
+    QCOMPARE(cachedImages.payloadJson, QStringLiteral("[]"));
+}
+
+void PersonDQueryTest::calendarMigratesLegacySelectionAndImages()
+{
+    const AcademicCalendarEntry first{
+        QStringLiteral("2024-2025"), QStringLiteral("info/1101/1111.htm")};
+    const AcademicCalendarEntry second{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    const QStringList legacyImages{QStringLiteral("https://example.invalid/legacy.png")};
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({first, second})), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       QStringLiteral(R"({"title":"2025-2026"})")), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarLegacyImagesCacheKey),
+                       calendarImagesPayload(legacyImages)), qPrintable(cache.lastError()));
+
+    AcademicCalendarViewModel model(&cache);
+    QSignalSpy toastSpy(&model, &AcademicCalendarViewModel::toastRequested);
+    model.readCache();
+
+    QCOMPARE(model.selectedIndex(), 1);
+    QCOMPARE(model.imageUrls(), legacyImages);
+    QCOMPARE(toastSpy.count(), 0);
+
+    QueryCacheEntry migratedSelection;
+    QVERIFY2(cache.get(QString::fromLatin1(CalendarSelectedCacheKey), &migratedSelection),
+             qPrintable(cache.lastError()));
+    const QJsonObject selection = QJsonDocument::fromJson(
+        migratedSelection.payloadJson.toUtf8()).object();
+    QCOMPARE(selection.value(QStringLiteral("title")).toString(), second.title);
+    QCOMPARE(selection.value(QStringLiteral("path")).toString(), second.path);
+
+    QueryCacheEntry migratedImages;
+    QVERIFY2(cache.get(calendarImagesCacheKey(second.path), &migratedImages),
+             qPrintable(cache.lastError()));
+    QCOMPARE(migratedImages.payloadJson, calendarImagesPayload(legacyImages));
+    QVERIFY(!cache.get(QString::fromLatin1(CalendarLegacyImagesCacheKey), &migratedImages));
+    QVERIFY(cache.lastError().isEmpty());
+}
+
+void PersonDQueryTest::calendarDoesNotMigrateLegacyImagesToDuplicateTitle()
+{
+    const AcademicCalendarEntry first{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/1111.htm")};
+    const AcademicCalendarEntry second{
+        first.title, QStringLiteral("info/1101/2222.htm")};
+    const QString stalePath = QStringLiteral("info/1101/obsolete.htm");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({first, second})), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       QString::fromUtf8(QJsonDocument(QJsonObject{
+                           {QStringLiteral("path"), stalePath},
+                           {QStringLiteral("title"), first.title}
+                       }).toJson(QJsonDocument::Compact))), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarLegacyImagesCacheKey),
+                       calendarImagesPayload({QStringLiteral("https://example.invalid/legacy.png")})),
+             qPrintable(cache.lastError()));
+
+    AcademicCalendarViewModel model(&cache);
+    model.readCache();
+
+    QCOMPARE(model.selectedIndex(), 0);
+    QVERIFY(model.imageUrls().isEmpty());
+    QueryCacheEntry cacheEntry;
+    QVERIFY(!cache.get(QString::fromLatin1(CalendarLegacyImagesCacheKey), &cacheEntry));
+    QVERIFY(!cache.get(calendarImagesCacheKey(first.path), &cacheEntry));
+    QVERIFY(!cache.get(calendarImagesCacheKey(second.path), &cacheEntry));
+}
+
+void PersonDQueryTest::calendarDropsUnmatchedLegacySelectionAndImages()
+{
+    const AcademicCalendarEntry entry{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({entry})), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       QStringLiteral(R"({"title":"missing"})")), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarLegacyImagesCacheKey),
+                       calendarImagesPayload({QStringLiteral("https://example.invalid/legacy.png")})),
+             qPrintable(cache.lastError()));
+
+    AcademicCalendarViewModel model(&cache);
+    model.readCache();
+
+    QCOMPARE(model.selectedIndex(), 0);
+    QVERIFY(model.imageUrls().isEmpty());
+    QueryCacheEntry removed;
+    QVERIFY(!cache.get(QString::fromLatin1(CalendarSelectedCacheKey), &removed));
+    QVERIFY(!cache.get(QString::fromLatin1(CalendarLegacyImagesCacheKey), &removed));
+    QVERIFY(!cache.get(calendarImagesCacheKey(entry.path), &removed));
+}
+
+void PersonDQueryTest::calendarCachePutFailuresKeepNetworkData()
+{
+    const AcademicCalendarEntry entry{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    const QStringList images{QStringLiteral("https://example.invalid/network.png")};
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString databasePath = dir.filePath(QStringLiteral("query-cache.sqlite"));
+    QueryCacheRepository cache(databasePath);
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY(dropCacheTable(databasePath));
+
+    StaticNetworkAccessManager network;
+    network.responses = {
+        {QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"), 200,
+         QNetworkReply::NoError, true},
+        {QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"), 200,
+         QNetworkReply::NoError, true}
+    };
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(&cache, &service, nullptr);
+    QSignalSpy toastSpy(&model, &AcademicCalendarViewModel::toastRequested);
+
+    model.applyEntries({entry}, true);
+
+    QCOMPARE(model.entries().size(), 1);
+    QCOMPARE(model.selectedIndex(), 0);
+    QVERIFY(!model.hasCache());
+    QCOMPARE(toastSpy.count(), 1);
+    QCOMPARE(toastSpy.first().first().toString(),
+             QStringLiteral("校历数据已更新，但缓存写入失败。"));
+
+    model.applyDetail({entry, images}, true);
+
+    QCOMPARE(model.imageUrls(), images);
+    QVERIFY(model.lastUpdated().isValid());
+    QVERIFY(!model.hasCache());
+    QCOMPARE(toastSpy.count(), 2);
+    QCOMPARE(toastSpy.last().first().toString(),
+             QStringLiteral("校历数据已更新，但缓存写入失败。"));
+
+    model.reloadSelected();
+    QCOMPARE(model.state(), QueryState::Refreshing);
+    QVERIFY(model.loading());
+    QCOMPARE(model.imageUrls(), images);
+    QCOMPARE(network.requests.size(), 2);
+}
+
+void PersonDQueryTest::calendarMalformedCacheRemovalFailureIsSafe()
+{
+    const AcademicCalendarEntry entry{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString databasePath = dir.filePath(QStringLiteral("query-cache.sqlite"));
+    QueryCacheRepository cache(databasePath);
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({entry})), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       calendarSelectedPayload(entry)), qPrintable(cache.lastError()));
+    const QString imagesKey = calendarImagesCacheKey(entry.path);
+    const QString malformed = QStringLiteral("{not-json");
+    QVERIFY2(cache.put(imagesKey, malformed), qPrintable(cache.lastError()));
+    QVERIFY(blockCacheDelete(databasePath, imagesKey));
+
+    AcademicCalendarViewModel model(&cache);
+    QSignalSpy toastSpy(&model, &AcademicCalendarViewModel::toastRequested);
+    model.readCache();
+
+    QCOMPARE(model.entries().size(), 1);
+    QCOMPARE(model.selectedIndex(), 0);
+    QVERIFY(model.imageUrls().isEmpty());
+    QVERIFY(model.hasCache());
+    QCOMPARE(toastSpy.count(), 1);
+    const QString warning = toastSpy.first().first().toString();
+    QCOMPARE(warning, QStringLiteral("移除损坏的校历缓存失败，请重试。"));
+    QVERIFY(!warning.contains(malformed));
+    QVERIFY(!warning.contains(QStringLiteral("blocked cache delete")));
+    QueryCacheEntry remaining;
+    QVERIFY(cache.get(imagesKey, &remaining));
+}
+
+void PersonDQueryTest::calendarClearRemovesKnownKeysAndResetsState()
+{
+    const AcademicCalendarEntry first{
+        QStringLiteral("2024-2025"), QStringLiteral("info/1101/1111.htm")};
+    const AcademicCalendarEntry second{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    const QStringList secondImages{QStringLiteral("https://example.invalid/second.png")};
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    const QDateTime cachedAt = QDateTime::fromString(
+        QStringLiteral("2026-01-02T03:04:05.000Z"), Qt::ISODateWithMs);
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({first, second}), cachedAt), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       calendarSelectedPayload(second), cachedAt), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(calendarImagesCacheKey(first.path),
+                       calendarImagesPayload({QStringLiteral("https://example.invalid/first.png")}),
+                       cachedAt), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(calendarImagesCacheKey(second.path),
+                       calendarImagesPayload(secondImages), cachedAt), qPrintable(cache.lastError()));
+
+    StaticNetworkAccessManager network;
+    network.responses.append({
+        QStringLiteral("<img src=\"/__local/new/calendar.png\">").toUtf8(),
+        QByteArrayLiteral("text/html; charset=utf-8"), 200, QNetworkReply::NoError, true});
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(&cache, &service, nullptr);
+    model.readCache();
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarLegacyImagesCacheKey),
+                       QStringLiteral("[]")), qPrintable(cache.lastError()));
+    model.setState(QueryState::Loaded);
+    model.reloadSelected();
+    QCOMPARE(network.replies.size(), 1);
+    StaticNetworkReply *pending = network.replies.first();
+    model.setError(QStringLiteral("旧错误"));
+    QSignalSpy toastSpy(&model, &AcademicCalendarViewModel::toastRequested);
+
+    model.clearCache();
+
+    QCOMPARE(model.state(), QueryState::Idle);
+    QVERIFY(model.errorMessage().isEmpty());
+    QVERIFY(!model.lastUpdated().isValid());
+    QVERIFY(!model.hasCache());
+    QVERIFY(model.entries().isEmpty());
+    QCOMPARE(model.selectedIndex(), -1);
+    QVERIFY(model.imageUrls().isEmpty());
+    QCOMPARE(toastSpy.count(), 0);
+
+    QueryCacheEntry removed;
+    const QStringList keys{
+        QString::fromLatin1(CalendarEntriesCacheKey),
+        QString::fromLatin1(CalendarSelectedCacheKey),
+        QString::fromLatin1(CalendarLegacyImagesCacheKey),
+        calendarImagesCacheKey(first.path),
+        calendarImagesCacheKey(second.path)
+    };
+    for (const QString &key : keys) {
+        QVERIFY2(!cache.get(key, &removed), qPrintable(key));
+        QVERIFY(cache.lastError().isEmpty());
+    }
+
+    pending->complete();
+    QCOMPARE(model.state(), QueryState::Idle);
+    QVERIFY(model.entries().isEmpty());
+    QVERIFY(model.imageUrls().isEmpty());
+    QCOMPARE(toastSpy.count(), 0);
+}
+
+void PersonDQueryTest::calendarClearRemovesStaleSelectedPathImages()
+{
+    const AcademicCalendarEntry current{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/current.htm")};
+    const QString stalePath = QStringLiteral("info/1101/obsolete.htm");
+    const QString staleImagesKey = calendarImagesCacheKey(stalePath);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({current})), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       QString::fromUtf8(QJsonDocument(QJsonObject{
+                           {QStringLiteral("path"), stalePath},
+                           {QStringLiteral("title"), current.title}
+                       }).toJson(QJsonDocument::Compact))), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(staleImagesKey,
+                       calendarImagesPayload({QStringLiteral("https://example.invalid/stale.png")})),
+             qPrintable(cache.lastError()));
+
+    AcademicCalendarViewModel model(&cache);
+    model.readCache();
+    QCOMPARE(model.selectedIndex(), 0);
+    QVERIFY(model.imageUrls().isEmpty());
+
+    model.clearCache();
+
+    QCOMPARE(model.state(), QueryState::Idle);
+    QVERIFY(!model.hasCache());
+    QueryCacheEntry removed;
+    QVERIFY(!cache.get(staleImagesKey, &removed));
+}
+
+void PersonDQueryTest::calendarClearPartialFailureKeepsDataAndCanRetry()
+{
+    const AcademicCalendarEntry first{
+        QStringLiteral("2024-2025"), QStringLiteral("info/1101/1111.htm")};
+    const AcademicCalendarEntry second{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    const QStringList secondImages{QStringLiteral("https://example.invalid/second.png")};
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString databasePath = dir.filePath(QStringLiteral("query-cache.sqlite"));
+    QueryCacheRepository cache(databasePath);
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({first, second})), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       calendarSelectedPayload(second)), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(calendarImagesCacheKey(first.path),
+                       calendarImagesPayload({QStringLiteral("https://example.invalid/first.png")})),
+             qPrintable(cache.lastError()));
+    const QString failedKey = calendarImagesCacheKey(second.path);
+    QVERIFY2(cache.put(failedKey, calendarImagesPayload(secondImages)), qPrintable(cache.lastError()));
+
+    AcademicCalendarViewModel model(&cache);
+    model.readCache();
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarLegacyImagesCacheKey),
+                       QStringLiteral("[]")), qPrintable(cache.lastError()));
+    model.setState(QueryState::Loaded);
+    model.setError(QStringLiteral("旧错误"));
+    const QVariantList preservedEntries = model.entries();
+    const QStringList preservedImages = model.imageUrls();
+    const QDateTime preservedUpdated = model.lastUpdated();
+    const int preservedIndex = model.selectedIndex();
+    QVERIFY(blockCacheDelete(databasePath, failedKey));
+    QSignalSpy toastSpy(&model, &AcademicCalendarViewModel::toastRequested);
+
+    model.clearCache();
+
+    QCOMPARE(model.state(), QueryState::Loaded);
+    QCOMPARE(model.errorMessage(), QStringLiteral("旧错误"));
+    QCOMPARE(model.entries(), preservedEntries);
+    QCOMPARE(model.imageUrls(), preservedImages);
+    QCOMPARE(model.lastUpdated(), preservedUpdated);
+    QCOMPARE(model.selectedIndex(), preservedIndex);
+    QVERIFY(model.hasCache());
+    QCOMPARE(toastSpy.count(), 1);
+    QCOMPARE(toastSpy.first().first().toString(),
+             QStringLiteral("清除校历缓存失败，请重试。"));
+
+    QueryCacheEntry cacheEntry;
+    QVERIFY(!cache.get(QString::fromLatin1(CalendarEntriesCacheKey), &cacheEntry));
+    QVERIFY(!cache.get(QString::fromLatin1(CalendarSelectedCacheKey), &cacheEntry));
+    QVERIFY(!cache.get(QString::fromLatin1(CalendarLegacyImagesCacheKey), &cacheEntry));
+    QVERIFY(!cache.get(calendarImagesCacheKey(first.path), &cacheEntry));
+    QVERIFY(cache.get(failedKey, &cacheEntry));
+
+    QVERIFY(unblockCacheDelete(databasePath));
+    model.clearCache();
+
+    QCOMPARE(model.state(), QueryState::Idle);
+    QVERIFY(model.errorMessage().isEmpty());
+    QVERIFY(!model.lastUpdated().isValid());
+    QVERIFY(!model.hasCache());
+    QVERIFY(model.entries().isEmpty());
+    QCOMPARE(model.selectedIndex(), -1);
+    QVERIFY(model.imageUrls().isEmpty());
+    QCOMPARE(toastSpy.count(), 1);
+    QVERIFY(!cache.get(failedKey, &cacheEntry));
+}
+
+void PersonDQueryTest::calendarCachedRequestsRefreshAndRetainOnFailure_data()
+{
+    QTest::addColumn<bool>("listRequest");
+
+    QTest::newRow("list") << true;
+    QTest::newRow("detail") << false;
+}
+
+void PersonDQueryTest::calendarCachedRequestsRefreshAndRetainOnFailure()
+{
+    QFETCH(bool, listRequest);
+
+    const AcademicCalendarEntry entry{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    const QStringList images{QStringLiteral("https://example.invalid/cached.png")};
+    const QDateTime cachedAt = QDateTime::fromString(
+        QStringLiteral("2026-01-02T03:04:05.000Z"), Qt::ISODateWithMs);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({entry}), cachedAt), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       calendarSelectedPayload(entry), cachedAt), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(calendarImagesCacheKey(entry.path),
+                       calendarImagesPayload(images), cachedAt), qPrintable(cache.lastError()));
+
+    StaticNetworkAccessManager network;
+    for (int i = 0; i < 2; ++i) {
+        network.responses.append({QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"), 0,
+                                  QNetworkReply::HostNotFoundError, true});
+    }
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(&cache, &service, nullptr);
+    model.readCache();
+    model.setState(QueryState::Loaded);
+    const QVariantList preservedEntries = model.entries();
+    const QStringList preservedImages = model.imageUrls();
+    const QDateTime preservedUpdated = model.lastUpdated();
+    QSignalSpy toastSpy(&model, &AcademicCalendarViewModel::toastRequested);
+
+    if (listRequest) {
+        model.reloadList();
+        model.reloadList();
+    } else {
+        model.reloadSelected();
+        model.reloadSelected();
+    }
+
+    QCOMPARE(model.state(), QueryState::Refreshing);
+    QVERIFY(model.loading());
+    QCOMPARE(model.entries(), preservedEntries);
+    QCOMPARE(model.imageUrls(), preservedImages);
+    QCOMPARE(model.lastUpdated(), preservedUpdated);
+    QCOMPARE(network.requests.size(), 1);
+
+    network.replies.first()->complete();
+
+    QTRY_COMPARE(model.state(), QueryState::Loaded);
+    QCOMPARE(model.entries(), preservedEntries);
+    QCOMPARE(model.imageUrls(), preservedImages);
+    QCOMPARE(model.lastUpdated(), preservedUpdated);
+    QVERIFY(model.errorMessage().isEmpty());
+    QCOMPARE(toastSpy.count(), 1);
+    QCOMPARE(toastSpy.first().first().toString(),
+             QStringLiteral("校历网络请求失败，请检查网络后重试。"));
+}
+
+void PersonDQueryTest::calendarEmptyCachesAndVisibleEntriesRefreshSafely_data()
+{
+    QTest::addColumn<bool>("listRequest");
+    QTest::addColumn<bool>("storeEntry");
+    QTest::addColumn<bool>("storeEmptyImages");
+
+    QTest::newRow("empty-list-cache") << true << false << false;
+    QTest::newRow("empty-image-cache") << false << true << true;
+    QTest::newRow("visible-entries-without-image-cache") << false << true << false;
+}
+
+void PersonDQueryTest::calendarEmptyCachesAndVisibleEntriesRefreshSafely()
+{
+    QFETCH(bool, listRequest);
+    QFETCH(bool, storeEntry);
+    QFETCH(bool, storeEmptyImages);
+
+    const AcademicCalendarEntry entry{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/2222.htm")};
+    const QDateTime cachedAt = QDateTime::fromString(
+        QStringLiteral("2026-01-02T03:04:05.000Z"), Qt::ISODateWithMs);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload(storeEntry
+                                                  ? QList<AcademicCalendarEntry>{entry}
+                                                  : QList<AcademicCalendarEntry>{}),
+                       cachedAt), qPrintable(cache.lastError()));
+    if (storeEntry) {
+        QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                           calendarSelectedPayload(entry), cachedAt), qPrintable(cache.lastError()));
+    }
+    if (storeEmptyImages) {
+        QVERIFY2(cache.put(calendarImagesCacheKey(entry.path), QStringLiteral("[]"), cachedAt),
+                 qPrintable(cache.lastError()));
+    }
+
+    StaticNetworkAccessManager network;
+    network.responses.append({QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"), 0,
+                              QNetworkReply::HostNotFoundError, true});
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(&cache, &service, nullptr);
+    model.readCache();
+    model.setState(QueryState::Empty);
+    const QVariantList preservedEntries = model.entries();
+    const QDateTime preservedUpdated = model.lastUpdated();
+    QSignalSpy toastSpy(&model, &AcademicCalendarViewModel::toastRequested);
+
+    if (listRequest) {
+        model.reloadList();
+    } else {
+        model.reloadSelected();
+    }
+
+    QCOMPARE(model.state(), QueryState::Refreshing);
+    QVERIFY(model.loading());
+    QCOMPARE(model.entries(), preservedEntries);
+    QVERIFY(model.imageUrls().isEmpty());
+    QCOMPARE(model.lastUpdated(), preservedUpdated);
+    QCOMPARE(network.requests.size(), 1);
+
+    network.replies.first()->complete();
+
+    QTRY_COMPARE(model.state(), QueryState::Empty);
+    QCOMPARE(model.entries(), preservedEntries);
+    QVERIFY(model.imageUrls().isEmpty());
+    QCOMPARE(model.lastUpdated(), preservedUpdated);
+    QVERIFY(model.errorMessage().isEmpty());
+    QCOMPARE(toastSpy.count(), 1);
+    QCOMPARE(toastSpy.first().first().toString(),
+             QStringLiteral("校历网络请求失败，请检查网络后重试。"));
+}
+
+void PersonDQueryTest::calendarLoadWithoutCacheStartsListRequest()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    StaticNetworkAccessManager network;
+    network.responses.append({QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"),
+                              200, QNetworkReply::NoError, true});
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(&cache, &service, nullptr);
+
+    model.load();
+
+    QCOMPARE(model.state(), QueryState::Loading);
+    QVERIFY(model.loading());
+    QCOMPARE(network.requests.size(), 1);
+}
+
+void PersonDQueryTest::calendarImageViewerShowsLoadingAndFailureFallback()
+{
+    const QString viewerPath = QFINDTESTDATA(
+        "../qml/pages/calendar/CalendarImageViewer.qml");
+    QVERIFY2(!viewerPath.isEmpty(), "CalendarImageViewer.qml fixture not found");
+    QFile viewerFile(viewerPath);
+    QVERIFY(viewerFile.open(QIODevice::ReadOnly));
+    const QString source = QString::fromUtf8(viewerFile.readAll());
+
+    QVERIFY(source.contains(QStringLiteral("BusyIndicator")));
+    QVERIFY(source.contains(QStringLiteral("Image.Loading")));
+    QVERIFY(source.contains(QStringLiteral("Image.Error")));
+    QVERIFY(source.contains(QStringLiteral("校历图片加载失败，请检查网络后重试。")));
+    QVERIFY(source.contains(QStringLiteral("standardButtons: Dialog.Close")));
 }
 
 void PersonDQueryTest::sortsExamItemsByStartTimeWithUnparsedAtEnd()

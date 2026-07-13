@@ -7,6 +7,7 @@
 
 #include <QDateTime>
 #include <QObject>
+#include <QSet>
 #include <QVariantList>
 
 class AcademicCalendarViewModel : public QObject
@@ -24,6 +25,11 @@ class AcademicCalendarViewModel : public QObject
 
 public:
     explicit AcademicCalendarViewModel(QueryCacheRepository *cache, QObject *parent = nullptr);
+    AcademicCalendarViewModel(QueryCacheRepository *cache,
+                              AcademicCalendarService *service,
+                              QObject *parent);
+
+    static QString imagesCacheKey(const QString &path);
 
     QueryState state() const;
     bool loading() const;
@@ -53,22 +59,41 @@ signals:
     void toastRequested(const QString &message);
 
 private:
+    enum class PendingRequest {
+        None,
+        Entries,
+        Detail
+    };
+
     void setState(QueryState state);
     void setError(const QString &message);
     void readCache();
-    void writeEntriesCache();
-    void writeSelectedCache();
-    void writeImagesCache();
+    bool writeEntriesCache();
+    bool writeSelectedCache();
+    bool writeImagesCache();
+    bool readSelectedImagesCache(bool allowLegacyMigration,
+                                 bool selectionSafelyAssociated = false);
+    void syncHasCache();
     void applyEntries(const QList<AcademicCalendarEntry> &entries, bool fromNetwork);
     void applyDetail(const AcademicCalendarDetail &detail, bool fromNetwork);
 
     QueryCacheRepository *m_cache = nullptr;
     AcademicCalendarService m_service;
+    AcademicCalendarService *m_activeService = &m_service;
     QueryState m_state = QueryState::Idle;
     QString m_errorMessage;
     QDateTime m_lastUpdated;
+    QDateTime m_entriesUpdatedAt;
     bool m_hasCache = false;
+    bool m_hasEntriesCache = false;
+    bool m_hasImagesCache = false;
     QList<AcademicCalendarEntry> m_entries;
     int m_selectedIndex = -1;
     QStringList m_imageUrls;
+    QString m_imageEntryPath;
+    QString m_persistedImageKey;
+    QSet<QString> m_knownEntryPaths;
+    PendingRequest m_pendingRequest = PendingRequest::None;
+    QueryState m_restoreState = QueryState::Idle;
+    bool m_preserveOnFailure = false;
 };
