@@ -19,6 +19,17 @@ Item {
         groups = gradesViewModel.filteredSchemeGroups()
     }
 
+    function displayValue(value, fallback) {
+        return value === undefined || value === null || value === "" ? fallback : value
+    }
+
+    function groupHeader(group) {
+        group = group || ({})
+        return displayValue(group.label, "") + " · 通过 "
+                + displayValue(group.passedCount, 0) + " 门 · "
+                + displayValue(group.credits, 0) + " 学分"
+    }
+
     ScrollView {
         anchors.fill: parent
         visible: !statePane.visible
@@ -39,7 +50,9 @@ Item {
                     { label: "平均分", key: "weightedAvgScore" },
                     { label: "必修平均分", key: "requiredWeightedAvgScore" },
                     { label: "已修学分", key: "earnedCredits" },
-                    { label: "要求学分", key: "totalCredits" }
+                    { label: "要求学分", key: "totalCredits" },
+                    { label: "选修学分", key: "electiveCredits" },
+                    { label: "任选学分", key: "optionalCredits" }
                 ]
             }
 
@@ -52,7 +65,7 @@ Item {
 
                     Text {
                         Layout.fillWidth: true
-                        text: modelData.label
+                        text: groupHeader(modelData)
                         font.pixelSize: Theme.fontSection
                         font.weight: Theme.weightStrong
                         color: Theme.text

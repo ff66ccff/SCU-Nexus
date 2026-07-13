@@ -19,6 +19,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkReply>
+#include <QRegularExpression>
 #include <QSignalSpy>
 #include <QSqlDatabase>
 #include <QSqlQuery>
@@ -428,6 +429,8 @@ private slots:
     void calendarImageViewerShowsLoadingAndFailureFallback();
     void sortsExamItemsByStartTimeWithUnparsedAtEnd();
     void calculatesSchemeAndCustomGradeStats();
+    void gradePresentationMapsExposeDocumentedMetrics();
+    void gradeQmlCompletesMetricsAndBulkSelection();
     void parsesNumericGradeScalarsAsText();
     void parsesBooleanGradeScalarsAsText();
     void doesNotStringifyStructuredGradeValues();
@@ -1868,6 +1871,197 @@ void PersonDQueryTest::calculatesSchemeAndCustomGradeStats()
     QCOMPARE(custom.value(QStringLiteral("selectedCount")).toInt(), 2);
     QCOMPARE(custom.value(QStringLiteral("credits")).toDouble(), 5.0);
     QCOMPARE(custom.value(QStringLiteral("weightedAvgScore")).toDouble(), 86.0);
+}
+
+void PersonDQueryTest::gradePresentationMapsExposeDocumentedMetrics()
+{
+    const QJsonArray courses{
+        QJsonObject{
+            {QStringLiteral("courseName"), QStringLiteral("星际园艺")},
+            {QStringLiteral("courseAttributeName"), QStringLiteral("选修")},
+            {QStringLiteral("credit"), QStringLiteral("2")},
+            {QStringLiteral("cj"), QStringLiteral("优秀")},
+            {QStringLiteral("courseScore"), 88.0},
+            {QStringLiteral("gradePointScore"), 3.7},
+            {QStringLiteral("gradeName"), QStringLiteral("A")},
+            {QStringLiteral("academicYearCode"), QStringLiteral("2098-2099")},
+            {QStringLiteral("termName"), QStringLiteral("秋")}
+        },
+        QJsonObject{
+            {QStringLiteral("courseName"), QStringLiteral("云端航海")},
+            {QStringLiteral("courseAttributeName"), QStringLiteral("任选")},
+            {QStringLiteral("credit"), QStringLiteral("1.5")},
+            {QStringLiteral("cj"), QStringLiteral("76")},
+            {QStringLiteral("courseScore"), 76.0},
+            {QStringLiteral("gradePointScore"), 2.7},
+            {QStringLiteral("gradeName"), QStringLiteral("B")},
+            {QStringLiteral("academicYearCode"), QStringLiteral("2098-2099")},
+            {QStringLiteral("termName"), QStringLiteral("秋")}
+        },
+        QJsonObject{
+            {QStringLiteral("courseName"), QStringLiteral("月面烘焙")},
+            {QStringLiteral("courseAttributeName"), QStringLiteral("必修")},
+            {QStringLiteral("credit"), QStringLiteral("3")},
+            {QStringLiteral("cj"), QStringLiteral("55")},
+            {QStringLiteral("courseScore"), 55.0},
+            {QStringLiteral("gradePointScore"), 0.0},
+            {QStringLiteral("gradeName"), QStringLiteral("F")},
+            {QStringLiteral("academicYearCode"), QStringLiteral("2098-2099")},
+            {QStringLiteral("termName"), QStringLiteral("秋")}
+        }
+    };
+
+    FakeZhjwQueryService service;
+    service.loggedInValue = true;
+    service.schemeScores = QJsonObject{
+        {QStringLiteral("lnList"), QJsonArray{QJsonObject{
+            {QStringLiteral("zxf"), 160.0},
+            {QStringLiteral("yxxf"), 3.5},
+            {QStringLiteral("tgms"), 2},
+            {QStringLiteral("wtgms"), 1},
+            {QStringLiteral("zms"), 3},
+            {QStringLiteral("cjList"), courses}
+        }}}
+    };
+    service.passingScores = QJsonObject{
+        {QStringLiteral("lnList"), QJsonArray{QJsonObject{
+            {QStringLiteral("cjlx"), QStringLiteral("2098-2099学年秋")},
+            {QStringLiteral("cjList"), courses}
+        }}}
+    };
+
+    GradesViewModel model(nullptr, &service);
+    model.load();
+
+    const QVariantMap schemeSummary = model.schemeSummary();
+    QVERIFY(schemeSummary.contains(QStringLiteral("electiveCredits")));
+    QVERIFY(schemeSummary.contains(QStringLiteral("optionalCredits")));
+    QCOMPARE(schemeSummary.value(QStringLiteral("electiveCredits")).toDouble(), 2.0);
+    QCOMPARE(schemeSummary.value(QStringLiteral("optionalCredits")).toDouble(), 1.5);
+
+    const QVariantMap schemeGroup = model.schemeGroups().first().toMap();
+    QVERIFY(schemeGroup.contains(QStringLiteral("passedCount")));
+    QVERIFY(schemeGroup.contains(QStringLiteral("credits")));
+    QCOMPARE(schemeGroup.value(QStringLiteral("passedCount")).toInt(), 2);
+    QCOMPARE(schemeGroup.value(QStringLiteral("credits")).toDouble(), 3.5);
+
+    const QVariantMap passingGroup = model.passingGroups().first().toMap();
+    QVERIFY(passingGroup.contains(QStringLiteral("passedCount")));
+    QVERIFY(passingGroup.contains(QStringLiteral("credits")));
+    QCOMPARE(passingGroup.value(QStringLiteral("passedCount")).toInt(), 2);
+    QCOMPARE(passingGroup.value(QStringLiteral("credits")).toDouble(), 3.5);
+
+    const QVariantList schemeItems = schemeGroup.value(QStringLiteral("items")).toList();
+    const QVariantList selectedKeys{
+        schemeItems.at(0).toMap().value(QStringLiteral("key")),
+        schemeItems.at(2).toMap().value(QStringLiteral("key"))
+    };
+    const QVariantMap custom = model.customStatsForSelected(selectedKeys);
+    QCOMPARE(custom.value(QStringLiteral("selectedCount")).toInt(), 2);
+    QCOMPARE(custom.value(QStringLiteral("passedCount")).toInt(), 1);
+    QCOMPARE(custom.value(QStringLiteral("failedCount")).toInt(), 1);
+}
+
+void PersonDQueryTest::gradeQmlCompletesMetricsAndBulkSelection()
+{
+    const auto sourceFor = [](const char *relativePath) {
+        const QString path = QFINDTESTDATA(relativePath);
+        QFile file(path);
+        if (path.isEmpty() || !file.open(QIODevice::ReadOnly)) {
+            return QString{};
+        }
+        return QString::fromUtf8(file.readAll());
+    };
+
+    const QString scheme = sourceFor("../qml/pages/grades/SchemeScoresTab.qml");
+    const QString passing = sourceFor("../qml/pages/grades/PassingScoresTab.qml");
+    const QString custom = sourceFor("../qml/pages/grades/CustomStatsTab.qml");
+    const QString courseCard = sourceFor("../qml/pages/grades/GradeCourseCard.qml");
+    QVERIFY(!scheme.isEmpty());
+    QVERIFY(!passing.isEmpty());
+    QVERIFY(!custom.isEmpty());
+    QVERIFY(!courseCard.isEmpty());
+
+    QStringList missing;
+    const auto requireContains = [&missing](const QString &source,
+                                            const QString &needle,
+                                            const QString &label) {
+        if (!source.contains(needle)) {
+            missing.append(label);
+        }
+    };
+
+    requireContains(scheme,
+                    QStringLiteral("{ label: \"选修学分\", key: \"electiveCredits\" }"),
+                    QStringLiteral("scheme electiveCredits metric"));
+    requireContains(scheme,
+                    QStringLiteral("{ label: \"任选学分\", key: \"optionalCredits\" }"),
+                    QStringLiteral("scheme optionalCredits metric"));
+    const QList<QPair<QString, QString>> groupSources{
+        {QStringLiteral("scheme"), scheme},
+        {QStringLiteral("passing"), passing}
+    };
+    for (const auto &[name, groupSource] : groupSources) {
+        requireContains(groupSource, QStringLiteral("function groupHeader(group)"),
+                        name + QStringLiteral(" defensive group header helper"));
+        requireContains(groupSource, QStringLiteral("\" · 通过 \""),
+                        name + QStringLiteral(" header passed prefix"));
+        requireContains(groupSource, QStringLiteral("group.passedCount"),
+                        name + QStringLiteral(" header passedCount"));
+        requireContains(groupSource, QStringLiteral("\" 门 · \""),
+                        name + QStringLiteral(" header course unit"));
+        requireContains(groupSource, QStringLiteral("group.credits"),
+                        name + QStringLiteral(" header credits"));
+        requireContains(groupSource, QStringLiteral("\" 学分\""),
+                        name + QStringLiteral(" header credit unit"));
+        requireContains(groupSource, QStringLiteral("text: groupHeader(modelData)"),
+                        name + QStringLiteral(" header binding"));
+        requireContains(groupSource, QStringLiteral("=== undefined"),
+                        name + QStringLiteral(" undefined fallback"));
+    }
+
+    requireContains(courseCard, QStringLiteral("原始成绩 "), QStringLiteral("raw score label"));
+    requireContains(courseCard, QStringLiteral("rawScore"), QStringLiteral("rawScore value"));
+    requireContains(courseCard, QStringLiteral("gradeName"), QStringLiteral("grade label retained"));
+    requireContains(courseCard, QStringLiteral("courseScore"), QStringLiteral("normalized score retained"));
+    requireContains(courseCard, QStringLiteral("gradePointScore"), QStringLiteral("GPA retained"));
+
+    requireContains(custom,
+                    QStringLiteral("{ label: \"未通过门数\", key: \"failedCount\" }"),
+                    QStringLiteral("custom failedCount metric"));
+    requireContains(custom, QStringLiteral("function keysForGroups(sourceGroups)"),
+                    QStringLiteral("keysForGroups helper"));
+    requireContains(custom, QStringLiteral("function setKeysSelected(keys, selected)"),
+                    QStringLiteral("setKeysSelected helper"));
+    requireContains(custom, QStringLiteral("root.selectedKeys.slice()"),
+                    QStringLiteral("bulk copy selection"));
+    requireContains(custom, QStringLiteral("next.indexOf(keys[i])"),
+                    QStringLiteral("bulk membership check"));
+    requireContains(custom, QStringLiteral("next.push(keys[i])"),
+                    QStringLiteral("bulk select"));
+    requireContains(custom, QStringLiteral("next.splice(index, 1)"),
+                    QStringLiteral("bulk deselect"));
+    requireContains(custom, QStringLiteral("全选当前筛选"),
+                    QStringLiteral("select current filter action"));
+    requireContains(custom, QStringLiteral("取消当前筛选"),
+                    QStringLiteral("deselect current filter action"));
+    if (custom.count(QStringLiteral("keysForGroups(root.groups)")) != 2) {
+        missing.append(QStringLiteral("current filter actions use root.groups"));
+    }
+    requireContains(custom, QStringLiteral("全选本学期"),
+                    QStringLiteral("select term action"));
+    requireContains(custom, QStringLiteral("取消本学期"),
+                    QStringLiteral("deselect term action"));
+
+    QString compactCustom = custom;
+    compactCustom.remove(QRegularExpression(QStringLiteral("\\s+")));
+    if (compactCustom.contains(
+            QStringLiteral("functiononFiltersChanged(){root.selectedKeys=[]"))) {
+        missing.append(QStringLiteral("filter change preserves hidden selections"));
+    }
+
+    QVERIFY2(missing.isEmpty(), qPrintable(QStringLiteral("Missing QML contracts: %1")
+                                               .arg(missing.join(QStringLiteral(", ")))));
 }
 
 void PersonDQueryTest::parsesNumericGradeScalarsAsText()

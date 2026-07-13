@@ -26,6 +26,34 @@ Item {
         groups = gradesViewModel.filteredSchemeGroupsByAttr(attr)
     }
 
+    function keysForGroups(sourceGroups) {
+        var keys = []
+        for (var i = 0; i < sourceGroups.length; ++i)
+            for (var j = 0; j < sourceGroups[i].items.length; ++j)
+                keys.push(sourceGroups[i].items[j].key)
+        return keys
+    }
+
+    function setKeysSelected(keys, selected) {
+        var next = root.selectedKeys.slice()
+        for (var i = 0; i < keys.length; ++i) {
+            var index = next.indexOf(keys[i])
+            if (selected && index < 0) next.push(keys[i])
+            if (!selected && index >= 0) next.splice(index, 1)
+        }
+        root.selectedKeys = next
+    }
+
+    function allKeysSelected(keys) {
+        if (keys.length === 0)
+            return false
+        for (var i = 0; i < keys.length; ++i) {
+            if (root.selectedKeys.indexOf(keys[i]) < 0)
+                return false
+        }
+        return true
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 12
@@ -52,6 +80,25 @@ Item {
             }
         }
 
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            AppButton {
+                text: "全选当前筛选"
+                type: "secondary"
+                onClicked: root.setKeysSelected(root.keysForGroups(root.groups), true)
+            }
+
+            AppButton {
+                text: "取消当前筛选"
+                type: "secondary"
+                onClicked: root.setKeysSelected(root.keysForGroups(root.groups), false)
+            }
+
+            Item { Layout.fillWidth: true }
+        }
+
         GradeSummaryPanel {
             Layout.fillWidth: true
             summary: root.stats
@@ -61,7 +108,8 @@ Item {
                 { label: "学分", key: "credits" },
                 { label: "均分", key: "weightedAvgScore" },
                 { label: "必修均分", key: "requiredWeightedAvgScore" },
-                { label: "通过门数", key: "passedCount" }
+                { label: "通过门数", key: "passedCount" },
+                { label: "未通过门数", key: "failedCount" }
             ]
         }
 
@@ -79,6 +127,10 @@ Item {
                     model: root.groups
 
                     ColumnLayout {
+                        property var groupData: modelData
+                        property var groupKeys: root.keysForGroups([groupData])
+                        property bool groupSelected: root.allKeysSelected(groupKeys)
+
                         Layout.fillWidth: true
                         spacing: 8
 
@@ -87,25 +139,28 @@ Item {
 
                             Text {
                                 Layout.fillWidth: true
-                                text: modelData.label
+                                text: groupData.label
                                 font.pixelSize: Theme.fontSection
                                 font.weight: Theme.weightStrong
                                 color: Theme.text
                             }
+
+                            AppButton {
+                                text: groupSelected ? "取消本学期" : "全选本学期"
+                                type: "secondary"
+                                onClicked: root.setKeysSelected(groupKeys, !groupSelected)
+                            }
                         }
 
                         Repeater {
-                            model: modelData.items
+                            model: groupData.items
                             GradeCourseCard {
                                 course: modelData
                                 selectable: true
                                 selected: root.selectedKeys.indexOf(modelData.key) >= 0
                                 onToggled: function(key) {
-                                    var next = root.selectedKeys.slice()
-                                    var index = next.indexOf(key)
-                                    if (index >= 0) next.splice(index, 1)
-                                    else next.push(key)
-                                    root.selectedKeys = next
+                                    var isSelected = root.selectedKeys.indexOf(key) >= 0
+                                    root.setKeysSelected([key], !isSelected)
                                 }
                             }
                         }

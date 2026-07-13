@@ -19,6 +19,17 @@ Item {
         groups = gradesViewModel.filteredPassingGroups()
     }
 
+    function displayValue(value, fallback) {
+        return value === undefined || value === null || value === "" ? fallback : value
+    }
+
+    function groupHeader(group) {
+        group = group || ({})
+        return displayValue(group.label, "") + " · 通过 "
+                + displayValue(group.passedCount, 0) + " 门 · "
+                + displayValue(group.credits, 0) + " 学分"
+    }
+
     ScrollView {
         anchors.fill: parent
         visible: !statePane.visible
@@ -50,7 +61,7 @@ Item {
 
                     Text {
                         Layout.fillWidth: true
-                        text: modelData.label
+                        text: groupHeader(modelData)
                         font.pixelSize: Theme.fontSection
                         font.weight: Theme.weightStrong
                         color: Theme.text

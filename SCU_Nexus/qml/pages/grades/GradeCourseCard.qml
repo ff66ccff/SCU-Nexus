@@ -53,7 +53,17 @@ Rectangle {
 
         Text {
             Layout.fillWidth: true
-            text: [course.courseAttributeName, course.credit + " 学分", "绩点 " + course.gradePointScore, "分数 " + course.courseScore].join(" · ")
+            text: [course.courseAttributeName,
+                   course.credit + " 学分",
+                   course.rawScore !== undefined
+                       && course.rawScore !== null
+                       && course.rawScore !== ""
+                       ? "原始成绩 " + course.rawScore : "",
+                   "绩点 " + course.gradePointScore,
+                   "分数 " + course.courseScore]
+                  .filter(function(value) {
+                      return value && value.length > 0
+                  }).join(" · ")
             font.pixelSize: Theme.fontCaption
             color: Theme.mutedText
             wrapMode: Text.WordWrap
