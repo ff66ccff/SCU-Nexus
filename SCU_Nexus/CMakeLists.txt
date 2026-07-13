@@ -16,6 +16,17 @@ find_package(Qt6 REQUIRED COMPONENTS
     Sql
     Test
 )
+if(MINGW)
+    find_path(Iconv_INCLUDE_DIR
+        NAMES iconv.h
+        HINTS ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES}
+    )
+    find_library(Iconv_LIBRARY
+        NAMES iconv libiconv
+        HINTS ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}
+    )
+endif()
+find_package(Iconv REQUIRED)
 
 if(COMMAND qt_policy)
     qt_policy(SET QTP0004 NEW)
@@ -183,6 +194,7 @@ target_link_libraries(SCU_Nexus PRIVATE
     Qt6::QuickControls2
     Qt6::Network
     Qt6::Sql
+    Iconv::Iconv
     ${OPENSSL_CRYPTO_LIBRARY}
 )
 
@@ -240,6 +252,8 @@ add_test(NAME person_b_foundation_tests COMMAND person_b_foundation_tests)
 
 qt_add_executable(person_d_query_tests
     tests/test_person_d_queries.cpp
+    src/core/logging/AuthLogger.h
+    src/core/logging/AuthLogger.cpp
     src/common/QueryState.h
     src/common/QueryState.cpp
     src/models/AcademicCalendarModels.h
@@ -279,6 +293,7 @@ target_link_libraries(person_d_query_tests PRIVATE
     Qt6::Network
     Qt6::Sql
     Qt6::Test
+    Iconv::Iconv
     ${OPENSSL_CRYPTO_LIBRARY}
 )
 

@@ -21,13 +21,16 @@ AcademicCalendarViewModel::AcademicCalendarViewModel(QueryCacheRepository *cache
     connect(&m_service, &AcademicCalendarService::detailFetched, this, [this](const AcademicCalendarDetail &detail) {
         applyDetail(detail, true);
     });
-    connect(&m_service, &AcademicCalendarService::failed, this, [this](const QString &message) {
+    connect(&m_service, &AcademicCalendarService::failed, this, [this](const ApiError &error) {
         if (m_hasCache) {
             setState(m_imageUrls.isEmpty() ? QueryState::Empty : QueryState::Loaded);
-            emit toastRequested(message);
+            emit toastRequested(error.message);
         } else {
-            setError(message);
-            setState(QueryState::Error);
+            setError(error.message);
+            setState(error.type == ApiErrorType::Unauthenticated
+                             || error.type == ApiErrorType::SessionExpired
+                         ? QueryState::LoginRequired
+                         : QueryState::Error);
         }
     });
 }
@@ -167,7 +170,7 @@ void AcademicCalendarViewModel::readCache()
     if (m_cache->get(QString::fromLatin1(EntriesKey), &entry)) {
         m_entries = academicCalendarEntriesFromJson(QJsonDocument::fromJson(entry.payloadJson.toUtf8()).array());
         m_lastUpdated = entry.updatedAt;
-        m_hasCache = !m_entries.isEmpty();
+        m_hasCache = true;
         emit entriesChanged();
         emit lastUpdatedChanged();
         emit cacheChanged();
@@ -232,6 +235,20 @@ void AcademicCalendarViewModel::applyEntries(const QList<AcademicCalendarEntry> 
 {
     m_entries = entries;
     if (m_entries.isEmpty()) {
+        const bool hadImages = !m_imageUrls.isEmpty();
+        m_selectedIndex = -1;
+        m_imageUrls.clear();
+        if (fromNetwork) {
+            m_hasCache = true;
+            m_lastUpdated = QDateTime::currentDateTimeUtc();
+            writeEntriesCache();
+            writeImagesCache();
+            emit cacheChanged();
+            emit lastUpdatedChanged();
+        }
+        if (hadImages) {
+            emit imageUrlsChanged();
+        }
         setState(QueryState::Empty);
     } else {
         if (m_selectedIndex < 0 || m_selectedIndex >= m_entries.size()) {

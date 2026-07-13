@@ -1,22 +1,30 @@
 #include "src/common/QueryState.h"
+#include "src/core/logging/AuthLogger.h"
+#include "src/core/network/NetworkSettings.h"
 #include "src/models/ExamPlanModels.h"
 #include "src/models/GradeModels.h"
 #include "src/repositories/QueryCacheRepository.h"
 #include "src/services/calendar/AcademicCalendarService.h"
 #include "src/services/grades/GradeStatisticsService.h"
 #include "src/services/zhjw/ZhjwQueryService.h"
+#define private public
+#include "src/viewmodels/AcademicCalendarViewModel.h"
+#undef private
 #include "src/viewmodels/ExamPlanViewModel.h"
 #include "src/viewmodels/GradesViewModel.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QNetworkReply>
 #include <QSignalSpy>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QtTest>
 #include <QUuid>
+#include <cstring>
 #include <tuple>
 #include <utility>
 
@@ -24,6 +32,86 @@ namespace {
 constexpr auto ExamPlanCacheKey = "exam_plan.latest";
 constexpr auto SchemeCacheKey = "grades.scheme_scores";
 constexpr auto PassingCacheKey = "grades.passing_scores";
+
+struct StaticNetworkResponse
+{
+    QByteArray body;
+    QByteArray contentType = QByteArrayLiteral("text/html; charset=utf-8");
+    int statusCode = 200;
+    QNetworkReply::NetworkError networkError = QNetworkReply::NoError;
+};
+
+class StaticNetworkReply : public QNetworkReply
+{
+public:
+    StaticNetworkReply(QNetworkAccessManager::Operation operation,
+                       const QNetworkRequest &request,
+                       StaticNetworkResponse response,
+                       QObject *parent)
+        : QNetworkReply(parent),
+          m_body(std::move(response.body))
+    {
+        setOperation(operation);
+        setRequest(request);
+        setUrl(request.url());
+        if (!response.contentType.isEmpty()) {
+            setHeader(QNetworkRequest::ContentTypeHeader, response.contentType);
+        }
+        if (response.statusCode > 0) {
+            setAttribute(QNetworkRequest::HttpStatusCodeAttribute, response.statusCode);
+        }
+        if (response.networkError != QNetworkReply::NoError) {
+            setError(response.networkError, QStringLiteral("fixture network failure"));
+        }
+        open(QIODevice::ReadOnly | QIODevice::Unbuffered);
+        QTimer::singleShot(0, this, [this]() {
+            setFinished(true);
+            emit readyRead();
+            emit finished();
+        });
+    }
+
+    void abort() override {}
+
+    qint64 bytesAvailable() const override
+    {
+        return m_body.size() - m_offset + QNetworkReply::bytesAvailable();
+    }
+
+protected:
+    qint64 readData(char *data, qint64 maxSize) override
+    {
+        if (m_offset >= m_body.size()) {
+            return -1;
+        }
+        const qint64 count = qMin(maxSize, m_body.size() - m_offset);
+        std::memcpy(data, m_body.constData() + m_offset, static_cast<size_t>(count));
+        m_offset += count;
+        return count;
+    }
+
+private:
+    QByteArray m_body;
+    qint64 m_offset = 0;
+};
+
+class StaticNetworkAccessManager : public QNetworkAccessManager
+{
+public:
+    QList<StaticNetworkResponse> responses;
+    QList<QNetworkRequest> requests;
+
+protected:
+    QNetworkReply *createRequest(Operation operation,
+                                 const QNetworkRequest &request,
+                                 QIODevice *outgoingData) override
+    {
+        Q_UNUSED(outgoingData)
+        requests.append(request);
+        Q_ASSERT(!responses.isEmpty());
+        return new StaticNetworkReply(operation, request, responses.takeFirst(), this);
+    }
+};
 
 bool executeCacheSql(const QString &databasePath, const QString &sql)
 {
@@ -246,6 +334,21 @@ class PersonDQueryTest : public QObject
 
 private slots:
     void parsesCalendarEntriesAndImages();
+    void decodesQuotedGb18030CalendarCharset();
+    void decodesQuotedUtf8CalendarCharset();
+    void fallsBackToGb18030WithoutDeclaredCharset();
+    void calendarRequestsUseSharedTransportPolicy();
+    void calendarServiceClassifiesFailures_data();
+    void calendarServiceClassifiesFailures();
+    void calendarEntriesDistinguishExplicitEmptyAndParseFailure();
+    void calendarDetailDistinguishesExplicitEmptyAndParseFailure();
+    void calendarParseFailureSummaryIsSafe();
+    void calendarViewModelMapsTypedFailuresWithoutCache_data();
+    void calendarViewModelMapsTypedFailuresWithoutCache();
+    void calendarViewModelRestoresCacheOnTypedFailure_data();
+    void calendarViewModelRestoresCacheOnTypedFailure();
+    void calendarViewModelPreservesExplicitEmptyCache();
+    void calendarExplicitEmptyListClearsPriorDetail();
     void sortsExamItemsByStartTimeWithUnparsedAtEnd();
     void calculatesSchemeAndCustomGradeStats();
     void parsesNumericGradeScalarsAsText();
@@ -309,6 +412,385 @@ void PersonDQueryTest::parsesCalendarEntriesAndImages()
     const QStringList imageUrls = AcademicCalendarService::parseImageUrls(html);
     QCOMPARE(imageUrls.size(), 1);
     QCOMPARE(imageUrls.first(), QStringLiteral("https://jwc.scu.edu.cn/__local/AB/CD/calendar.jpg"));
+}
+
+void PersonDQueryTest::decodesQuotedGb18030CalendarCharset()
+{
+    const QByteArray bytes = QByteArray::fromHex("cbc4b4a8b4f3d1a7d0a3c0fa95328236");
+
+    QCOMPARE(AcademicCalendarService::decodeHtml(
+                 bytes, QByteArrayLiteral("text/html; charset=\"GB18030\"; boundary=x")),
+             QStringLiteral("四川大学校历𠀀"));
+}
+
+void PersonDQueryTest::decodesQuotedUtf8CalendarCharset()
+{
+    const QString html = QStringLiteral("<p>四川大学校历</p>");
+
+    QCOMPARE(AcademicCalendarService::decodeHtml(
+                 html.toUtf8(), QByteArrayLiteral("text/html; charset='utf-8'; boundary=x")),
+             html);
+}
+
+void PersonDQueryTest::fallsBackToGb18030WithoutDeclaredCharset()
+{
+    const QByteArray bytes = QByteArray::fromHex("d0a3c0fa95328236");
+
+    QCOMPARE(AcademicCalendarService::decodeHtml(bytes), QStringLiteral("校历𠀀"));
+}
+
+void PersonDQueryTest::calendarRequestsUseSharedTransportPolicy()
+{
+    const QUrl helperUrl(QStringLiteral("https://example.invalid/calendar"));
+    const QNetworkRequest built = AcademicCalendarService::buildRequest(helperUrl);
+    QCOMPARE(built.url(), helperUrl);
+    QCOMPARE(built.rawHeader("User-Agent"), NetworkSettings::kDefaultUserAgent.toUtf8());
+    QCOMPARE(built.rawHeader("Accept"), QByteArrayLiteral("text/html,application/xhtml+xml"));
+    QCOMPARE(built.transferTimeout(), NetworkSettings::kDefaultTimeoutMs);
+
+    StaticNetworkAccessManager network;
+    network.responses = {
+        {QStringLiteral("暂无校历数据").toUtf8()},
+        {QStringLiteral("暂无数据").toUtf8()}
+    };
+    AcademicCalendarService service(&network);
+    int entriesFetched = 0;
+    int detailFetched = 0;
+    connect(&service, &AcademicCalendarService::entriesFetched, this,
+            [&entriesFetched](const QList<AcademicCalendarEntry> &) { ++entriesFetched; });
+    connect(&service, &AcademicCalendarService::detailFetched, this,
+            [&detailFetched](const AcademicCalendarDetail &) { ++detailFetched; });
+
+    service.fetchEntries();
+    QTRY_COMPARE(entriesFetched, 1);
+    service.fetchDetail({QStringLiteral("2025-2026"), QStringLiteral("info/1101/1234.htm")});
+    QTRY_COMPARE(detailFetched, 1);
+    QCOMPARE(network.requests.size(), 2);
+    for (const QNetworkRequest &request : std::as_const(network.requests)) {
+        QCOMPARE(request.rawHeader("User-Agent"), NetworkSettings::kDefaultUserAgent.toUtf8());
+        QCOMPARE(request.rawHeader("Accept"), QByteArrayLiteral("text/html,application/xhtml+xml"));
+        QCOMPARE(request.transferTimeout(), NetworkSettings::kDefaultTimeoutMs);
+    }
+}
+
+void PersonDQueryTest::calendarServiceClassifiesFailures_data()
+{
+    QTest::addColumn<int>("networkError");
+    QTest::addColumn<int>("statusCode");
+    QTest::addColumn<int>("expectedType");
+
+    QTest::newRow("qt-timeout")
+        << static_cast<int>(QNetworkReply::TimeoutError) << 0
+        << static_cast<int>(ApiErrorType::Timeout);
+    QTest::newRow("qt-transfer-timeout-cancel")
+        << static_cast<int>(QNetworkReply::OperationCanceledError) << 0
+        << static_cast<int>(ApiErrorType::Timeout);
+    QTest::newRow("qt-network")
+        << static_cast<int>(QNetworkReply::HostNotFoundError) << 0
+        << static_cast<int>(ApiErrorType::Network);
+    QTest::newRow("http-401")
+        << static_cast<int>(QNetworkReply::AuthenticationRequiredError) << 401
+        << static_cast<int>(ApiErrorType::Unauthenticated);
+    QTest::newRow("http-403")
+        << static_cast<int>(QNetworkReply::ContentAccessDenied) << 403
+        << static_cast<int>(ApiErrorType::Unauthenticated);
+    QTest::newRow("http-429")
+        << static_cast<int>(QNetworkReply::UnknownContentError) << 429
+        << static_cast<int>(ApiErrorType::RateLimited);
+    QTest::newRow("http-503")
+        << static_cast<int>(QNetworkReply::ServiceUnavailableError) << 503
+        << static_cast<int>(ApiErrorType::ServiceUnavailable);
+}
+
+void PersonDQueryTest::calendarServiceClassifiesFailures()
+{
+    QFETCH(int, networkError);
+    QFETCH(int, statusCode);
+    QFETCH(int, expectedType);
+
+    StaticNetworkAccessManager network;
+    network.responses.append({
+        QByteArrayLiteral("token=must-not-be-read studentId=202612345678"),
+        QByteArrayLiteral("text/html; charset=utf-8"),
+        statusCode,
+        static_cast<QNetworkReply::NetworkError>(networkError)
+    });
+    AcademicCalendarService service(&network);
+    QList<ApiError> errors;
+    connect(&service, &AcademicCalendarService::failed, this,
+            [&errors](const ApiError &error) { errors.append(error); });
+
+    service.fetchEntries();
+
+    QTRY_COMPARE(errors.size(), 1);
+    QCOMPARE(errors.first().type, static_cast<ApiErrorType>(expectedType));
+    QCOMPARE(errors.first().statusCode, statusCode);
+    QVERIFY(errors.first().debugBody.isEmpty());
+    QVERIFY(!errors.first().message.contains(QStringLiteral("202612345678")));
+    QVERIFY(!errors.first().message.contains(QStringLiteral("must-not-be-read")));
+}
+
+void PersonDQueryTest::calendarEntriesDistinguishExplicitEmptyAndParseFailure()
+{
+    QVERIFY(AcademicCalendarService::calendarPageExplicitlyEmpty(
+        QStringLiteral("<p>暂无校历数据</p>")));
+    QVERIFY(AcademicCalendarService::calendarPageExplicitlyEmpty(
+        QStringLiteral("<p>暂无数据</p>")));
+    QVERIFY(AcademicCalendarService::calendarPageExplicitlyEmpty(
+        QStringLiteral("<p>没有查询到相关内容</p>")));
+    QVERIFY(!AcademicCalendarService::calendarPageExplicitlyEmpty(
+        QStringLiteral("<html><title>统一认证</title><p>欢迎访问</p></html>")));
+
+    StaticNetworkAccessManager network;
+    network.responses = {
+        {QStringLiteral("<p>暂无校历数据</p>").toUtf8()},
+        {QStringLiteral("<html><title>统一认证</title><p>欢迎访问</p></html>").toUtf8()}
+    };
+    AcademicCalendarService service(&network);
+    QList<QList<AcademicCalendarEntry>> results;
+    QList<ApiError> errors;
+    connect(&service, &AcademicCalendarService::entriesFetched, this,
+            [&results](const QList<AcademicCalendarEntry> &entries) { results.append(entries); });
+    connect(&service, &AcademicCalendarService::failed, this,
+            [&errors](const ApiError &error) { errors.append(error); });
+
+    service.fetchEntries();
+    QTRY_COMPARE(results.size(), 1);
+    QVERIFY(results.first().isEmpty());
+    QVERIFY(errors.isEmpty());
+
+    service.fetchEntries();
+    QTRY_COMPARE(errors.size(), 1);
+    QCOMPARE(errors.first().type, ApiErrorType::ParseFailed);
+    QCOMPARE(results.size(), 1);
+}
+
+void PersonDQueryTest::calendarDetailDistinguishesExplicitEmptyAndParseFailure()
+{
+    const AcademicCalendarEntry entry{
+        QStringLiteral("2025-2026"), QStringLiteral("info/1101/1234.htm")};
+    StaticNetworkAccessManager network;
+    network.responses = {
+        {QStringLiteral("<p>没有查询到校历图片</p>").toUtf8()},
+        {QStringLiteral("<html><title>网站维护中</title></html>").toUtf8()}
+    };
+    AcademicCalendarService service(&network);
+    QList<AcademicCalendarDetail> details;
+    QList<ApiError> errors;
+    connect(&service, &AcademicCalendarService::detailFetched, this,
+            [&details](const AcademicCalendarDetail &detail) { details.append(detail); });
+    connect(&service, &AcademicCalendarService::failed, this,
+            [&errors](const ApiError &error) { errors.append(error); });
+
+    service.fetchDetail(entry);
+    QTRY_COMPARE(details.size(), 1);
+    QVERIFY(details.first().imageUrls.isEmpty());
+    QVERIFY(errors.isEmpty());
+
+    service.fetchDetail(entry);
+    QTRY_COMPARE(errors.size(), 1);
+    QCOMPARE(errors.first().type, ApiErrorType::ParseFailed);
+    QCOMPARE(details.size(), 1);
+}
+
+void PersonDQueryTest::calendarParseFailureSummaryIsSafe()
+{
+    const QString secretToken = QStringLiteral("calendar-secret-token");
+    const QString studentNumber = QStringLiteral("202612345678");
+    const QString body = QStringLiteral(
+        "<html>\n\t token=%1 student=%2 Cookie: SID=cookie-secret </html> %3")
+        .arg(secretToken, studentNumber, QString(900, QLatin1Char('x')));
+    StaticNetworkAccessManager network;
+    network.responses.append({body.toUtf8()});
+    AcademicCalendarService service(&network);
+    QList<ApiError> errors;
+    connect(&service, &AcademicCalendarService::failed, this,
+            [&errors](const ApiError &error) { errors.append(error); });
+    AuthLogger::instance().clear();
+
+    service.fetchEntries();
+
+    QTRY_COMPARE(errors.size(), 1);
+    const ApiError error = errors.first();
+    QCOMPARE(error.type, ApiErrorType::ParseFailed);
+    QVERIFY(error.debugBody.size() <= 500);
+    QVERIFY(!error.debugBody.contains(secretToken));
+    QVERIFY(!error.debugBody.contains(studentNumber));
+    QVERIFY(!error.debugBody.contains(QStringLiteral("cookie-secret")));
+    QVERIFY(!error.debugBody.contains(QLatin1Char('\n')));
+    QVERIFY(!error.debugBody.contains(QLatin1Char('\t')));
+    QVERIFY(!error.debugBody.contains(QStringLiteral("  ")));
+    QVERIFY(error.debugBody.size() < body.size());
+
+    const QList<AuthLogEntry> entries = AuthLogger::instance().entries();
+    QCOMPARE(entries.size(), 1);
+    QVERIFY(!entries.first().message.contains(secretToken));
+    QVERIFY(!entries.first().message.contains(studentNumber));
+    QVERIFY(!entries.first().message.contains(QStringLiteral("cookie-secret")));
+    QVERIFY(!entries.first().message.contains(body));
+}
+
+void PersonDQueryTest::calendarViewModelMapsTypedFailuresWithoutCache_data()
+{
+    QTest::addColumn<int>("errorType");
+    QTest::addColumn<int>("expectedState");
+
+    QTest::newRow("unauthenticated")
+        << static_cast<int>(ApiErrorType::Unauthenticated)
+        << static_cast<int>(QueryState::LoginRequired);
+    QTest::newRow("session-expired")
+        << static_cast<int>(ApiErrorType::SessionExpired)
+        << static_cast<int>(QueryState::LoginRequired);
+    QTest::newRow("network")
+        << static_cast<int>(ApiErrorType::Network)
+        << static_cast<int>(QueryState::Error);
+    QTest::newRow("parse")
+        << static_cast<int>(ApiErrorType::ParseFailed)
+        << static_cast<int>(QueryState::Error);
+}
+
+void PersonDQueryTest::calendarViewModelMapsTypedFailuresWithoutCache()
+{
+    QFETCH(int, errorType);
+    QFETCH(int, expectedState);
+
+    AcademicCalendarViewModel model(nullptr);
+    QSignalSpy toastSpy(&model, &AcademicCalendarViewModel::toastRequested);
+    model.setState(QueryState::Loading);
+    const QString message = QStringLiteral("校历安全错误提示");
+
+    model.m_service.failed({static_cast<ApiErrorType>(errorType), message, 503});
+
+    QCOMPARE(model.state(), static_cast<QueryState>(expectedState));
+    QCOMPARE(model.errorMessage(), message);
+    QVERIFY(!model.hasCache());
+    QVERIFY(model.entries().isEmpty());
+    QVERIFY(!model.lastUpdated().isValid());
+    QCOMPARE(toastSpy.count(), 0);
+}
+
+void PersonDQueryTest::calendarViewModelRestoresCacheOnTypedFailure_data()
+{
+    QTest::addColumn<QStringList>("images");
+    QTest::addColumn<int>("expectedState");
+
+    QTest::newRow("cached-empty")
+        << QStringList{} << static_cast<int>(QueryState::Empty);
+    QTest::newRow("cached-loaded")
+        << QStringList{QStringLiteral("https://example.invalid/calendar.png")}
+        << static_cast<int>(QueryState::Loaded);
+}
+
+void PersonDQueryTest::calendarViewModelRestoresCacheOnTypedFailure()
+{
+    QFETCH(QStringList, images);
+    QFETCH(int, expectedState);
+
+    AcademicCalendarViewModel model(nullptr);
+    model.m_hasCache = true;
+    model.m_entries = {{QStringLiteral("2025-2026"), QStringLiteral("info/1101/1234.htm")}};
+    model.m_selectedIndex = 0;
+    model.m_imageUrls = images;
+    model.m_lastUpdated = QDateTime::fromString(
+        QStringLiteral("2025-01-02T03:04:05.000Z"), Qt::ISODateWithMs);
+    model.setState(QueryState::Refreshing);
+    const QVariantList preservedEntries = model.entries();
+    const QStringList preservedImages = model.imageUrls();
+    const QDateTime preservedTimestamp = model.lastUpdated();
+    QSignalSpy toastSpy(&model, &AcademicCalendarViewModel::toastRequested);
+    const QString message = QStringLiteral("校历刷新失败，继续显示缓存");
+
+    model.m_service.failed({ApiErrorType::ParseFailed, message, 200});
+
+    QCOMPARE(model.state(), static_cast<QueryState>(expectedState));
+    QCOMPARE(model.entries(), preservedEntries);
+    QCOMPARE(model.imageUrls(), preservedImages);
+    QCOMPARE(model.lastUpdated(), preservedTimestamp);
+    QVERIFY(model.hasCache());
+    QCOMPARE(toastSpy.count(), 1);
+    QCOMPARE(toastSpy.first().first().toString(), message);
+}
+
+void PersonDQueryTest::calendarViewModelPreservesExplicitEmptyCache()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    AcademicCalendarViewModel writer(&cache);
+
+    writer.applyEntries({}, true);
+
+    QCOMPARE(writer.state(), QueryState::Empty);
+    QVERIFY(writer.hasCache());
+    QVERIFY(writer.entries().isEmpty());
+    QVERIFY(writer.lastUpdated().isValid());
+
+    QueryCacheEntry cacheEntry;
+    QVERIFY2(cache.get(QStringLiteral("academic_calendar.entries"), &cacheEntry),
+             qPrintable(cache.lastError()));
+    QCOMPARE(cacheEntry.payloadJson, QStringLiteral("[]"));
+
+    AcademicCalendarViewModel reader(&cache);
+    reader.readCache();
+    QVERIFY(reader.hasCache());
+    QVERIFY(reader.entries().isEmpty());
+    const QDateTime cachedAt = reader.lastUpdated();
+    QVERIFY(cachedAt.isValid());
+    reader.setState(QueryState::Refreshing);
+    QSignalSpy toastSpy(&reader, &AcademicCalendarViewModel::toastRequested);
+
+    reader.m_service.failed({ApiErrorType::Network, QStringLiteral("离线"), 0});
+
+    QCOMPARE(reader.state(), QueryState::Empty);
+    QVERIFY(reader.entries().isEmpty());
+    QCOMPARE(reader.lastUpdated(), cachedAt);
+    QCOMPARE(toastSpy.count(), 1);
+}
+
+void PersonDQueryTest::calendarExplicitEmptyListClearsPriorDetail()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QStringLiteral("academic_calendar.images"),
+                       QStringLiteral("[\"https://example.invalid/old-calendar.png\"]")),
+             qPrintable(cache.lastError()));
+    AcademicCalendarViewModel model(&cache);
+    model.m_entries = {{QStringLiteral("2024-2025"), QStringLiteral("info/1101/1111.htm")}};
+    model.m_selectedIndex = 0;
+    model.m_imageUrls = {QStringLiteral("https://example.invalid/old-calendar.png")};
+    model.m_hasCache = true;
+    model.m_lastUpdated = QDateTime::fromString(
+        QStringLiteral("2025-01-02T03:04:05.000Z"), Qt::ISODateWithMs);
+
+    model.applyEntries({}, true);
+
+    QCOMPARE(model.state(), QueryState::Empty);
+    QVERIFY(model.entries().isEmpty());
+    QCOMPARE(model.selectedIndex(), -1);
+    QVERIFY(model.imageUrls().isEmpty());
+    QVERIFY(model.hasCache());
+    QVERIFY(model.lastUpdated()
+            > QDateTime::fromString(QStringLiteral("2025-01-02T03:04:05.000Z"),
+                                    Qt::ISODateWithMs));
+
+    QueryCacheEntry imageCache;
+    QVERIFY2(cache.get(QStringLiteral("academic_calendar.images"), &imageCache),
+             qPrintable(cache.lastError()));
+    QCOMPARE(imageCache.payloadJson, QStringLiteral("[]"));
+
+    AcademicCalendarViewModel reader(&cache);
+    reader.readCache();
+    QVERIFY(reader.hasCache());
+    QVERIFY(reader.entries().isEmpty());
+    QCOMPARE(reader.selectedIndex(), -1);
+    QVERIFY(reader.imageUrls().isEmpty());
+
+    model.setState(QueryState::Refreshing);
+    model.m_service.failed({ApiErrorType::Network, QStringLiteral("离线"), 0});
+    QCOMPARE(model.state(), QueryState::Empty);
 }
 
 void PersonDQueryTest::sortsExamItemsByStartTimeWithUnparsedAtEnd()
