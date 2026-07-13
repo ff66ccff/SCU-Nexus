@@ -39,6 +39,7 @@ struct StaticNetworkResponse
     QByteArray contentType = QByteArrayLiteral("text/html; charset=utf-8");
     int statusCode = 200;
     QNetworkReply::NetworkError networkError = QNetworkReply::NoError;
+    bool deferred = false;
 };
 
 class StaticNetworkReply : public QNetworkReply
@@ -64,14 +65,22 @@ public:
             setError(response.networkError, QStringLiteral("fixture network failure"));
         }
         open(QIODevice::ReadOnly | QIODevice::Unbuffered);
-        QTimer::singleShot(0, this, [this]() {
-            setFinished(true);
-            emit readyRead();
-            emit finished();
-        });
+        if (!response.deferred) {
+            QTimer::singleShot(0, this, &StaticNetworkReply::complete);
+        }
     }
 
     void abort() override {}
+
+    void complete()
+    {
+        if (isFinished()) {
+            return;
+        }
+        setFinished(true);
+        emit readyRead();
+        emit finished();
+    }
 
     qint64 bytesAvailable() const override
     {
@@ -100,6 +109,7 @@ class StaticNetworkAccessManager : public QNetworkAccessManager
 public:
     QList<StaticNetworkResponse> responses;
     QList<QNetworkRequest> requests;
+    QList<StaticNetworkReply *> replies;
 
 protected:
     QNetworkReply *createRequest(Operation operation,
@@ -109,7 +119,9 @@ protected:
         Q_UNUSED(outgoingData)
         requests.append(request);
         Q_ASSERT(!responses.isEmpty());
-        return new StaticNetworkReply(operation, request, responses.takeFirst(), this);
+        auto *reply = new StaticNetworkReply(operation, request, responses.takeFirst(), this);
+        replies.append(reply);
+        return reply;
     }
 };
 
@@ -349,6 +361,8 @@ private slots:
     void calendarViewModelRestoresCacheOnTypedFailure();
     void calendarViewModelPreservesExplicitEmptyCache();
     void calendarExplicitEmptyListClearsPriorDetail();
+    void calendarRefreshIgnoresStaleDetail_data();
+    void calendarRefreshIgnoresStaleDetail();
     void sortsExamItemsByStartTimeWithUnparsedAtEnd();
     void calculatesSchemeAndCustomGradeStats();
     void parsesNumericGradeScalarsAsText();
@@ -791,6 +805,80 @@ void PersonDQueryTest::calendarExplicitEmptyListClearsPriorDetail()
     model.setState(QueryState::Refreshing);
     model.m_service.failed({ApiErrorType::Network, QStringLiteral("离线"), 0});
     QCOMPARE(model.state(), QueryState::Empty);
+}
+
+void PersonDQueryTest::calendarRefreshIgnoresStaleDetail_data()
+{
+    QTest::addColumn<bool>("detailFails");
+
+    QTest::newRow("success") << false;
+    QTest::newRow("failure") << true;
+}
+
+void PersonDQueryTest::calendarRefreshIgnoresStaleDetail()
+{
+    QFETCH(bool, detailFails);
+
+    const AcademicCalendarEntry staleEntry{
+        QStringLiteral("2024-2025"), QStringLiteral("info/1101/1111.htm")};
+    StaticNetworkResponse staleDetail{
+        detailFails
+            ? QByteArray{}
+            : QStringLiteral("<img src=\"/__local/old/calendar.png\">").toUtf8(),
+        QByteArrayLiteral("text/html; charset=utf-8"),
+        detailFails ? 0 : 200,
+        detailFails ? QNetworkReply::HostNotFoundError : QNetworkReply::NoError,
+        true
+    };
+    StaticNetworkAccessManager network;
+    network.responses = {
+        staleDetail,
+        {QStringLiteral("<p>暂无校历数据</p>").toUtf8()}
+    };
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(nullptr);
+    model.m_entries = {staleEntry};
+    model.m_selectedIndex = 0;
+    model.m_imageUrls = {QStringLiteral("https://example.invalid/old-calendar.png")};
+    model.m_hasCache = true;
+    model.setState(QueryState::Loaded);
+
+    connect(&service, &AcademicCalendarService::entriesFetched,
+            &model.m_service, &AcademicCalendarService::entriesFetched);
+    connect(&service, &AcademicCalendarService::detailFetched,
+            &model.m_service, &AcademicCalendarService::detailFetched);
+    connect(&service, &AcademicCalendarService::failed,
+            &model.m_service, &AcademicCalendarService::failed);
+    int detailSignalCount = 0;
+    int failureSignalCount = 0;
+    connect(&service, &AcademicCalendarService::detailFetched, this,
+            [&detailSignalCount](const AcademicCalendarDetail &) { ++detailSignalCount; });
+    connect(&service, &AcademicCalendarService::failed, this,
+            [&failureSignalCount](const ApiError &) { ++failureSignalCount; });
+    QSignalSpy toastSpy(&model, &AcademicCalendarViewModel::toastRequested);
+    QSignalSpy errorSpy(&model, &AcademicCalendarViewModel::errorChanged);
+
+    service.fetchDetail(staleEntry);
+    QCOMPARE(network.replies.size(), 1);
+    StaticNetworkReply *pendingDetail = network.replies.first();
+    service.fetchEntries();
+
+    QTRY_COMPARE(model.state(), QueryState::Empty);
+    QVERIFY(model.entries().isEmpty());
+    QCOMPARE(model.selectedIndex(), -1);
+    QVERIFY(model.imageUrls().isEmpty());
+
+    pendingDetail->complete();
+
+    QCOMPARE(model.state(), QueryState::Empty);
+    QVERIFY(model.entries().isEmpty());
+    QCOMPARE(model.selectedIndex(), -1);
+    QVERIFY(model.imageUrls().isEmpty());
+    QVERIFY(model.errorMessage().isEmpty());
+    QCOMPARE(errorSpy.count(), 0);
+    QCOMPARE(toastSpy.count(), 0);
+    QCOMPARE(detailSignalCount, 0);
+    QCOMPARE(failureSignalCount, 0);
 }
 
 void PersonDQueryTest::sortsExamItemsByStartTimeWithUnparsedAtEnd()

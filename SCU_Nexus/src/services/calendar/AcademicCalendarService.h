@@ -20,6 +20,7 @@ public:
 
     Q_INVOKABLE void fetchEntries();
     Q_INVOKABLE void fetchDetail(const AcademicCalendarEntry &entry);
+    void invalidatePending();
 
     static QNetworkRequest buildRequest(const QUrl &url);
     static QString decodeHtml(const QByteArray &bytes, const QByteArray &contentType = {});
@@ -34,4 +35,6 @@ signals:
 
 private:
     QNetworkAccessManager *m_network = nullptr;
+    quint64 m_listGeneration = 0;
+    quint64 m_detailGeneration = 0;
 };

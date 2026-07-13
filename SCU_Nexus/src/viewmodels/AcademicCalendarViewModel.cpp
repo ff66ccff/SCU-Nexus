@@ -19,6 +19,10 @@ AcademicCalendarViewModel::AcademicCalendarViewModel(QueryCacheRepository *cache
         applyEntries(entries, true);
     });
     connect(&m_service, &AcademicCalendarService::detailFetched, this, [this](const AcademicCalendarDetail &detail) {
+        if (m_selectedIndex < 0 || m_selectedIndex >= m_entries.size()
+            || detail.entry.path != m_entries.at(m_selectedIndex).path) {
+            return;
+        }
         applyDetail(detail, true);
     });
     connect(&m_service, &AcademicCalendarService::failed, this, [this](const ApiError &error) {
@@ -90,6 +94,7 @@ void AcademicCalendarViewModel::refresh()
 // 清理本模块缓存并重置相关状态。
 void AcademicCalendarViewModel::clearCache()
 {
+    m_service.invalidatePending();
     if (!m_cache) {
         return;
     }

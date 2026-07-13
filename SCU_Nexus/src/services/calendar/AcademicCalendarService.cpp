@@ -140,12 +140,24 @@ QNetworkRequest AcademicCalendarService::buildRequest(const QUrl &url)
     return request;
 }
 
+// 使当前尚未完成的校历请求失效。
+void AcademicCalendarService::invalidatePending()
+{
+    ++m_listGeneration;
+    ++m_detailGeneration;
+}
+
 // 发起数据获取流程并通过回调返回结果。
 void AcademicCalendarService::fetchEntries()
 {
+    const quint64 generation = ++m_listGeneration;
+    ++m_detailGeneration;
     QNetworkReply *reply = m_network->get(buildRequest(QUrl(QString::fromLatin1(CalendarListUrl))));
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, generation]() {
         reply->deleteLater();
+        if (generation != m_listGeneration) {
+            return;
+        }
         const ApiError replyError = classifyReplyFailure(reply);
         if (replyError.type != ApiErrorType::Unknown) {
             emit failed(replyError);
@@ -167,10 +179,14 @@ void AcademicCalendarService::fetchEntries()
 // 发起数据获取流程并通过回调返回结果。
 void AcademicCalendarService::fetchDetail(const AcademicCalendarEntry &entry)
 {
+    const quint64 generation = ++m_detailGeneration;
     const QUrl url(QString::fromLatin1(CalendarBaseUrl) + entry.path);
     QNetworkReply *reply = m_network->get(buildRequest(url));
-    connect(reply, &QNetworkReply::finished, this, [this, reply, entry]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, entry, generation]() {
         reply->deleteLater();
+        if (generation != m_detailGeneration) {
+            return;
+        }
         const ApiError replyError = classifyReplyFailure(reply);
         if (replyError.type != ApiErrorType::Unknown) {
             emit failed(replyError);
