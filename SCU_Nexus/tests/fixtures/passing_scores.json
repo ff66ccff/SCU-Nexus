@@ -1,0 +1,73 @@
+{
+  "fixtureNotice": "Synthetic regression data intentionally stored out of order.",
+  "lnList": [
+    {
+      "cjlx": "2097-2098学年秋",
+      "cjList": [
+        {
+          "courseName": "彗星编织",
+          "englishCourseName": "Comet Weaving",
+          "courseAttributeName": "任选",
+          "credit": "1.5",
+          "cj": "88",
+          "courseScore": 88,
+          "gradePointScore": 3.5,
+          "gradeName": "A",
+          "academicYearCode": "2097-2098",
+          "termName": "秋"
+        }
+      ]
+    },
+    {
+      "cjlx": "2098-2099学年秋",
+      "cjList": [
+        {
+          "courseName": "云端航海",
+          "englishCourseName": "Cloud Sailing",
+          "courseAttributeName": "选修",
+          "credit": "2",
+          "cj": "84",
+          "courseScore": 84,
+          "gradePointScore": 3.0,
+          "gradeName": "B",
+          "academicYearCode": "2098-2099",
+          "termName": "秋"
+        }
+      ]
+    },
+    {
+      "cjlx": "2097-2098学年春",
+      "cjList": [
+        {
+          "courseName": "古堡气象",
+          "englishCourseName": "Castle Meteorology",
+          "courseAttributeName": "必修",
+          "credit": "1",
+          "cj": "70",
+          "courseScore": 70,
+          "gradePointScore": 2.0,
+          "gradeName": "C",
+          "academicYearCode": "2097-2098",
+          "termName": "春"
+        }
+      ]
+    },
+    {
+      "cjlx": "2098-2099学年春",
+      "cjList": [
+        {
+          "courseName": "星际园艺",
+          "englishCourseName": "Orbital Horticulture",
+          "courseAttributeName": "必修",
+          "credit": 3,
+          "cj": 92,
+          "courseScore": 92,
+          "gradePointScore": 4.0,
+          "gradeName": "A",
+          "academicYearCode": "2098-2099",
+          "termName": "春"
+        }
+      ]
+    }
+  ]
+}

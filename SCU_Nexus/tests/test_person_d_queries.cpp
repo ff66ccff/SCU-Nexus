@@ -39,6 +39,108 @@ constexpr auto CalendarEntriesCacheKey = "academic_calendar.entries";
 constexpr auto CalendarSelectedCacheKey = "academic_calendar.selected_year";
 constexpr auto CalendarLegacyImagesCacheKey = "academic_calendar.images";
 
+struct TextFixtureResult
+{
+    QString text;
+    bool ok = false;
+};
+
+struct JsonObjectFixtureResult
+{
+    QJsonObject object;
+    bool ok = false;
+};
+
+QByteArray loadFixtureBytes(const char *relativePath, bool *ok)
+{
+    *ok = false;
+    const QString path = QFINDTESTDATA(relativePath);
+    if (path.isEmpty()) {
+        const QString message = QStringLiteral("Fixture not found: %1")
+                                    .arg(QString::fromUtf8(relativePath));
+        QTest::qFail(qPrintable(message), __FILE__, __LINE__);
+        return {};
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        const QString message = QStringLiteral("Cannot open fixture %1: %2")
+                                    .arg(path, file.errorString());
+        QTest::qFail(qPrintable(message), __FILE__, __LINE__);
+        return {};
+    }
+
+    const QByteArray bytes = file.readAll();
+    if (file.error() != QFileDevice::NoError) {
+        const QString message = QStringLiteral("Cannot read fixture %1: %2")
+                                    .arg(path, file.errorString());
+        QTest::qFail(qPrintable(message), __FILE__, __LINE__);
+        return {};
+    }
+    *ok = true;
+    return bytes;
+}
+
+TextFixtureResult loadTextFixture(const char *relativePath)
+{
+    bool ok = false;
+    const QByteArray bytes = loadFixtureBytes(relativePath, &ok);
+    return {ok ? QString::fromUtf8(bytes) : QString{}, ok};
+}
+
+JsonObjectFixtureResult loadJsonObjectFixture(const char *relativePath)
+{
+    bool loaded = false;
+    const QByteArray bytes = loadFixtureBytes(relativePath, &loaded);
+    if (!loaded) {
+        return {};
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(bytes, &parseError);
+    if (parseError.error != QJsonParseError::NoError) {
+        const QString message = QStringLiteral("Malformed JSON fixture %1: %2 at offset %3")
+                                    .arg(QString::fromUtf8(relativePath),
+                                         parseError.errorString())
+                                    .arg(parseError.offset);
+        QTest::qFail(qPrintable(message), __FILE__, __LINE__);
+        return {};
+    }
+    if (!document.isObject()) {
+        const QString message = QStringLiteral("JSON fixture must contain a top-level object: %1")
+                                    .arg(QString::fromUtf8(relativePath));
+        QTest::qFail(qPrintable(message), __FILE__, __LINE__);
+        return {};
+    }
+    return {document.object(), true};
+}
+
+QStringList sortedVisibleKeys(const QVariantList &groups)
+{
+    QStringList keys;
+    for (const QVariant &groupValue : groups) {
+        const QVariantList items = groupValue.toMap().value(QStringLiteral("items")).toList();
+        for (const QVariant &itemValue : items) {
+            keys.append(itemValue.toMap().value(QStringLiteral("key")).toString());
+        }
+    }
+    keys.sort();
+    return keys;
+}
+
+QStringList sortedVisibleCourseNames(const QVariantList &groups)
+{
+    QStringList names;
+    for (const QVariant &groupValue : groups) {
+        const QVariantList items = groupValue.toMap().value(QStringLiteral("items")).toList();
+        for (const QVariant &itemValue : items) {
+            names.append(itemValue.toMap().value(QStringLiteral("courseName")).toString());
+        }
+    }
+    names.sort();
+    return names;
+}
+
 QString calendarImagesCacheKey(const QString &path)
 {
     return QStringLiteral("academic_calendar.images.%1")
@@ -428,7 +530,11 @@ private slots:
     void calendarLoadWithoutCacheStartsListRequest();
     void calendarImageViewerShowsLoadingAndFailureFallback();
     void sortsExamItemsByStartTimeWithUnparsedAtEnd();
+    void examEmptyResponseCachesAndLoggedOutNoCacheRequiresLogin();
     void calculatesSchemeAndCustomGradeStats();
+    void parsesAndSortsPassingScoreFixture();
+    void schemeFixtureCalculatesRequiredGpa();
+    void filtersFixtureCoursesAndMatchesCurrentSelectionKeys();
     void gradePresentationMapsExposeDocumentedMetrics();
     void gradeQmlCompletesMetricsAndBulkSelection();
     void parsesNumericGradeScalarsAsText();
@@ -478,20 +584,22 @@ private slots:
 
 void PersonDQueryTest::parsesCalendarEntriesAndImages()
 {
-    const QString html = QStringLiteral(R"(
-        <a href="info/1101/1234.htm">四川大学 2025-2026 学年校历</a>
-        <a href="info/1101/1235.htm">四川大学 2024-2025 学年校历</a>
-        <img src="/__local/AB/CD/calendar.jpg">
-    )");
+    const TextFixtureResult fixture = loadTextFixture("fixtures/calendar_entries.html");
+    if (!fixture.ok) {
+        return;
+    }
 
-    const QList<AcademicCalendarEntry> entries = AcademicCalendarService::parseEntries(html);
+    const QList<AcademicCalendarEntry> entries = AcademicCalendarService::parseEntries(fixture.text);
     QCOMPARE(entries.size(), 2);
-    QCOMPARE(entries.first().title, QStringLiteral("2025-2026"));
-    QCOMPARE(entries.first().path, QStringLiteral("info/1101/1234.htm"));
+    QCOMPARE(entries.at(0).title, QStringLiteral("2098-2099"));
+    QCOMPARE(entries.at(0).path, QStringLiteral("info/1101/98001.htm"));
+    QCOMPARE(entries.at(1).title, QStringLiteral("2097-2098"));
+    QCOMPARE(entries.at(1).path, QStringLiteral("info/1101/97001.htm"));
 
-    const QStringList imageUrls = AcademicCalendarService::parseImageUrls(html);
+    const QStringList imageUrls = AcademicCalendarService::parseImageUrls(fixture.text);
     QCOMPARE(imageUrls.size(), 1);
-    QCOMPARE(imageUrls.first(), QStringLiteral("https://jwc.scu.edu.cn/__local/AB/CD/calendar.jpg"));
+    QCOMPARE(imageUrls.first(),
+             QStringLiteral("https://jwc.scu.edu.cn/__local/FI/CT/fictional-calendar.jpg"));
 }
 
 void PersonDQueryTest::decodesQuotedGb18030CalendarCharset()
@@ -612,8 +720,14 @@ void PersonDQueryTest::calendarServiceClassifiesFailures()
 
 void PersonDQueryTest::calendarEntriesDistinguishExplicitEmptyAndParseFailure()
 {
-    QVERIFY(AcademicCalendarService::calendarPageExplicitlyEmpty(
-        QStringLiteral("<p>暂无校历数据</p>")));
+    const TextFixtureResult emptyFixture = loadTextFixture("fixtures/calendar_empty.html");
+    if (!emptyFixture.ok) {
+        return;
+    }
+
+    QVERIFY(AcademicCalendarService::calendarPageExplicitlyEmpty(emptyFixture.text));
+    QVERIFY(AcademicCalendarService::parseEntries(emptyFixture.text).isEmpty());
+    QVERIFY(AcademicCalendarService::parseImageUrls(emptyFixture.text).isEmpty());
     QVERIFY(AcademicCalendarService::calendarPageExplicitlyEmpty(
         QStringLiteral("<p>暂无数据</p>")));
     QVERIFY(AcademicCalendarService::calendarPageExplicitlyEmpty(
@@ -623,7 +737,7 @@ void PersonDQueryTest::calendarEntriesDistinguishExplicitEmptyAndParseFailure()
 
     StaticNetworkAccessManager network;
     network.responses = {
-        {QStringLiteral("<p>暂无校历数据</p>").toUtf8()},
+        {emptyFixture.text.toUtf8()},
         {QStringLiteral("<html><title>统一认证</title><p>欢迎访问</p></html>").toUtf8()}
     };
     AcademicCalendarService service(&network);
@@ -1824,6 +1938,49 @@ void PersonDQueryTest::sortsExamItemsByStartTimeWithUnparsedAtEnd()
     QCOMPARE(items.at(2).courseName, QStringLiteral("C"));
 }
 
+void PersonDQueryTest::examEmptyResponseCachesAndLoggedOutNoCacheRequiresLogin()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("empty-exam.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    FakeZhjwQueryService onlineService;
+    onlineService.loggedInValue = true;
+
+    ExamPlanViewModel onlineModel(&cache, &onlineService);
+    onlineModel.load();
+
+    QCOMPARE(onlineModel.state(), QueryState::Empty);
+    QCOMPARE(onlineModel.count(), 0);
+    QVERIFY(onlineModel.hasCache());
+    QVERIFY(onlineModel.lastUpdated().isValid());
+
+    QueryCacheEntry emptyEntry;
+    QVERIFY2(cache.get(QString::fromLatin1(ExamPlanCacheKey), &emptyEntry),
+             qPrintable(cache.lastError()));
+    QVERIFY(emptyEntry.updatedAt.isValid());
+    QJsonParseError parseError;
+    const QJsonDocument cachedDocument = QJsonDocument::fromJson(
+        emptyEntry.payloadJson.toUtf8(), &parseError);
+    QCOMPARE(parseError.error, QJsonParseError::NoError);
+    QVERIFY(cachedDocument.isArray());
+    QVERIFY(cachedDocument.array().isEmpty());
+
+    QueryCacheRepository loggedOutCache(dir.filePath(QStringLiteral("logged-out-exam.sqlite")));
+    QVERIFY2(loggedOutCache.open(), qPrintable(loggedOutCache.lastError()));
+    DeferredZhjwQueryService loggedOutService;
+    loggedOutService.loggedInValue = false;
+    ExamPlanViewModel loggedOutModel(&loggedOutCache, &loggedOutService);
+
+    loggedOutModel.load();
+
+    QCOMPARE(loggedOutModel.state(), QueryState::LoginRequired);
+    QCOMPARE(loggedOutService.examFetchCount, 0);
+    QVERIFY(!loggedOutModel.hasCache());
+    QVERIFY(!loggedOutModel.lastUpdated().isValid());
+}
+
 void PersonDQueryTest::calculatesSchemeAndCustomGradeStats()
 {
     const QJsonObject root{
@@ -1871,6 +2028,151 @@ void PersonDQueryTest::calculatesSchemeAndCustomGradeStats()
     QCOMPARE(custom.value(QStringLiteral("selectedCount")).toInt(), 2);
     QCOMPARE(custom.value(QStringLiteral("credits")).toDouble(), 5.0);
     QCOMPARE(custom.value(QStringLiteral("weightedAvgScore")).toDouble(), 86.0);
+}
+
+void PersonDQueryTest::parsesAndSortsPassingScoreFixture()
+{
+    const JsonObjectFixtureResult fixture = loadJsonObjectFixture("fixtures/passing_scores.json");
+    if (!fixture.ok) {
+        return;
+    }
+
+    const PassingScoreResult passing = PassingScoreResult::fromJson(fixture.object);
+    QCOMPARE(passing.groups.size(), 4);
+    QCOMPARE(passing.groups.at(0).label, QStringLiteral("2098-2099学年春"));
+    QCOMPARE(passing.groups.at(1).label, QStringLiteral("2098-2099学年秋"));
+    QCOMPARE(passing.groups.at(2).label, QStringLiteral("2097-2098学年春"));
+    QCOMPARE(passing.groups.at(3).label, QStringLiteral("2097-2098学年秋"));
+
+    const GradeCourseItem firstCourse = passing.groups.at(0).items.first();
+    QCOMPARE(firstCourse.courseName, QStringLiteral("星际园艺"));
+    QCOMPARE(firstCourse.englishCourseName, QStringLiteral("Orbital Horticulture"));
+    QCOMPARE(firstCourse.courseAttributeName, QStringLiteral("必修"));
+    QCOMPARE(firstCourse.credit, QStringLiteral("3"));
+    QCOMPARE(firstCourse.rawScore, QStringLiteral("92"));
+    QCOMPARE(firstCourse.key(), QStringLiteral("星际园艺|2098-2099|春|必修"));
+
+    QCOMPARE(passing.groups.at(1).items.first().courseName, QStringLiteral("云端航海"));
+    QCOMPARE(passing.groups.at(2).items.first().courseName, QStringLiteral("古堡气象"));
+    QCOMPARE(passing.groups.at(3).items.first().courseName, QStringLiteral("彗星编织"));
+}
+
+void PersonDQueryTest::schemeFixtureCalculatesRequiredGpa()
+{
+    const JsonObjectFixtureResult fixture = loadJsonObjectFixture("fixtures/scheme_scores.json");
+    if (!fixture.ok) {
+        return;
+    }
+
+    const SchemeScoreSummary summary = SchemeScoreSummary::fromJson(fixture.object);
+    QCOMPARE(summary.items.size(), 5);
+    QCOMPARE(summary.requiredGpa(), 3.5);
+    QCOMPARE(summary.gpa(), 3.37);
+    QCOMPARE(summary.items.first().courseName, QStringLiteral("星际园艺"));
+    QCOMPARE(summary.items.first().credit, QStringLiteral("3"));
+    QCOMPARE(summary.items.first().rawScore, QStringLiteral("92"));
+}
+
+void PersonDQueryTest::filtersFixtureCoursesAndMatchesCurrentSelectionKeys()
+{
+    const JsonObjectFixtureResult schemeFixture = loadJsonObjectFixture("fixtures/scheme_scores.json");
+    if (!schemeFixture.ok) {
+        return;
+    }
+    const JsonObjectFixtureResult passingFixture = loadJsonObjectFixture("fixtures/passing_scores.json");
+    if (!passingFixture.ok) {
+        return;
+    }
+
+    FakeZhjwQueryService service;
+    service.loggedInValue = true;
+    service.schemeScores = schemeFixture.object;
+    service.passingScores = passingFixture.object;
+    GradesViewModel model(nullptr, &service);
+    model.load();
+    QCOMPARE(model.schemeState(), QueryState::Loaded);
+    QCOMPARE(model.passingState(), QueryState::Loaded);
+
+    model.setSearchQuery(QStringLiteral("星"));
+    QStringList starNames{QStringLiteral("星际园艺"), QStringLiteral("彗星编织")};
+    starNames.sort();
+    QStringList starKeys{
+        QStringLiteral("星际园艺|2098-2099|春|必修"),
+        QStringLiteral("彗星编织|2097-2098|秋|任选")
+    };
+    starKeys.sort();
+    const QVariantList starScheme = model.filteredSchemeGroups();
+    const QVariantList starPassing = model.filteredPassingGroups();
+    QCOMPARE(sortedVisibleCourseNames(starScheme), starNames);
+    QCOMPARE(sortedVisibleCourseNames(starPassing), starNames);
+    QCOMPARE(sortedVisibleKeys(starScheme), starKeys);
+    QCOMPARE(sortedVisibleKeys(starPassing), starKeys);
+
+    const QStringList requiredNames{QStringLiteral("星际园艺")};
+    const QStringList requiredKeys{QStringLiteral("星际园艺|2098-2099|春|必修")};
+    const QVariantList requiredScheme = model.filteredSchemeGroupsByAttr(QStringLiteral("必修"));
+    const QVariantList requiredPassing = model.filteredPassingGroupsByAttr(QStringLiteral("必修"));
+    QCOMPARE(sortedVisibleCourseNames(requiredScheme), requiredNames);
+    QCOMPARE(sortedVisibleCourseNames(requiredPassing), requiredNames);
+    QCOMPARE(sortedVisibleKeys(requiredScheme), requiredKeys);
+    QCOMPARE(sortedVisibleKeys(requiredPassing), requiredKeys);
+
+    model.setSearchQuery(QStringLiteral("InG"));
+    QStringList ingSchemeNames{
+        QStringLiteral("月面烘焙"),
+        QStringLiteral("云端航海"),
+        QStringLiteral("彗星编织")
+    };
+    ingSchemeNames.sort();
+    QStringList ingSchemeKeys{
+        QStringLiteral("月面烘焙|2098-2099|秋|必修"),
+        QStringLiteral("云端航海|2098-2099|秋|选修"),
+        QStringLiteral("彗星编织|2097-2098|秋|任选")
+    };
+    ingSchemeKeys.sort();
+    QStringList ingPassingNames{QStringLiteral("云端航海"), QStringLiteral("彗星编织")};
+    ingPassingNames.sort();
+    QStringList ingPassingKeys{
+        QStringLiteral("云端航海|2098-2099|秋|选修"),
+        QStringLiteral("彗星编织|2097-2098|秋|任选")
+    };
+    ingPassingKeys.sort();
+    const QVariantList ingScheme = model.filteredSchemeGroups();
+    const QVariantList ingPassing = model.filteredPassingGroups();
+    QCOMPARE(sortedVisibleCourseNames(ingScheme), ingSchemeNames);
+    QCOMPARE(sortedVisibleCourseNames(ingPassing), ingPassingNames);
+    QCOMPARE(sortedVisibleKeys(ingScheme), ingSchemeKeys);
+    QCOMPARE(sortedVisibleKeys(ingPassing), ingPassingKeys);
+
+    const QStringList sailingNames{QStringLiteral("云端航海")};
+    const QStringList sailingKeys{QStringLiteral("云端航海|2098-2099|秋|选修")};
+    const QVariantList electiveScheme = model.filteredSchemeGroupsByAttr(QStringLiteral("选修"));
+    const QVariantList electivePassing = model.filteredPassingGroupsByAttr(QStringLiteral("选修"));
+    QCOMPARE(sortedVisibleCourseNames(electiveScheme), sailingNames);
+    QCOMPARE(sortedVisibleCourseNames(electivePassing), sailingNames);
+    QCOMPARE(sortedVisibleKeys(electiveScheme), sailingKeys);
+    QCOMPARE(sortedVisibleKeys(electivePassing), sailingKeys);
+
+    model.setSearchQuery(QString{});
+    QStringList allSchemeKeys{
+        QStringLiteral("星际园艺|2098-2099|春|必修"),
+        QStringLiteral("古堡气象|2097-2098|春|必修"),
+        QStringLiteral("月面烘焙|2098-2099|秋|必修"),
+        QStringLiteral("云端航海|2098-2099|秋|选修"),
+        QStringLiteral("彗星编织|2097-2098|秋|任选")
+    };
+    allSchemeKeys.sort();
+    QStringList allPassingKeys{
+        QStringLiteral("星际园艺|2098-2099|春|必修"),
+        QStringLiteral("古堡气象|2097-2098|春|必修"),
+        QStringLiteral("云端航海|2098-2099|秋|选修"),
+        QStringLiteral("彗星编织|2097-2098|秋|任选")
+    };
+    allPassingKeys.sort();
+    QCOMPARE(sortedVisibleKeys(model.filteredSchemeGroupsByAttr(QStringLiteral("全部"))),
+             allSchemeKeys);
+    QCOMPARE(sortedVisibleKeys(model.filteredPassingGroupsByAttr(QStringLiteral("全部"))),
+             allPassingKeys);
 }
 
 void PersonDQueryTest::gradePresentationMapsExposeDocumentedMetrics()

@@ -1,0 +1,74 @@
+{
+  "fixtureNotice": "Synthetic regression data for years 2097 through 2099.",
+  "lnList": [
+    {
+      "zxf": 12.5,
+      "yxxf": 7.5,
+      "tgms": 4,
+      "wtgms": 1,
+      "zms": 5,
+      "cjList": [
+        {
+          "courseName": "星际园艺",
+          "englishCourseName": "Orbital Horticulture",
+          "courseAttributeName": "必修",
+          "credit": 3,
+          "cj": 92,
+          "courseScore": 92,
+          "gradePointScore": 4.0,
+          "gradeName": "A",
+          "academicYearCode": "2098-2099",
+          "termName": "春"
+        },
+        {
+          "courseName": "古堡气象",
+          "englishCourseName": "Castle Meteorology",
+          "courseAttributeName": "必修",
+          "credit": "1",
+          "cj": "70",
+          "courseScore": 70,
+          "gradePointScore": 2.0,
+          "gradeName": "C",
+          "academicYearCode": "2097-2098",
+          "termName": "春"
+        },
+        {
+          "courseName": "月面烘焙",
+          "englishCourseName": "Lunar Baking",
+          "courseAttributeName": "必修",
+          "credit": "2",
+          "cj": "55",
+          "courseScore": 55,
+          "gradePointScore": 0.0,
+          "gradeName": "F",
+          "academicYearCode": "2098-2099",
+          "termName": "秋"
+        },
+        {
+          "courseName": "云端航海",
+          "englishCourseName": "Cloud Sailing",
+          "courseAttributeName": "选修",
+          "credit": "2",
+          "cj": "84",
+          "courseScore": 84,
+          "gradePointScore": 3.0,
+          "gradeName": "B",
+          "academicYearCode": "2098-2099",
+          "termName": "秋"
+        },
+        {
+          "courseName": "彗星编织",
+          "englishCourseName": "Comet Weaving",
+          "courseAttributeName": "任选",
+          "credit": "1.5",
+          "cj": "88",
+          "courseScore": 88,
+          "gradePointScore": 3.5,
+          "gradeName": "A",
+          "academicYearCode": "2097-2098",
+          "termName": "秋"
+        }
+      ]
+    }
+  ]
+}
