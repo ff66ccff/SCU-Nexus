@@ -15,8 +15,10 @@ Item {
     Repeater {
         model: root.sectionsPerDay
         delegate: Rectangle {
+            id: slotCell
+
             required property int index
-            y: index * root.sectionHeight
+            y: slotCell.index * root.sectionHeight
             width: root.width
             height: root.sectionHeight
             color: cell.containsMouse ? Theme.subtleHover : Theme.surface
@@ -25,7 +27,8 @@ Item {
                 id: cell
                 anchors.fill: parent
                 hoverEnabled: true
-                onDoubleClicked: root.slotActivated(root.dayOfWeek, index + 1)
+                onDoubleClicked: root.slotActivated(root.dayOfWeek,
+                                                    slotCell.index + 1)
             }
         }
     }

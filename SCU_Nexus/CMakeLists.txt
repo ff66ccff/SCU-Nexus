@@ -1,6 +1,9 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.24)
 
-project(SCU_Nexus VERSION 0.1 LANGUAGES CXX)
+project(SCU_Nexus VERSION 0.1.0 LANGUAGES CXX)
+
+include(CTest)
+include(GNUInstallDirs)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,8 +17,10 @@ find_package(Qt6 REQUIRED COMPONENTS
     QuickControls2
     Network
     Sql
-    Test
 )
+if(BUILD_TESTING)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+endif()
 if(MINGW)
     find_path(Iconv_INCLUDE_DIR
         NAMES iconv.h
@@ -27,6 +32,7 @@ if(MINGW)
     )
 endif()
 find_package(Iconv REQUIRED)
+find_package(OpenSSL 1.1 REQUIRED COMPONENTS Crypto)
 
 if(COMMAND qt_policy)
     qt_policy(SET QTP0004 NEW)
@@ -36,9 +42,16 @@ qt_standard_project_setup()
 
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOMOC ON)
-set(OPENSSL_ROOT_DIR "D:/QT/Tools/mingw1310_64/opt")
-set(OPENSSL_CRYPTO_LIBRARY "${OPENSSL_ROOT_DIR}/lib/libcrypto.dll.a")
-set(OPENSSL_CRYPTO_RUNTIME "${OPENSSL_ROOT_DIR}/bin/libcrypto-1_1-x64.dll")
+set(SCU_NEXUS_OPENSSL_RUNTIME "" CACHE FILEPATH
+    "Path to the OpenSSL libcrypto DLL copied into Windows packages")
+
+if(WIN32 AND NOT SCU_NEXUS_OPENSSL_RUNTIME AND OPENSSL_ROOT_DIR)
+    find_file(SCU_NEXUS_OPENSSL_RUNTIME
+        NAMES libcrypto-3-x64.dll libcrypto-1_1-x64.dll libcrypto-1_1.dll
+        PATHS "${OPENSSL_ROOT_DIR}/bin"
+        NO_DEFAULT_PATH
+    )
+endif()
 
 qt_add_executable(SCU_Nexus
     main.cpp
@@ -129,6 +142,19 @@ qt_add_executable(SCU_Nexus
     src/viewmodels/CourseEditViewModel.cpp
 )
 
+target_compile_definitions(SCU_Nexus PRIVATE
+    SCU_NEXUS_VERSION="${PROJECT_VERSION}"
+)
+
+if(WIN32)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/windows.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/windows.rc"
+        @ONLY
+    )
+    target_sources(SCU_Nexus PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/windows.rc")
+endif()
+
 set_source_files_properties(qml/styles/Theme.qml
     PROPERTIES QT_QML_SINGLETON_TYPE TRUE
 )
@@ -139,6 +165,7 @@ qt_add_qml_module(SCU_Nexus
     RESOURCE_PREFIX /
     QML_FILES
         qml/App.qml
+        qml/AppNavigation.qml
         qml/MainShell.qml
         qml/LoginPage.qml
         qml/SettingsPage.qml
@@ -195,14 +222,14 @@ target_link_libraries(SCU_Nexus PRIVATE
     Qt6::Network
     Qt6::Sql
     Iconv::Iconv
-    ${OPENSSL_CRYPTO_LIBRARY}
+    OpenSSL::Crypto
 )
 
 target_include_directories(SCU_Nexus PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${OPENSSL_ROOT_DIR}/include
 )
 
+if(BUILD_TESTING)
 qt_add_executable(person_b_foundation_tests
     tests/test_person_b_foundation.cpp
     src/app/AppController.h
@@ -237,17 +264,15 @@ qt_add_executable(person_b_foundation_tests
 
 target_include_directories(person_b_foundation_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${OPENSSL_ROOT_DIR}/include
 )
 
 target_link_libraries(person_b_foundation_tests PRIVATE
     Qt6::Core
     Qt6::Network
     Qt6::Test
-    ${OPENSSL_CRYPTO_LIBRARY}
+    OpenSSL::Crypto
 )
 
-enable_testing()
 add_test(NAME person_b_foundation_tests COMMAND person_b_foundation_tests)
 
 qt_add_executable(person_d_query_tests
@@ -285,7 +310,6 @@ qt_add_executable(person_d_query_tests
 target_include_directories(person_d_query_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${OPENSSL_ROOT_DIR}/include
 )
 
 target_link_libraries(person_d_query_tests PRIVATE
@@ -294,7 +318,7 @@ target_link_libraries(person_d_query_tests PRIVATE
     Qt6::Sql
     Qt6::Test
     Iconv::Iconv
-    ${OPENSSL_CRYPTO_LIBRARY}
+    OpenSSL::Crypto
 )
 
 add_test(NAME person_d_query_tests COMMAND person_d_query_tests)
@@ -373,7 +397,6 @@ qt_add_executable(app_foundation_tests
 target_include_directories(app_foundation_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${OPENSSL_ROOT_DIR}/include
 )
 
 target_link_libraries(app_foundation_tests PRIVATE
@@ -382,7 +405,7 @@ target_link_libraries(app_foundation_tests PRIVATE
     Qt6::Network
     Qt6::Sql
     Qt6::Test
-    ${OPENSSL_CRYPTO_LIBRARY}
+    OpenSSL::Crypto
 )
 
 add_test(NAME app_foundation_tests COMMAND app_foundation_tests)
@@ -390,13 +413,122 @@ set_tests_properties(app_foundation_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
 
+qt_add_executable(ui_contract_tests
+    tests/test_ui_contracts.cpp
+)
+
+target_compile_definitions(ui_contract_tests PRIVATE
+    SCU_NEXUS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
+target_link_libraries(ui_contract_tests PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME ui_contract_tests COMMAND ui_contract_tests)
+
+qt_add_executable(grades_qml_tests
+    tests/test_grades_qml.cpp
+    src/app/Router.h
+    src/app/Router.cpp
+    src/common/QueryState.h
+    src/common/QueryState.cpp
+    src/core/network/NetworkError.h
+    src/models/GradeModels.h
+    src/models/GradeModels.cpp
+    src/repositories/QueryCacheRepository.h
+    src/repositories/QueryCacheRepository.cpp
+    src/services/api/ApiDtos.h
+    src/services/grades/GradeStatisticsService.h
+    src/services/grades/GradeStatisticsService.cpp
+    src/services/zhjw/ZhjwQueryService.h
+    src/services/zhjw/ZhjwQueryService.cpp
+    src/viewmodels/GradesViewModel.h
+    src/viewmodels/GradesViewModel.cpp
+)
+
+target_compile_definitions(grades_qml_tests PRIVATE
+    SCU_NEXUS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
+target_include_directories(grades_qml_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(grades_qml_tests PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Sql
+    Qt6::Test
+)
+
+add_test(NAME grades_qml_tests COMMAND grades_qml_tests)
+set_tests_properties(grades_qml_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_FONTDIR=C:/Windows/Fonts"
+)
+endif()
+
 set_target_properties(SCU_Nexus PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON
 )
 
-add_custom_command(TARGET SCU_Nexus POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${OPENSSL_CRYPTO_RUNTIME}"
-        "$<TARGET_FILE_DIR:SCU_Nexus>"
+if(WIN32 AND SCU_NEXUS_OPENSSL_RUNTIME)
+    add_custom_command(TARGET SCU_Nexus POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${SCU_NEXUS_OPENSSL_RUNTIME}"
+            "$<TARGET_FILE_DIR:SCU_Nexus>"
+        VERBATIM
+    )
+endif()
+
+install(TARGETS SCU_Nexus
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+qt_generate_deploy_qml_app_script(
+    TARGET SCU_Nexus
+    OUTPUT_SCRIPT deploy_script
+    NO_UNSUPPORTED_PLATFORM_ERROR
+)
+install(SCRIPT "${deploy_script}")
+
+if(WIN32 AND SCU_NEXUS_OPENSSL_RUNTIME)
+    install(FILES "${SCU_NEXUS_OPENSSL_RUNTIME}"
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
+
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/../README.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE"
+    DESTINATION .
+)
+
+set(CPACK_PACKAGE_NAME "SCU-Nexus")
+set(CPACK_PACKAGE_VENDOR "SCU-Nexus Contributors")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "四川大学学生的一站式校园信息助手")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/ff66ccff/SCU-Nexus")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "SCU-Nexus")
+set(CPACK_PACKAGE_EXECUTABLES "SCU_Nexus" "SCU-Nexus")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/../README.md")
+set(CPACK_PACKAGE_CHECKSUM SHA256)
+set(CPACK_GENERATOR "ZIP")
+
+if(WIN32)
+    set(CPACK_PACKAGE_FILE_NAME "SCU-Nexus-${PROJECT_VERSION}-windows-x86_64")
+    set(CPACK_NSIS_DISPLAY_NAME "SCU-Nexus")
+    set(CPACK_NSIS_PACKAGE_NAME "SCU-Nexus")
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+    set(CPACK_NSIS_MUI_FINISHPAGE_RUN "SCU_Nexus.exe")
+endif()
+
+include(CPack)

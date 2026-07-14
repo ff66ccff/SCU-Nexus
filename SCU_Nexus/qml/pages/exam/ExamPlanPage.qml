@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
@@ -5,7 +7,12 @@ import "../../components"
 import "../../components/query"
 import "../../styles"
 
+// Context properties are intentionally injected by main.cpp.
+// qmllint disable unqualified
+
 Item {
+    id: root
+
     Component.onCompleted: examPlanViewModel.load()
 
     ColumnLayout {
@@ -43,10 +50,11 @@ Item {
                 anchors.fill: parent
                 visible: !statePane.visible
                 clip: true
+                contentWidth: availableWidth
 
                 ColumnLayout {
-                    width: Math.max(parent.width - 16, 320)
-                    spacing: 12
+                    width: Math.max(parent.width - Theme.spacing8, 320)
+                    spacing: Theme.spacing12
 
                     Repeater {
                         model: examPlanViewModel.exams
@@ -61,6 +69,7 @@ Item {
                 queryState: examPlanViewModel.state
                 errorMessage: examPlanViewModel.errorMessage
                 emptyTitle: "暂无考试安排"
+                emptyDescription: "当前尚未发布考试信息，或没有即将进行的考试"
                 loginMessage: "考表查询需要登录教务系统"
                 onRetry: examPlanViewModel.refresh()
                 onLoginRequested: router.navigate("Login")

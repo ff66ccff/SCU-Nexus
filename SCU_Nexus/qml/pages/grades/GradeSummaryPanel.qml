@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import "../../components"
@@ -9,25 +11,29 @@ GridLayout {
     property var summary
     property var metrics: []
 
-    columns: width > 720 ? 4 : 2
-    rowSpacing: 10
-    columnSpacing: 10
+    columns: root.width >= 900 ? 4 : (root.width >= 520 ? 2 : 1)
+    rowSpacing: Theme.spacing12
+    columnSpacing: Theme.spacing12
 
     Repeater {
-        model: metrics
+        model: root.metrics
 
         Card {
+            id: metricCard
+
+            required property var modelData
+
             Layout.fillWidth: true
-            implicitHeight: 74
+            implicitHeight: 86
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 12
-                spacing: 4
+                anchors.margins: Theme.spacing12
+                spacing: Theme.spacing4
 
                 Text {
                     Layout.fillWidth: true
-                    text: modelData.label
+                    text: metricCard.modelData.label
                     font.pixelSize: Theme.fontCaption
                     color: Theme.mutedText
                     elide: Text.ElideRight
@@ -35,7 +41,9 @@ GridLayout {
 
                 Text {
                     Layout.fillWidth: true
-                    text: format(summary ? summary[modelData.key] : 0)
+                    text: root.format(root.summary
+                                      ? root.summary[metricCard.modelData.key]
+                                      : 0)
                     font.pixelSize: 20
                     font.weight: Theme.weightStrong
                     color: Theme.text

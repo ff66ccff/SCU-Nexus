@@ -3,6 +3,9 @@ import QtQuick.Controls 2.15
 import "components"
 import "styles"
 
+// Context properties are intentionally injected by main.cpp.
+// qmllint disable unqualified
+
 ApplicationWindow {
     id: window
 
@@ -13,6 +16,7 @@ ApplicationWindow {
     visible: true
     title: "SCU Nexus"
     color: Theme.background
+    font.family: Theme.fontFamily
 
     // 全局把 Fluent 控件的强调色设为四川大学品牌红（按钮、开关、焦点线等都会跟随）。
     palette.accent: Theme.accent

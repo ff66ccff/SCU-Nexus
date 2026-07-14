@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install MinGW, Qt, OpenSSL and build tools
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-qt6-base
+            mingw-w64-x86_64-qt6-declarative
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-libiconv
+
+      - name: Configure
+        shell: msys2 {0}
+        run: >-
+          cmake -S SCU_Nexus -B out/build/ci -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTING=ON
+          -DOPENSSL_ROOT_DIR=/mingw64
+          -DSCU_NEXUS_OPENSSL_RUNTIME=/mingw64/bin/libcrypto-3-x64.dll
+
+      - name: Build
+        shell: msys2 {0}
+        run: cmake --build out/build/ci --parallel
+
+      - name: Test
+        shell: msys2 {0}
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir out/build/ci --output-on-failure

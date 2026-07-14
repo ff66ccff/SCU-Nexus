@@ -9,6 +9,8 @@ Rectangle {
     property string courseName: ""
     property string courseLocation: ""
     property string courseTeacher: ""
+    property int startSection: 1
+    property int endSection: 1
     property color cardColor: Theme.accent
     property bool isActive: true
     property bool hasConflict: false
@@ -23,34 +25,43 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 5
-        spacing: 1
+        anchors.margins: Theme.spacing4
+        spacing: 2
 
         Text {
             Layout.fillWidth: true
             text: root.courseName
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontCaption
             font.weight: Theme.weightStrong
             color: root.isActive ? "white" : Theme.text
             elide: Text.ElideRight
             wrapMode: Text.Wrap
-            maximumLineCount: 2
+            maximumLineCount: root.height >= 96 ? 2 : 1
         }
 
         Text {
             Layout.fillWidth: true
             visible: text.length > 0
-            text: root.courseLocation
-            font.pixelSize: 9
+            text: root.courseLocation.length > 0 ? root.courseLocation : "地点待定"
+            font.pixelSize: Theme.fontMicro
             color: root.isActive ? "#f2f2f2" : Theme.mutedText
             elide: Text.ElideRight
         }
 
         Text {
             Layout.fillWidth: true
-            visible: text.length > 0
+            visible: root.height >= 92 && root.courseTeacher.length > 0
             text: root.courseTeacher
-            font.pixelSize: 9
+            font.pixelSize: Theme.fontMicro
+            color: root.isActive ? "#f2f2f2" : Theme.mutedText
+            elide: Text.ElideRight
+        }
+
+        Text {
+            Layout.fillWidth: true
+            visible: root.height >= 116
+            text: "第 " + root.startSection + "–" + root.endSection + " 节"
+            font.pixelSize: Theme.fontMicro
             color: root.isActive ? "#f2f2f2" : Theme.mutedText
             elide: Text.ElideRight
         }

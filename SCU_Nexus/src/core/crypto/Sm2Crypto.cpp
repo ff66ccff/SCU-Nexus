@@ -6,6 +6,12 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/obj_mac.h>
+#include <openssl/opensslv.h>
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/core_names.h>
+#include <openssl/params.h>
+#endif
 
 #include <memory>
 
@@ -132,6 +138,29 @@ QString Sm2Crypto::encryptWithBase64Key(const QString& plaintext, const QString&
         return {};
     }
 
+    EvpKeyPtr evpKey;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    EvpCtxPtr fromDataContext(EVP_PKEY_CTX_new_from_name(nullptr, "SM2", nullptr));
+    if (!fromDataContext || EVP_PKEY_fromdata_init(fromDataContext.get()) != 1) {
+        return {};
+    }
+
+    char groupName[] = "SM2";
+    OSSL_PARAM parameters[] = {
+        OSSL_PARAM_construct_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, groupName, 0),
+        OSSL_PARAM_construct_octet_string(
+            OSSL_PKEY_PARAM_PUB_KEY,
+            publicKey.data(),
+            static_cast<size_t>(publicKey.size())),
+        OSSL_PARAM_construct_end()
+    };
+    EVP_PKEY* importedKey = nullptr;
+    if (EVP_PKEY_fromdata(
+            fromDataContext.get(), &importedKey, EVP_PKEY_PUBLIC_KEY, parameters) != 1) {
+        return {};
+    }
+    evpKey.reset(importedKey);
+#else
     EcKeyPtr ecKey(EC_KEY_new_by_curve_name(NID_sm2));
     if (!ecKey) {
         return {};
@@ -149,11 +178,12 @@ QString Sm2Crypto::encryptWithBase64Key(const QString& plaintext, const QString&
         return {};
     }
 
-    EvpKeyPtr evpKey(EVP_PKEY_new());
+    evpKey.reset(EVP_PKEY_new());
     if (!evpKey || EVP_PKEY_assign_EC_KEY(evpKey.get(), ecKey.release()) != 1) {
         return {};
     }
     EVP_PKEY_set_alias_type(evpKey.get(), EVP_PKEY_SM2);
+#endif
 
     EvpCtxPtr ctx(EVP_PKEY_CTX_new(evpKey.get(), nullptr));
     if (!ctx || EVP_PKEY_encrypt_init(ctx.get()) != 1) {

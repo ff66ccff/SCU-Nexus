@@ -3,15 +3,17 @@ pragma ComponentBehavior: Bound
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import "../../components"
 import "../../styles"
 
 Dialog {
     id: root
 
     title: "课表设置"
-    width: 520
-    height: 620
+    width: Math.min(parent ? parent.width - 48 : 560, 560)
+    height: Math.min(parent ? parent.height - 48 : 640, 640)
     modal: true
+    standardButtons: Dialog.NoButton
 
     property string semesterName: ""
     property string semesterStartDate: ""
@@ -173,8 +175,9 @@ Dialog {
                             }
                         }
                     }
-                    Button {
+                    AppButton {
                         text: "编辑时间"
+                        type: "secondary"
                         visible: root.timeSlotPreset === "custom"
                         onClicked: {
                             timeEditor.timeSlots = root.timeSlots
@@ -194,12 +197,18 @@ Dialog {
                         clip: true
                         model: root.timeSlots
                         delegate: RowLayout {
+                            id: timeSlotRow
+
                             required property int index
                             required property var modelData
                             width: ListView.view.width
-                            Label { text: (index + 1) + "."; Layout.preferredWidth: 28 }
                             Label {
-                                text: modelData.startTime + " — " + modelData.endTime
+                                text: (timeSlotRow.index + 1) + "."
+                                Layout.preferredWidth: 28
+                            }
+                            Label {
+                                text: timeSlotRow.modelData.startTime + " — "
+                                      + timeSlotRow.modelData.endTime
                                 Layout.fillWidth: true
                             }
                         }
@@ -211,16 +220,16 @@ Dialog {
         RowLayout {
             Layout.fillWidth: true
             Item { Layout.fillWidth: true }
-            Button {
+            AppButton {
                 text: "取消"
+                type: "secondary"
                 onClicked: {
                     root.cancelClicked()
                     root.close()
                 }
             }
-            Button {
+            AppButton {
                 text: "保存"
-                highlighted: true
                 onClicked: root.saveClicked()
             }
         }

@@ -3,25 +3,35 @@ pragma ComponentBehavior: Bound
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import "../../components"
 import "../../styles"
 
 Dialog {
     id: root
 
     title: "课表管理"
-    width: 520
-    height: 440
+    width: Math.min(parent ? parent.width - 48 : 560, 560)
+    height: Math.min(parent ? parent.height - 48 : 520, 520)
     modal: true
+    standardButtons: Dialog.NoButton
 
     property var scheduleList: []
+
     signal switchSchedule(string scheduleId)
     signal newSchedule(string name)
     signal renameSchedule(string scheduleId, string newName)
     signal deleteScheduleRequested(string scheduleId)
 
-    ColumnLayout {
-        anchors.fill: parent
-        spacing: 10
+    contentItem: ColumnLayout {
+        spacing: Theme.spacing16
+
+        Text {
+            Layout.fillWidth: true
+            text: "新建、切换或整理保存在本机的课表"
+            font.pixelSize: Theme.fontCaption
+            color: Theme.mutedText
+            wrapMode: Text.WordWrap
+        }
 
         ListView {
             id: listView
@@ -29,83 +39,104 @@ Dialog {
             Layout.fillHeight: true
             clip: true
             model: root.scheduleList
-            spacing: 4
+            spacing: Theme.spacing8
 
             delegate: Rectangle {
-                required property int index
+                id: scheduleItem
+
                 required property var modelData
+
                 width: listView.width
-                height: 62
-                radius: 5
+                height: 68
+                radius: Theme.cardRadius
                 color: modelData.isCurrent ? Theme.primarySoft : Theme.surfaceMuted
-                border.color: Theme.border
+                border.color: modelData.isCurrent ? Theme.accent : Theme.border
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 8
+                    anchors.margins: Theme.spacing12
+                    spacing: Theme.spacing8
 
                     ColumnLayout {
                         Layout.fillWidth: true
-                        Text {
+                        spacing: Theme.spacing4
+
+                        RowLayout {
                             Layout.fillWidth: true
-                            text: modelData.semesterName
-                            color: Theme.text
-                            font.weight: Theme.weightStrong
-                            elide: Text.ElideRight
+                            spacing: Theme.spacing8
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: scheduleItem.modelData.semesterName
+                                color: Theme.text
+                                font.pixelSize: Theme.fontBody
+                                font.weight: Theme.weightStrong
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                visible: scheduleItem.modelData.isCurrent
+                                text: "当前"
+                                color: Theme.success
+                                font.pixelSize: Theme.fontCaption
+                                font.weight: Theme.weightStrong
+                            }
                         }
+
                         Text {
-                            text: "共 " + modelData.totalWeeks + " 周"
+                            text: "共 " + scheduleItem.modelData.totalWeeks + " 周"
                             color: Theme.mutedText
                             font.pixelSize: Theme.fontCaption
                         }
                     }
-                    Label {
-                        text: "当前"
-                        visible: modelData.isCurrent
-                        color: Theme.success
+
+                    ToolButton {
+                        text: "切换"
+                        visible: !scheduleItem.modelData.isCurrent
+                        onClicked: root.switchSchedule(scheduleItem.modelData.id)
                     }
+
                     ToolButton {
                         text: "重命名"
                         onClicked: {
-                            renameDialog.scheduleId = modelData.id
-                            renameField.text = modelData.semesterName
+                            renameDialog.scheduleId = scheduleItem.modelData.id
+                            renameField.text = scheduleItem.modelData.semesterName
                             renameDialog.open()
                         }
                     }
+
                     ToolButton {
                         text: "删除"
-                        onClicked: root.deleteScheduleRequested(modelData.id)
+                        onClicked: root.deleteScheduleRequested(scheduleItem.modelData.id)
                     }
                 }
 
-                MouseArea {
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    anchors.right: parent.right
-                    anchors.rightMargin: 170
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (!parent.modelData.isCurrent)
-                            root.switchSchedule(parent.modelData.id)
-                    }
-                }
             }
 
-            Label {
-                anchors.centerIn: parent
+            EmptyView {
+                anchors.fill: parent
                 visible: root.scheduleList.length === 0
-                text: "暂无课表"
-                color: Theme.mutedText
+                title: "暂无课表"
+                description: "创建空白课表，或从教务系统导入"
             }
         }
 
         RowLayout {
             Layout.fillWidth: true
-            Button { text: "新建课表"; onClicked: newDialog.open() }
+            spacing: Theme.spacing8
+
+            AppButton {
+                text: "新建课表"
+                onClicked: newDialog.open()
+            }
+
             Item { Layout.fillWidth: true }
-            Button { text: "关闭"; onClicked: root.close() }
+
+            AppButton {
+                text: "关闭"
+                type: "secondary"
+                onClicked: root.close()
+            }
         }
     }
 
@@ -114,22 +145,29 @@ Dialog {
         parent: Overlay.overlay
         title: "新建课表"
         modal: true
-        width: 360
+        width: Math.min(parent ? parent.width - 48 : 380, 380)
         standardButtons: Dialog.NoButton
+
         contentItem: ColumnLayout {
-            spacing: 10
+            spacing: Theme.spacing12
+
             TextField {
                 id: newNameField
                 Layout.fillWidth: true
                 placeholderText: "请输入课表名称"
             }
+
             RowLayout {
                 Layout.fillWidth: true
+                spacing: Theme.spacing8
                 Item { Layout.fillWidth: true }
-                Button { text: "取消"; onClicked: newDialog.close() }
-                Button {
+                AppButton {
+                    text: "取消"
+                    type: "secondary"
+                    onClicked: newDialog.close()
+                }
+                AppButton {
                     text: "创建"
-                    highlighted: true
                     enabled: newNameField.text.trim().length > 0
                     onClicked: {
                         root.newSchedule(newNameField.text.trim())
@@ -146,22 +184,35 @@ Dialog {
         parent: Overlay.overlay
         title: "重命名课表"
         modal: true
-        width: 360
-        property string scheduleId: ""
+        width: Math.min(parent ? parent.width - 48 : 380, 380)
         standardButtons: Dialog.NoButton
+
+        property string scheduleId: ""
+
         contentItem: ColumnLayout {
-            spacing: 10
-            TextField { id: renameField; Layout.fillWidth: true }
+            spacing: Theme.spacing12
+
+            TextField {
+                id: renameField
+                Layout.fillWidth: true
+                placeholderText: "请输入新的课表名称"
+            }
+
             RowLayout {
                 Layout.fillWidth: true
+                spacing: Theme.spacing8
                 Item { Layout.fillWidth: true }
-                Button { text: "取消"; onClicked: renameDialog.close() }
-                Button {
+                AppButton {
+                    text: "取消"
+                    type: "secondary"
+                    onClicked: renameDialog.close()
+                }
+                AppButton {
                     text: "确定"
-                    highlighted: true
                     enabled: renameField.text.trim().length > 0
                     onClicked: {
-                        root.renameSchedule(renameDialog.scheduleId, renameField.text.trim())
+                        root.renameSchedule(renameDialog.scheduleId,
+                                            renameField.text.trim())
                         renameDialog.close()
                     }
                 }

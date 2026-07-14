@@ -3,6 +3,8 @@
 #include <QJsonDocument>
 #include <QSet>
 
+#include <algorithm>
+
 namespace {
 constexpr auto SchemeKey = "grades.scheme_scores";
 constexpr auto PassingKey = "grades.passing_scores";
@@ -41,6 +43,10 @@ GradesViewModel::GradesViewModel(QueryCacheRepository *cache, ZhjwQueryService *
     if (m_api) {
         connect(m_api, &ZhjwQueryService::loggedInChanged, this, &GradesViewModel::authChanged);
     }
+    connect(this, &GradesViewModel::schemeChanged,
+            this, &GradesViewModel::filterOptionsChanged);
+    connect(this, &GradesViewModel::passingChanged,
+            this, &GradesViewModel::filterOptionsChanged);
 }
 
 // 返回方案成绩查询状态。
@@ -65,6 +71,54 @@ QVariantList GradesViewModel::schemeGroups() const { return termGroupsToVariant(
 QVariantList GradesViewModel::passingGroups() const { return passingGroupsToVariant(m_passing.groups); }
 // 返回当前成绩搜索关键字。
 QString GradesViewModel::searchQuery() const { return m_searchQuery; }
+// 返回可供界面选择的真实学期集合。
+QStringList GradesViewModel::availableTerms() const
+{
+    QSet<QString> unique;
+    const auto collect = [&unique](const QList<GradeCourseItem> &items) {
+        for (const GradeCourseItem &item : items) {
+            const QString label = (item.academicYearCode + QStringLiteral(" ")
+                                   + item.termName).trimmed();
+            if (!label.isEmpty()) {
+                unique.insert(label);
+            }
+        }
+    };
+    collect(m_scheme.items);
+    for (const PassingScoreGroup &group : m_passing.groups) {
+        collect(group.items);
+    }
+
+    QStringList terms = unique.values();
+    std::sort(terms.begin(), terms.end(), std::greater<QString>());
+    terms.prepend(QStringLiteral("全部学期"));
+    return terms;
+}
+
+// 返回可供界面选择的真实课程类型集合。
+QStringList GradesViewModel::availableCourseTypes() const
+{
+    QSet<QString> unique;
+    const auto collect = [&unique](const QList<GradeCourseItem> &items) {
+        for (const GradeCourseItem &item : items) {
+            if (!item.courseAttributeName.trimmed().isEmpty()) {
+                unique.insert(item.courseAttributeName.trimmed());
+            }
+        }
+    };
+    collect(m_scheme.items);
+    for (const PassingScoreGroup &group : m_passing.groups) {
+        collect(group.items);
+    }
+
+    QStringList courseTypes = unique.values();
+    std::sort(courseTypes.begin(), courseTypes.end());
+    courseTypes.prepend(QStringLiteral("全部类型"));
+    return courseTypes;
+}
+
+QString GradesViewModel::selectedTerm() const { return m_selectedTerm; }
+QString GradesViewModel::selectedCourseType() const { return m_selectedCourseType; }
 // 返回当前登录状态。
 bool GradesViewModel::loggedIn() const { return m_api && m_api->loggedIn(); }
 
@@ -184,6 +238,36 @@ void GradesViewModel::setSearchQuery(QString query)
     }
     m_searchQuery = query;
     emit searchQueryChanged();
+    emit schemeChanged();
+    emit passingChanged();
+}
+
+void GradesViewModel::setSelectedTerm(QString term)
+{
+    term = term.trimmed();
+    if (term.isEmpty()) {
+        term = QStringLiteral("全部学期");
+    }
+    if (m_selectedTerm == term) {
+        return;
+    }
+    m_selectedTerm = term;
+    emit filtersChanged();
+    emit schemeChanged();
+    emit passingChanged();
+}
+
+void GradesViewModel::setSelectedCourseType(QString courseType)
+{
+    courseType = courseType.trimmed();
+    if (courseType.isEmpty()) {
+        courseType = QStringLiteral("全部类型");
+    }
+    if (m_selectedCourseType == courseType) {
+        return;
+    }
+    m_selectedCourseType = courseType;
+    emit filtersChanged();
     emit schemeChanged();
     emit passingChanged();
 }
@@ -430,13 +514,18 @@ void GradesViewModel::writePassingCache(const QJsonObject &root)
 // 根据搜索关键字过滤课程列表。
 QList<GradeCourseItem> GradesViewModel::filteredItems(const QList<GradeCourseItem> &items) const
 {
-    if (m_searchQuery.isEmpty()) {
-        return items;
-    }
     QList<GradeCourseItem> filtered;
     for (const GradeCourseItem &item : items) {
-        if (item.courseName.contains(m_searchQuery, Qt::CaseInsensitive) ||
-            item.englishCourseName.contains(m_searchQuery, Qt::CaseInsensitive)) {
+        const bool searchMatches = m_searchQuery.isEmpty()
+            || item.courseName.contains(m_searchQuery, Qt::CaseInsensitive)
+            || item.englishCourseName.contains(m_searchQuery, Qt::CaseInsensitive);
+        const QString termLabel = (item.academicYearCode + QStringLiteral(" ")
+                                   + item.termName).trimmed();
+        const bool termMatches = m_selectedTerm == QStringLiteral("全部学期")
+            || termLabel == m_selectedTerm;
+        const bool typeMatches = m_selectedCourseType == QStringLiteral("全部类型")
+            || item.courseAttributeName == m_selectedCourseType;
+        if (searchMatches && termMatches && typeMatches) {
             filtered.append(item);
         }
     }

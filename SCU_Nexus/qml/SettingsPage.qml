@@ -1,191 +1,308 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "components"
 import "styles"
 
-// 设置页：内容居中收拢为一栏（黄金分割比例控制阅读宽度与竖向节奏），
-// 每个分区为带投影的 Fluent 卡片，主题切换用分段控件。
+// Context properties are intentionally injected by main.cpp.
+// qmllint disable unqualified
+
 Item {
     id: root
 
     property string pendingAction: ""
 
-    // 黄金分割：内容最大宽度与竖向间距按 φ≈1.618 推导，视觉更协调。
-    readonly property real phi: 1.618
-    readonly property int contentMaxWidth: 720
-    readonly property int sectionSpacing: 20
-    readonly property int innerSpacing: Math.round(sectionSpacing / phi)   // ≈ 12
-    readonly property int cardMargin: 20
+    readonly property int contentMaxWidth: 840
+    readonly property int cardMargin: Theme.spacing20
 
-    ScrollView {
+    Flickable {
+        id: settingsFlickable
         anchors.fill: parent
-        contentWidth: availableWidth
+        contentWidth: width
+        contentHeight: settingsColumn.implicitHeight + 2 * Theme.spacing24
         clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        ScrollBar.vertical: ScrollBar { }
 
         ColumnLayout {
-            width: Math.min(parent.width - 2 * Theme.pagePadding, root.contentMaxWidth)
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: Math.round(root.sectionSpacing * root.phi)   // ≈ 32
-            anchors.bottomMargin: root.sectionSpacing
-            spacing: root.sectionSpacing
+            id: settingsColumn
+            width: Math.max(320, Math.min(settingsFlickable.width
+                                         - 2 * Theme.pagePadding,
+                                         root.contentMaxWidth))
+            x: Math.max(Theme.pagePadding,
+                        (settingsFlickable.width - width) / 2)
+            y: Theme.spacing24
+            spacing: Theme.spacing16
 
             ModuleHeader {
                 Layout.fillWidth: true
-                Layout.bottomMargin: Math.round(root.innerSpacing / root.phi)  // ≈ 7
+                Layout.bottomMargin: Theme.spacing4
                 title: "设置"
-                subtitle: "账户、缓存、外观和版本信息。"
+                subtitle: "管理账户、数据、外观和应用信息"
             }
 
-            // ---- 账户 ----
             Card {
                 Layout.fillWidth: true
-                implicitHeight: accountCol.implicitHeight + 2 * root.cardMargin
+                implicitHeight: accountLayout.implicitHeight + 2 * root.cardMargin
 
-                ColumnLayout {
-                    id: accountCol
+                RowLayout {
+                    id: accountLayout
                     anchors.fill: parent
                     anchors.margins: root.cardMargin
-                    spacing: root.innerSpacing
+                    spacing: Theme.spacing16
 
-                    SectionHeader {
-                        Layout.fillWidth: true
-                        title: "账户"
-                        description: appController.loggedIn ? "当前已登录统一身份认证。" : "登录后可查询考表和教务成绩。"
+                    Rectangle {
+                        Layout.preferredWidth: 44
+                        Layout.preferredHeight: 44
+                        Layout.alignment: Qt.AlignVCenter
+                        radius: 22
+                        color: Theme.primarySoft
+                        border.color: Theme.accent
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: appController.loggedIn ? "✓" : "人"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSection
+                            font.weight: Theme.weightStrong
+                            color: Theme.accent
+                        }
                     }
 
-                    RowLayout {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: root.innerSpacing
+                        spacing: Theme.spacing4
 
-                        Rectangle {
-                            Layout.preferredWidth: 9
-                            Layout.preferredHeight: 9
-                            radius: 4.5
-                            Layout.alignment: Qt.AlignVCenter
-                            color: appController.loggedIn ? Theme.success : Theme.placeholder
+                        Text {
+                            Layout.fillWidth: true
+                            text: "账户与安全"
+                            font.pixelSize: Theme.fontSection
+                            font.weight: Theme.weightStrong
+                            color: Theme.text
+                            elide: Text.ElideRight
                         }
 
                         Text {
                             Layout.fillWidth: true
-                            text: appController.loggedIn ? "已登录" : "未登录"
-                            font.pixelSize: Theme.fontBody
-                            color: Theme.text
-                            verticalAlignment: Text.AlignVCenter
+                            text: appController.loggedIn
+                                  ? "已登录统一身份认证，可使用教务查询与课表导入"
+                                  : "当前未登录，登录后可使用教务查询与课表导入"
+                            font.pixelSize: Theme.fontCaption
+                            color: Theme.mutedText
+                            wrapMode: Text.WordWrap
                         }
+                    }
 
-                        AppButton {
-                            text: appController.loggedIn ? "退出登录" : "去登录"
-                            type: appController.loggedIn ? "danger" : "primary"
-                            // 根据当前登录状态打开退出确认框或跳转登录页。
-                            onClicked: {
-                                if (appController.loggedIn) {
-                                    pendingAction = "logout"
-                                    confirmDialog.title = "退出登录"
-                                    confirmDialog.message = "确定要退出当前账号吗？"
-                                    confirmDialog.confirmText = "退出"
-                                    confirmDialog.type = "danger"
-                                    confirmDialog.open()
-                                } else {
-                                    router.navigate("Login")
-                                }
+                    AppButton {
+                        text: appController.loggedIn ? "退出登录" : "去登录"
+                        type: appController.loggedIn ? "danger" : "primary"
+                        onClicked: {
+                            if (appController.loggedIn) {
+                                root.pendingAction = "logout"
+                                confirmDialog.title = "退出登录"
+                                confirmDialog.message = "确定要退出当前账号吗？"
+                                confirmDialog.confirmText = "退出"
+                                confirmDialog.type = "danger"
+                                confirmDialog.open()
+                            } else {
+                                router.navigate("Login")
                             }
                         }
                     }
                 }
             }
 
-            // ---- 数据管理 ----
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.spacing8
+                text: "数据管理"
+                font.pixelSize: Theme.fontLabel
+                font.weight: Theme.weightStrong
+                color: Theme.mutedText
+            }
+
             Card {
                 Layout.fillWidth: true
-                implicitHeight: dataCol.implicitHeight + 2 * root.cardMargin
+                implicitHeight: dataLayout.implicitHeight + 2 * root.cardMargin
 
                 ColumnLayout {
-                    id: dataCol
+                    id: dataLayout
                     anchors.fill: parent
                     anchors.margins: root.cardMargin
-                    spacing: root.innerSpacing
+                    spacing: Theme.spacing16
 
-                    SectionHeader {
+                    RowLayout {
                         Layout.fillWidth: true
-                        title: "数据管理"
-                        description: "清除本地课表或校历、考表、成绩查询缓存。"
+                        spacing: Theme.spacing16
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: Theme.spacing4
+
+                            Text {
+                                text: "清除课表缓存"
+                                font.pixelSize: Theme.fontBody
+                                font.weight: Theme.weightMedium
+                                color: Theme.text
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "删除本地课表、课程和课表设置数据"
+                                font.pixelSize: Theme.fontCaption
+                                color: Theme.mutedText
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+
+                        AppButton {
+                            text: "清除"
+                            type: "secondary"
+                            onClicked: root.openDangerConfirm(
+                                           "clearSchedule",
+                                           "清除课表缓存",
+                                           "确定要清除本地课表缓存吗？")
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 1
+                        color: Theme.border
                     }
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: root.innerSpacing
+                        spacing: Theme.spacing16
 
-                        AppButton {
+                        ColumnLayout {
                             Layout.fillWidth: true
-                            text: "清除课表缓存"
-                            type: "secondary"
-                            onClicked: openDangerConfirm("clearSchedule", "清除课表缓存", "确定要清除本地课表缓存吗？")
+                            spacing: Theme.spacing4
+
+                            Text {
+                                text: "清除查询缓存"
+                                font.pixelSize: Theme.fontBody
+                                font.weight: Theme.weightMedium
+                                color: Theme.text
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "删除校历、考表和成绩的本地查询缓存"
+                                font.pixelSize: Theme.fontCaption
+                                color: Theme.mutedText
+                                wrapMode: Text.WordWrap
+                            }
                         }
 
                         AppButton {
-                            Layout.fillWidth: true
-                            text: "清除查询缓存"
+                            text: "清除"
                             type: "secondary"
-                            onClicked: openDangerConfirm("clearQuery", "清除查询缓存", "确定要清除考表、成绩等查询缓存吗？")
+                            onClicked: root.openDangerConfirm(
+                                           "clearQuery",
+                                           "清除查询缓存",
+                                           "确定要清除校历、考表和成绩查询缓存吗？")
                         }
                     }
                 }
             }
 
-            // ---- 外观 ----
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.spacing8
+                text: "外观"
+                font.pixelSize: Theme.fontLabel
+                font.weight: Theme.weightStrong
+                color: Theme.mutedText
+            }
+
             Card {
                 Layout.fillWidth: true
-                implicitHeight: appearanceCol.implicitHeight + 2 * root.cardMargin
+                implicitHeight: appearanceLayout.implicitHeight + 2 * root.cardMargin
 
                 ColumnLayout {
-                    id: appearanceCol
+                    id: appearanceLayout
                     anchors.fill: parent
                     anchors.margins: root.cardMargin
-                    spacing: root.innerSpacing
+                    spacing: Theme.spacing12
 
                     SectionHeader {
                         Layout.fillWidth: true
-                        title: "外观"
-                        description: "主题设置统一由 ThemeManager 输出。"
+                        title: "应用主题"
+                        description: "主题选择会立即应用，并在下次启动时保留"
                     }
 
                     SegmentedControl {
                         Layout.fillWidth: true
+                        Layout.maximumWidth: 480
                         model: [
                             { label: "跟随系统", value: "system" },
                             { label: "浅色", value: "light" },
                             { label: "深色", value: "dark" }
                         ]
                         value: themeManager.mode
-                        onActivated: themeManager.setMode(newValue)
+                        onActivated: function(newValue) {
+                            themeManager.setMode(newValue)
+                        }
                     }
                 }
             }
 
-            // ---- 版本 ----
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.spacing8
+                text: "关于"
+                font.pixelSize: Theme.fontLabel
+                font.weight: Theme.weightStrong
+                color: Theme.mutedText
+            }
+
             Card {
                 Layout.fillWidth: true
-                implicitHeight: 56
+                implicitHeight: aboutLayout.implicitHeight + 2 * root.cardMargin
 
                 RowLayout {
+                    id: aboutLayout
                     anchors.fill: parent
-                    anchors.leftMargin: root.cardMargin
-                    anchors.rightMargin: root.cardMargin
+                    anchors.margins: root.cardMargin
+                    spacing: Theme.spacing16
 
-                    Text {
-                        text: "版本"
-                        font.pixelSize: Theme.fontBody
-                        color: Theme.mutedText
+                    Rectangle {
+                        Layout.preferredWidth: 44
+                        Layout.preferredHeight: 44
+                        radius: Theme.cardRadius
+                        color: Theme.accent
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "川"
+                            font.pixelSize: Theme.fontSection
+                            font.weight: Theme.weightStrong
+                            color: Theme.accentText
+                        }
                     }
 
-                    Text {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        text: "v" + appController.appVersion
-                        font.pixelSize: Theme.fontBody
-                        color: Theme.text
-                        horizontalAlignment: Text.AlignRight
+                        spacing: Theme.spacing4
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: "SCU Nexus 校园学习工作台"
+                            font.pixelSize: Theme.fontBody
+                            font.weight: Theme.weightStrong
+                            color: Theme.text
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: "版本 v" + appController.appVersion
+                            font.pixelSize: Theme.fontCaption
+                            color: Theme.mutedText
+                        }
                     }
                 }
             }
@@ -195,31 +312,30 @@ Item {
     AppDialog {
         id: confirmDialog
         anchors.centerIn: parent
-        // 根据待确认动作执行退出登录或缓存清理提示。
+
         onConfirmed: {
-            if (pendingAction === "logout") {
+            if (root.pendingAction === "logout") {
                 appController.authViewModel.logout()
                 toastManager.show("已退出登录")
-            } else if (pendingAction === "clearSchedule") {
+            } else if (root.pendingAction === "clearSchedule") {
                 if (scheduleViewModel.clearAllCourseData())
                     toastManager.show("已清除本地课表数据")
                 else
                     toastManager.show(scheduleViewModel.errorMessage, "error")
-            } else if (pendingAction === "clearQuery") {
+            } else if (root.pendingAction === "clearQuery") {
                 if (queryCacheViewModel.clearAll())
                     toastManager.show("已清除考表、成绩和校历查询缓存", "success")
                 else
                     toastManager.show(queryCacheViewModel.errorMessage, "error")
             }
-            pendingAction = ""
+            root.pendingAction = ""
         }
     }
 
-    // 打开危险操作确认框，并暂存用户即将执行的动作。
-    function openDangerConfirm(action, title, message) {
-        pendingAction = action
-        confirmDialog.title = title
-        confirmDialog.message = message
+    function openDangerConfirm(action, dialogTitle, dialogMessage) {
+        root.pendingAction = action
+        confirmDialog.title = dialogTitle
+        confirmDialog.message = dialogMessage
         confirmDialog.confirmText = "清除"
         confirmDialog.type = "danger"
         confirmDialog.open()

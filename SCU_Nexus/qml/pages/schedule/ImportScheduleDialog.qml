@@ -6,6 +6,9 @@ import QtQuick.Layouts 1.15
 import "../../components"
 import "../../styles"
 
+// Context properties are intentionally injected by main.cpp.
+// qmllint disable unqualified
+
 Dialog {
     id: root
 

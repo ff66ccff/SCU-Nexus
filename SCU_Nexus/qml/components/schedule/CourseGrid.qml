@@ -17,7 +17,7 @@ Item {
     signal emptySlotClicked(int dayOfWeek, int section)
     signal courseClicked(string courseId)
 
-    implicitWidth: 980
+    implicitWidth: 900
     implicitHeight: headerHeight + sectionsPerDay * sectionHeight
 
     function colorFromArgb(value) {
@@ -52,9 +52,11 @@ Item {
     Repeater {
         model: ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         delegate: Rectangle {
+            id: dayHeader
+
             required property int index
             required property string modelData
-            x: root.timeColumnWidth + index * root.dayWidth
+            x: root.timeColumnWidth + dayHeader.index * root.dayWidth
             y: 0
             width: root.dayWidth
             height: root.headerHeight
@@ -62,8 +64,8 @@ Item {
             border.color: Theme.border
             Text {
                 anchors.centerIn: parent
-                text: modelData
-                color: index >= 5 ? Theme.mutedText : Theme.text
+                text: dayHeader.modelData
+                color: dayHeader.index >= 5 ? Theme.mutedText : Theme.text
                 font.pixelSize: Theme.fontLabel
                 font.weight: Theme.weightStrong
             }
@@ -73,9 +75,11 @@ Item {
     Repeater {
         model: root.sectionsPerDay
         delegate: Rectangle {
+            id: sectionHeader
+
             required property int index
             x: 0
-            y: root.headerHeight + index * root.sectionHeight
+            y: root.headerHeight + sectionHeader.index * root.sectionHeight
             width: root.timeColumnWidth
             height: root.sectionHeight
             color: Theme.surfaceMuted
@@ -86,15 +90,18 @@ Item {
                 spacing: 1
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: index + 1
+                    text: sectionHeader.index + 1
                     color: Theme.text
                     font.pixelSize: Theme.fontCaption
                     font.bold: true
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    visible: index < root.timeSlots.length
-                    text: visible ? root.timeSlots[index].startTime + "\n" + root.timeSlots[index].endTime : ""
+                    visible: sectionHeader.index < root.timeSlots.length
+                    text: visible
+                          ? root.timeSlots[sectionHeader.index].startTime + "\n"
+                            + root.timeSlots[sectionHeader.index].endTime
+                          : ""
                     horizontalAlignment: Text.AlignHCenter
                     color: Theme.mutedText
                     font.pixelSize: 9
@@ -158,6 +165,8 @@ Item {
                 courseName: courseDelegate.courseName
                 courseTeacher: courseDelegate.teacher
                 courseLocation: courseDelegate.location
+                startSection: courseDelegate.startSection
+                endSection: courseDelegate.endSection
                 cardColor: root.colorFromArgb(courseDelegate.colorValue)
                 isActive: courseDelegate.active
                 hasConflict: courseDelegate.conflict

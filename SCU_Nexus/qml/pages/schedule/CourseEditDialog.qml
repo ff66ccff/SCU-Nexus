@@ -172,14 +172,18 @@ Dialog {
                     Repeater {
                         model: ["#EF5350","#EC407A","#AB47BC","#7E57C2","#5C6BC0","#42A5F5","#26C6DA","#26A69A","#66BB6A","#9CCC65","#FFA726","#8D6E63"]
                         Rectangle {
+                            id: colorSwatch
+
                             required property string modelData
                             width: 28; height: 28; radius: 14
-                            color: modelData
-                            border.width: courseEditDialog.courseColor === modelData ? 3 : 0
+                            color: colorSwatch.modelData
+                            border.width: courseEditDialog.courseColor
+                                          === colorSwatch.modelData ? 3 : 0
                             border.color: "#333"
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: courseEditDialog.courseColor = modelData
+                                onClicked: courseEditDialog.courseColor
+                                           = colorSwatch.modelData
                             }
                         }
                     }

@@ -1,0 +1,45 @@
+name: 缺陷报告
+description: 报告可稳定复现的问题
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 请先搜索现有 Issue，并移除截图、日志中的账号、Cookie、成绩等敏感信息。
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: Release 版本或 commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: Windows 版本
+      options:
+        - Windows 11
+        - Windows 10
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: 1. 打开……
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为与日志
+      description: 请先匿名化；不要粘贴密码、Cookie、学号或成绩。
+    validations:
+      required: true

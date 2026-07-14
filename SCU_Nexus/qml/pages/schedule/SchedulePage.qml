@@ -7,6 +7,9 @@ import "../../components"
 import "../../components/schedule"
 import "../../styles"
 
+// Context properties are intentionally injected by main.cpp.
+// qmllint disable unqualified
+
 Page {
     id: root
 
@@ -106,19 +109,20 @@ Page {
         anchors.margins: Theme.pagePadding
         spacing: Theme.sectionGap
 
-        RowLayout {
+        ModuleHeader {
             Layout.fillWidth: true
-            spacing: 12
+            title: scheduleViewModel.hasSchedule
+                   ? scheduleViewModel.currentScheduleName : "课表"
+            subtitle: scheduleViewModel.hasSchedule
+                      ? "第 " + scheduleViewModel.currentWeek + " 周，共 "
+                        + scheduleViewModel.totalWeeks + " 周"
+                      : "离线查看、编辑和管理本地课表"
+        }
 
-            ModuleHeader {
-                Layout.fillWidth: true
-                title: scheduleViewModel.hasSchedule
-                       ? scheduleViewModel.currentScheduleName : "课表"
-                subtitle: scheduleViewModel.hasSchedule
-                          ? "第 " + scheduleViewModel.currentWeek + " 周，共 "
-                            + scheduleViewModel.totalWeeks + " 周"
-                          : "离线查看、编辑和管理本地课表"
-            }
+        Flow {
+            Layout.fillWidth: true
+            Layout.preferredHeight: childrenRect.height
+            spacing: Theme.spacing8
 
             AppButton {
                 text: "导入课表"
@@ -146,7 +150,7 @@ Page {
                 }
             }
             AppButton {
-                text: "设置"
+                text: "课表设置"
                 type: "secondary"
                 enabled: scheduleViewModel.hasSchedule
                 onClicked: root.openSettings()
@@ -155,13 +159,14 @@ Page {
 
         Card {
             Layout.fillWidth: true
-            implicitHeight: 48
+            implicitHeight: weekToolbar.implicitHeight + 2 * Theme.spacing8
             visible: scheduleViewModel.hasSchedule
 
             RowLayout {
+                id: weekToolbar
                 anchors.fill: parent
-                anchors.margins: 8
-                spacing: 8
+                anchors.margins: Theme.spacing8
+                spacing: Theme.spacing8
 
                 WeekSwitcher {
                     currentWeek: scheduleViewModel.currentWeek
@@ -205,6 +210,12 @@ Page {
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.minimumWidth: 0
+            Layout.minimumHeight: 0
+            Layout.preferredWidth: 0
+            Layout.preferredHeight: 0
+            Layout.maximumWidth: root.width - 2 * Theme.pagePadding
+            clip: true
 
             LoadingView {
                 anchors.fill: parent
@@ -231,7 +242,7 @@ Page {
                 clip: true
 
                 CourseGrid {
-                    width: Math.max(gridScroll.availableWidth, 980)
+                    width: Math.max(gridScroll.availableWidth, 900)
                     height: implicitHeight
                     courseModel: scheduleViewModel.courseListModel
                     sectionsPerDay: scheduleViewModel.sectionsPerDay

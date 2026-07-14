@@ -2,6 +2,9 @@ import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import "../styles"
 
+// toastManager is intentionally injected by main.cpp; model roles are delegate-scoped.
+// qmllint disable unqualified
+
 Item {
     id: root
 

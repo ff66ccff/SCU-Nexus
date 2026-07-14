@@ -2,6 +2,9 @@ pragma Singleton
 
 import QtQuick 2.15
 
+// themeManager is intentionally injected by main.cpp.
+// qmllint disable unqualified
+
 // 设计令牌单例。
 // 视觉基调对齐 FluentWinUI3（Windows 11 Fluent Design）：
 //   - 中性表面采用 Mica / Card / Layer 三层灰阶；
@@ -10,14 +13,26 @@ import QtQuick 2.15
 // 说明：为兼容既有页面，保留 primary* 命名，并把它们映射到品牌强调色。
 QtObject {
     // ---- Spacing & metrics (doc §10) ----
+    readonly property int spacing4: 4
+    readonly property int spacing8: 8
+    readonly property int spacing12: 12
+    readonly property int spacing16: 16
+    readonly property int spacing20: 20
+    readonly property int spacing24: 24
     readonly property int pagePadding: 20
     readonly property int sectionGap: 16
     readonly property int cardPadding: 16
     readonly property int controlHeight: 34
     readonly property int cardRadius: 8       // Fluent 卡片/浮层圆角
     readonly property int smallRadius: 5       // Fluent 控件圆角
-    readonly property int navWidth: 200
-    readonly property int topBarHeight: 56
+    readonly property int navWidth: 224
+    readonly property int navCompactWidth: 68
+    readonly property int topBarHeight: 52
+
+    // Windows 11 typography, with the Chinese family selected by Qt as fallback.
+    readonly property string fontFamily: "Segoe UI Variable"
+    readonly property string chineseFontFamily: "Microsoft YaHei UI"
+    readonly property string iconFontFamily: "Segoe Fluent Icons"
 
     // ---- Typography scale (doc §10 text hierarchy) ----
     readonly property int fontTitle: 22      // 页面标题 (20-24)

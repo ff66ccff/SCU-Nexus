@@ -1,75 +1,70 @@
-team_work_assignment.md
-产品详细设计与架构设计说明书模板v5.docx
-需求分析与产品初步设计说明书模板v4.docx
-/Bugaoshan
+# Operating systems
+.DS_Store
+Thumbs.db
+Desktop.ini
 
-build/
-out/
+# Editors and IDEs
+.idea/
 .vs/
+.vscode/
 .qtcreator/
 *.user
-*.sqlite
-*.db
-build*
+*.user.*
+*.autosave
+*.swp
+*.suo
 
-# C++ objects and libs
-*.slo
-*.lo
+# CMake, Qt and compiler outputs
+/CMakeFiles/
+/build/
+/out/
+**/build/
+**/build-*/
+**/CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+compile_commands.json
+Makefile
+build.ninja
+.ninja_deps
+.ninja_log
+.qt/
+.qtc_clangd/
 *.o
+*.obj
 *.a
-*.la
-*.lai
+*.lib
+*.dll
 *.so
 *.so.*
-*.dll
 *.dylib
-
-# Qt-es
-object_script.*.Release
-object_script.*.Debug
-*_plugin_import.cpp
-/.qmake.cache
-/.qmake.stash
-*.pro.user
-*.pro.user.*
-*.qbs.user
-*.qbs.user.*
+*.exe
+*.pdb
 *.moc
+*.qmlc
+*.jsc
+*.qm
+*.prl
+*_autogen/
+*_qmlcache.qrc
+*_plugin_import.cpp
 moc_*.cpp
 moc_*.h
 qrc_*.cpp
 ui_*.h
-*.qmlc
-*.jsc
-Makefile*
-*build-*
-*.qm
-*.prl
-*.qmlls.ini
 
-# Qt unit tests
-target_wrapper.*
+# Runtime and test data
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+*.log
+coverage/
 
-# QtCreator
-*.autosave
-
-# QtCreator Qml
-*.qmlproject.user
-*.qmlproject.user.*
-
-# QtCreator CMake
-CMakeLists.txt.user*
-
-# QtCreator 4.8< compilation database
-compile_commands.json
-
-# QtCreator local machine specific files for imported projects
-*creator.user*
-
-*_qmlcache.qrc
-01-team-work-overview.md
-02-feature-implementation-details.md
-SCU_Nexus/importedcontent/README.md
-/SCU_Nexus/.idea
-/SCU_Nexus/src/app/.idea
-/Bugaoshan-main
+# Local references and work notes
+/Bugaoshan-main/
+/docs/ui-reference/
+/UI_MIGRATION_*.md

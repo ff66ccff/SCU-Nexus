@@ -4,7 +4,13 @@ import QtQuick.Layouts 1.15
 import "../../components/query"
 import "../../styles"
 
+// Context properties are intentionally injected by main.cpp.
+// qmllint disable unqualified
+
 Item {
+    id: root
+    objectName: "schemeScoresTab"
+
     property var groups: []
 
     Component.onCompleted: refreshGroups()
@@ -31,13 +37,15 @@ Item {
     }
 
     ScrollView {
+        id: schemeScroll
         anchors.fill: parent
         visible: !statePane.visible
         clip: true
+        contentWidth: availableWidth
 
         ColumnLayout {
-            width: Math.max(parent.width - 16, 320)
-            spacing: 14
+            width: Math.max(schemeScroll.availableWidth, 320)
+            spacing: Theme.spacing16
 
             GradeSummaryPanel {
                 Layout.fillWidth: true

@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
 
     app.setOrganizationName("SCU");
     app.setApplicationName("SCU_Nexus");
-    app.setApplicationVersion("0.1.0");
+    app.setApplicationVersion(QStringLiteral(SCU_NEXUS_VERSION));
 
     // Fluent WinUI 3 是 Qt 6.8+ 自带的现代 Windows 11 风格；
     // 若运行环境未安装该样式模块，Qt 会回退到默认样式并打印告警。

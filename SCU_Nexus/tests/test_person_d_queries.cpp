@@ -547,6 +547,7 @@ private slots:
     void excludesIneffectiveCoursesFromCreditStats();
     void ignoresDuplicateExamRefreshWhileLoading();
     void ignoresDuplicateGradeRefreshesWhileLoading();
+    void gradeFiltersUseRealTermsAndCourseTypes();
     void cachedExamRefreshUsesRefreshingAndKeepsContent();
     void cachedSchemeRefreshUsesRefreshingAndKeepsContent();
     void cachedPassingRefreshUsesRefreshingAndKeepsContent();
@@ -3395,6 +3396,64 @@ void PersonDQueryTest::clearGradesCacheResetsChangedStateOnce()
     QCOMPARE(schemeSpy.count(), 0);
     QCOMPARE(passingSpy.count(), 0);
     QCOMPARE(searchSpy.count(), 0);
+}
+
+void PersonDQueryTest::gradeFiltersUseRealTermsAndCourseTypes()
+{
+    FakeZhjwQueryService service;
+    service.loggedInValue = true;
+
+    QJsonObject schemeRoot = sampleSchemeRoot();
+    QJsonObject year = schemeRoot.value(QStringLiteral("lnList"))
+                           .toArray().first().toObject();
+    QJsonArray courses = year.value(QStringLiteral("cjList")).toArray();
+    QJsonObject elective = courses.first().toObject();
+    elective.insert(QStringLiteral("courseName"), QStringLiteral("大学英语"));
+    elective.insert(QStringLiteral("courseAttributeName"), QStringLiteral("任选"));
+    elective.insert(QStringLiteral("academicYearCode"), QStringLiteral("2024-2025"));
+    elective.insert(QStringLiteral("termName"), QStringLiteral("春"));
+    courses.append(elective);
+    year.insert(QStringLiteral("cjList"), courses);
+    schemeRoot.insert(QStringLiteral("lnList"), QJsonArray{year});
+
+    service.schemeScores = schemeRoot;
+    service.passingScores = samplePassingRoot();
+    GradesViewModel model(nullptr, &service);
+    model.load();
+
+    const QMetaObject *metaObject = model.metaObject();
+    const QMetaProperty termsProperty = metaObject->property(
+        metaObject->indexOfProperty("availableTerms"));
+    const QMetaProperty typesProperty = metaObject->property(
+        metaObject->indexOfProperty("availableCourseTypes"));
+    QCOMPARE(termsProperty.notifySignal().name(), QByteArray("filterOptionsChanged"));
+    QCOMPARE(typesProperty.notifySignal().name(), QByteArray("filterOptionsChanged"));
+
+    QVERIFY(model.availableTerms().contains(QStringLiteral("2025-2026 秋")));
+    QVERIFY(model.availableTerms().contains(QStringLiteral("2024-2025 春")));
+    QVERIFY(model.availableCourseTypes().contains(QStringLiteral("必修")));
+    QVERIFY(model.availableCourseTypes().contains(QStringLiteral("任选")));
+
+    QSignalSpy filterSpy(&model, &GradesViewModel::filtersChanged);
+    model.setSelectedTerm(QStringLiteral("2024-2025 春"));
+    QCOMPARE(model.selectedTerm(), QStringLiteral("2024-2025 春"));
+    QVariantList filtered = model.filteredSchemeGroups();
+    QCOMPARE(filtered.size(), 1);
+    QCOMPARE(filtered.first().toMap().value(QStringLiteral("label")).toString(),
+             QStringLiteral("2024-2025 春"));
+
+    model.setSelectedCourseType(QStringLiteral("必修"));
+    QVERIFY(model.filteredSchemeGroups().isEmpty());
+
+    model.setSelectedTerm(QStringLiteral("全部学期"));
+    filtered = model.filteredSchemeGroups();
+    QCOMPARE(filtered.size(), 1);
+    const QVariantList filteredCourses = filtered.first().toMap()
+                                             .value(QStringLiteral("items")).toList();
+    QCOMPARE(filteredCourses.size(), 1);
+    QCOMPARE(filteredCourses.first().toMap().value(QStringLiteral("courseName")).toString(),
+             QStringLiteral("高等数学"));
+    QCOMPARE(filterSpy.count(), 3);
 }
 
 void PersonDQueryTest::examCacheRemovalFailureIsVisible()

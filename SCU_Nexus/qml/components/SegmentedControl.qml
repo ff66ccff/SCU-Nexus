@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick 2.15
 import "../styles"
 
@@ -41,7 +43,10 @@ Item {
 
             delegate: Rectangle {
                 id: seg
-                readonly property bool selected: root.value === modelData.value
+
+                required property var modelData
+
+                readonly property bool selected: root.value === seg.modelData.value
                 height: parent.height
                 width: (root.width - 2 * root._pad - (root.model.length - 1) * root._gap)
                        / Math.max(1, root.model.length)
@@ -51,7 +56,7 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
-                    text: modelData.label
+                    text: seg.modelData.label
                     font.pixelSize: Theme.fontLabel
                     font.weight: seg.selected ? Theme.weightStrong : Theme.weightNormal
                     color: seg.selected ? Theme.accentText : Theme.text
@@ -63,7 +68,7 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.activated(modelData.value)
+                    onClicked: root.activated(seg.modelData.value)
                 }
             }
         }

@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install MinGW, Qt, OpenSSL, NSIS and build tools
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-qt6-base
+            mingw-w64-x86_64-qt6-declarative
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-libiconv
+            mingw-w64-x86_64-nsis
+
+      - name: Configure
+        shell: msys2 {0}
+        run: >-
+          cmake -S SCU_Nexus -B out/build/release -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTING=ON
+          -DOPENSSL_ROOT_DIR=/mingw64
+          -DSCU_NEXUS_OPENSSL_RUNTIME=/mingw64/bin/libcrypto-3-x64.dll
+
+      - name: Build and test
+        shell: msys2 {0}
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          cmake --build out/build/release --parallel
+          ctest --test-dir out/build/release --output-on-failure
+
+      - name: Package
+        shell: msys2 {0}
+        run: |
+          mkdir -p out/packages
+          cpack --config out/build/release/CPackConfig.cmake -G ZIP -B out/packages
+          cpack --config out/build/release/CPackConfig.cmake -G NSIS -B out/packages
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SCU-Nexus-${{ github.ref_name }}-windows-x86_64
+          path: |
+            out/packages/*.exe
+            out/packages/*.zip
+            out/packages/*.sha256
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = Get-ChildItem out/packages -File |
+            Where-Object { $_.Extension -in '.exe', '.zip', '.sha256' } |
+            ForEach-Object { $_.FullName }
+          gh release create $env:GITHUB_REF_NAME $assets --generate-notes --verify-tag

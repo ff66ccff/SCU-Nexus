@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../styles"
@@ -32,6 +34,10 @@ Item {
                     Repeater {
                         model: root.columns
                         delegate: Rectangle {
+                            id: headerCell
+
+                            required property var modelData
+
                             width: Math.max(150, root.width / Math.max(1, root.columns.length))
                             height: root.rowHeight
                             color: Theme.surfaceMuted
@@ -40,7 +46,7 @@ Item {
                             Text {
                                 anchors.fill: parent
                                 anchors.margins: 10
-                                text: modelData
+                                text: headerCell.modelData
                                 font.pixelSize: Theme.fontLabel
                                 font.weight: Theme.weightStrong
                                 color: Theme.text
@@ -55,22 +61,31 @@ Item {
                     model: root.rows
                     delegate: Row {
                         id: rowDelegate
-                        property var rowData: modelData
+
+                        required property var modelData
+                        readonly property var rowData: modelData
                         width: parent.width
                         height: root.rowHeight
 
                         Repeater {
                             model: root.columns
                             delegate: Rectangle {
+                                id: dataCell
+
+                                required property int index
+                                required property var modelData
+
                                 width: Math.max(150, root.width / Math.max(1, root.columns.length))
                                 height: root.rowHeight
-                                color: index % 2 === 0 ? Theme.surface : Theme.surfaceMuted
+                                color: dataCell.index % 2 === 0
+                                       ? Theme.surface : Theme.surfaceMuted
                                 border.color: Theme.border
 
                                 Text {
                                     anchors.fill: parent
                                     anchors.margins: 10
-                                    text: rowText(modelData, rowDelegate.rowData)
+                                    text: root.rowText(dataCell.modelData,
+                                                       rowDelegate.rowData)
                                     font.pixelSize: Theme.fontLabel
                                     color: Theme.text
                                     verticalAlignment: Text.AlignVCenter

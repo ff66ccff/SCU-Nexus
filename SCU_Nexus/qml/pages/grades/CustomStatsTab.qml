@@ -5,25 +5,29 @@ import "../../components"
 import "../../components/query"
 import "../../styles"
 
+// Context properties are intentionally injected by main.cpp.
+// qmllint disable unqualified
+
 Item {
     id: root
 
     property var selectedKeys: []
-    property string attr: "全部"
     property var groups: []
     property var stats: gradesViewModel.customStatsForSelected(selectedKeys)
 
     Component.onCompleted: refreshGroups()
-    onAttrChanged: refreshGroups()
 
     Connections {
         target: gradesViewModel
         function onSchemeChanged() { refreshGroups() }
         function onSearchQueryChanged() { refreshGroups() }
+        function onFiltersChanged() {
+            refreshGroups()
+        }
     }
 
     function refreshGroups() {
-        groups = gradesViewModel.filteredSchemeGroupsByAttr(attr)
+        groups = gradesViewModel.filteredSchemeGroups()
     }
 
     function keysForGroups(sourceGroups) {
@@ -62,19 +66,15 @@ Item {
             Layout.fillWidth: true
             spacing: 8
 
-            Repeater {
-                model: ["全部", "必修", "选修", "任选"]
-                AppButton {
-                    text: modelData
-                    type: root.attr === modelData ? "primary" : "secondary"
-                    onClicked: root.attr = modelData
-                }
+            Text {
+                Layout.fillWidth: true
+                text: "勾选课程后，统计结果由成绩 ViewModel 实时计算"
+                font.pixelSize: Theme.fontCaption
+                color: Theme.mutedText
             }
 
-            Item { Layout.fillWidth: true }
-
             AppButton {
-                text: "清空"
+                text: "清空选择"
                 type: "secondary"
                 onClicked: root.selectedKeys = []
             }
@@ -114,14 +114,16 @@ Item {
         }
 
         ScrollView {
+            id: customScroll
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: !statePane.visible
             clip: true
+            contentWidth: availableWidth
 
             ColumnLayout {
-                width: Math.max(parent.width - 16, 320)
-                spacing: 12
+                width: Math.max(customScroll.availableWidth, 320)
+                spacing: Theme.spacing12
 
                 Repeater {
                     model: root.groups

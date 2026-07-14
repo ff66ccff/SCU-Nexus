@@ -8,6 +8,7 @@
 
 #include <QDateTime>
 #include <QObject>
+#include <QStringList>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -25,6 +26,10 @@ class GradesViewModel : public QObject
     Q_PROPERTY(QVariantList schemeGroups READ schemeGroups NOTIFY schemeChanged)
     Q_PROPERTY(QVariantList passingGroups READ passingGroups NOTIFY passingChanged)
     Q_PROPERTY(QString searchQuery READ searchQuery WRITE setSearchQuery NOTIFY searchQueryChanged)
+    Q_PROPERTY(QStringList availableTerms READ availableTerms NOTIFY filterOptionsChanged)
+    Q_PROPERTY(QStringList availableCourseTypes READ availableCourseTypes NOTIFY filterOptionsChanged)
+    Q_PROPERTY(QString selectedTerm READ selectedTerm WRITE setSelectedTerm NOTIFY filtersChanged)
+    Q_PROPERTY(QString selectedCourseType READ selectedCourseType WRITE setSelectedCourseType NOTIFY filtersChanged)
     Q_PROPERTY(bool loggedIn READ loggedIn NOTIFY authChanged)
 
 public:
@@ -41,6 +46,10 @@ public:
     QVariantList schemeGroups() const;
     QVariantList passingGroups() const;
     QString searchQuery() const;
+    QStringList availableTerms() const;
+    QStringList availableCourseTypes() const;
+    QString selectedTerm() const;
+    QString selectedCourseType() const;
     bool loggedIn() const;
 
     Q_INVOKABLE void load();
@@ -49,6 +58,8 @@ public:
     Q_INVOKABLE void clearSchemeError();
     Q_INVOKABLE void clearPassingError();
     Q_INVOKABLE void setSearchQuery(QString query);
+    Q_INVOKABLE void setSelectedTerm(QString term);
+    Q_INVOKABLE void setSelectedCourseType(QString courseType);
     Q_INVOKABLE QVariantList filteredSchemeGroups() const;
     Q_INVOKABLE QVariantList filteredPassingGroups() const;
     Q_INVOKABLE QVariantList filteredSchemeGroupsByAttr(const QString &attr) const;
@@ -60,6 +71,8 @@ signals:
     void schemeChanged();
     void passingChanged();
     void searchQueryChanged();
+    void filterOptionsChanged();
+    void filtersChanged();
     void authChanged();
     void toastRequested(const QString &message);
 
@@ -82,6 +95,8 @@ private:
     QDateTime m_schemeLastUpdated;
     QDateTime m_passingLastUpdated;
     QString m_searchQuery;
+    QString m_selectedTerm = QStringLiteral("全部学期");
+    QString m_selectedCourseType = QStringLiteral("全部类型");
     SchemeScoreSummary m_scheme;
     PassingScoreResult m_passing;
     bool m_hasSchemeCache = false;

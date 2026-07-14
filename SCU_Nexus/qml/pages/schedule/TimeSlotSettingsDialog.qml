@@ -55,25 +55,32 @@ Dialog {
             spacing: 6
 
             delegate: RowLayout {
+                id: slotRow
+
                 required property int index
                 required property string startTime
                 required property string endTime
                 width: ListView.view.width
-                Label { text: "第 " + (index + 1) + " 节"; Layout.preferredWidth: 64 }
+                Label {
+                    text: "第 " + (slotRow.index + 1) + " 节"
+                    Layout.preferredWidth: 64
+                }
                 TextField {
                     Layout.fillWidth: true
-                    text: startTime
+                    text: slotRow.startTime
                     placeholderText: "08:15"
                     inputMask: "99:99"
-                    onTextChanged: slotModel.setProperty(index, "startTime", text)
+                    onTextChanged: slotModel.setProperty(slotRow.index,
+                                                         "startTime", text)
                 }
                 Label { text: "—" }
                 TextField {
                     Layout.fillWidth: true
-                    text: endTime
+                    text: slotRow.endTime
                     placeholderText: "09:00"
                     inputMask: "99:99"
-                    onTextChanged: slotModel.setProperty(index, "endTime", text)
+                    onTextChanged: slotModel.setProperty(slotRow.index,
+                                                         "endTime", text)
                 }
             }
         }

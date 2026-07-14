@@ -20,6 +20,10 @@ Item {
             model: sectionColumn.sectionsPerDay
 
             Rectangle {
+                id: sectionDelegate
+
+                required property int index
+
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 color: "#f5f5f5"
@@ -31,7 +35,7 @@ Item {
                     spacing: 0
 
                     Label {
-                        text: (index + 1)
+                        text: sectionDelegate.index + 1
                         font.pixelSize: 11
                         font.bold: true
                         color: "#555"
@@ -40,8 +44,8 @@ Item {
 
                     Label {
                         text: {
-                            if (index < timeSlots.length) {
-                                var s = timeSlots[index]
+                            if (sectionDelegate.index < sectionColumn.timeSlots.length) {
+                                var s = sectionColumn.timeSlots[sectionDelegate.index]
                                 return s.startTime || ""
                             }
                             return ""
