@@ -32,6 +32,24 @@ if(MINGW)
     )
 endif()
 find_package(Iconv REQUIRED)
+
+# Qt's MinGW kit ships its matching OpenSSL SDK in <compiler>/opt, but
+# Qt Creator does not add that directory to CMake's search path by default.
+if(WIN32 AND MINGW AND NOT OPENSSL_ROOT_DIR AND CMAKE_CXX_COMPILER)
+    get_filename_component(_scu_nexus_compiler_bin
+        "${CMAKE_CXX_COMPILER}" DIRECTORY
+    )
+    get_filename_component(_scu_nexus_compiler_root
+        "${_scu_nexus_compiler_bin}" DIRECTORY
+    )
+    set(_scu_nexus_qt_openssl_root "${_scu_nexus_compiler_root}/opt")
+    if(EXISTS "${_scu_nexus_qt_openssl_root}/include/openssl/opensslv.h")
+        set(OPENSSL_ROOT_DIR "${_scu_nexus_qt_openssl_root}"
+            CACHE PATH "OpenSSL root auto-detected from the Qt MinGW kit"
+        )
+    endif()
+endif()
+
 find_package(OpenSSL 1.1 REQUIRED COMPONENTS Crypto)
 
 if(COMMAND qt_policy)
