@@ -490,6 +490,28 @@ target_link_libraries(calendar_data_tests PRIVATE
 
 add_test(NAME calendar_data_tests COMMAND calendar_data_tests)
 
+qt_add_executable(structured_calendar_qml_tests
+    tests/test_structured_calendar_qml.cpp
+)
+
+target_compile_definitions(structured_calendar_qml_tests PRIVATE
+    SCU_NEXUS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
+target_link_libraries(structured_calendar_qml_tests PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Test
+)
+
+add_test(NAME structured_calendar_qml_tests COMMAND structured_calendar_qml_tests)
+set_tests_properties(structured_calendar_qml_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_FONTDIR=C:/Windows/Fonts"
+)
+
 qt_add_executable(classroom_query_tests
     tests/test_classroom_query.cpp
     src/common/QueryState.h

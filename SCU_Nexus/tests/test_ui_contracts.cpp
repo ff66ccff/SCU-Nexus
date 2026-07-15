@@ -191,10 +191,14 @@ private slots:
     {
         const QString view = readUtf8(QStringLiteral(
             "qml/pages/calendar/StructuredAcademicCalendarView.qml"));
+        const QString originalButton = objectBlockContaining(
+            view, QStringLiteral("objectName: \"structuredCalendarOriginalButton\""));
+        const QString notesToggle = objectBlockContaining(
+            view, QStringLiteral("objectName: \"structuredNotesToggle\""));
 
         QVERIFY2(!view.isEmpty(), "StructuredAcademicCalendarView.qml must exist");
         QVERIFY(view.contains(QStringLiteral("SegmentedControl")));
-        QVERIFY(view.contains(QStringLiteral("calendarData.terms")));
+        QVERIFY(view.contains(QStringLiteral("normalizedCalendar.terms")));
         QVERIFY(view.contains(QStringLiteral("weeks")));
         QVERIFY(view.contains(QStringLiteral("events")));
         QVERIFY(view.contains(QStringLiteral("notes")));
@@ -213,8 +217,31 @@ private slots:
         QVERIFY(view.contains(QStringLiteral("summer-break")));
         QVERIFY(view.contains(QStringLiteral("make-up-exam")));
         QVERIFY(view.contains(QStringLiteral("final-exam")));
-        QVERIFY(view.contains(QStringLiteral("calendarData && calendarData.terms")));
         QVERIFY(view.contains(QStringLiteral("Math.min")));
+        QVERIFY(view.contains(QStringLiteral("function safeMap")));
+        QVERIFY(view.contains(QStringLiteral("Array.isArray")));
+        QVERIFY(view.contains(QStringLiteral("normalizedCalendar")));
+        QVERIFY(view.contains(QStringLiteral(
+            "readonly property var terms: root.safeMapList(root.normalizedCalendar.terms)")));
+        QVERIFY(view.contains(QStringLiteral(
+            "root.safeMap(root.terms[root.selectedTermIndex])")));
+        QVERIFY(view.contains(QStringLiteral("structuredCalendarEmptyState")));
+        QVERIFY(view.contains(QStringLiteral("structuredTermSelector")));
+        QVERIFY(view.contains(QStringLiteral(
+            "AppButton {\n                        objectName: \"structuredCalendarOriginalButton\"")));
+        QVERIFY(originalButton.contains(QStringLiteral(
+            "onClicked: root.viewOriginalRequested(")));
+        QVERIFY(originalButton.contains(QStringLiteral(
+            "root.stringValue(root.selectedTerm.sourceImageUrl)")));
+        QVERIFY(view.contains(QStringLiteral(
+            "AppButton {\n                        id: notesToggle")));
+        QVERIFY(notesToggle.contains(QStringLiteral("checkable: true")));
+        QVERIFY(notesToggle.contains(QStringLiteral("Accessible.role: Accessible.Button")));
+        QVERIFY(notesToggle.contains(QStringLiteral("Accessible.name")));
+        QVERIFY(notesToggle.contains(QStringLiteral("Accessible.checkable")));
+        QVERIFY(notesToggle.contains(QStringLiteral("Accessible.checked")));
+        QVERIFY(notesToggle.contains(QStringLiteral("Keys.onReturnPressed")));
+        QVERIFY(notesToggle.contains(QStringLiteral("Keys.onEnterPressed")));
     }
 
     void classroomPagePreservesMigratedQueryFlowAndAllStates()

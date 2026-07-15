@@ -11,20 +11,46 @@ Item {
 
     property var calendarData: ({})
     property int selectedTermIndex: 0
-    readonly property var terms: calendarData && calendarData.terms
-                                 ? calendarData.terms : []
+    readonly property var normalizedCalendar: root.safeMap(root.calendarData)
+    readonly property var terms: root.safeMapList(root.normalizedCalendar.terms)
     readonly property var selectedTerm: root.selectedTermIndex >= 0
                                         && root.terms.length > root.selectedTermIndex
-                                        ? root.terms[root.selectedTermIndex] : ({})
+                                        ? root.safeMap(root.terms[root.selectedTermIndex]) : ({})
     readonly property bool compact: width < 620
     signal viewOriginalRequested(string imageUrl)
 
     onCalendarDataChanged: root.selectedTermIndex = 0
 
+    function safeMap(value) {
+        if (!root.isMap(value))
+            return ({})
+        return value
+    }
+
+    function isMap(value) {
+        return value !== undefined && value !== null && typeof value === "object"
+                && !Array.isArray(value) && !(value instanceof Date)
+                && typeof value.slice !== "function"
+    }
+
     function safeList(value) {
-        if (value === undefined || value === null || typeof value === "string")
-            return []
-        return typeof value.length === "number" && value.length >= 0 ? value : []
+        if (Array.isArray(value))
+            return value
+        if (value !== null && typeof value === "object"
+                && typeof value.length === "number"
+                && typeof value.slice === "function")
+            return value
+        return []
+    }
+
+    function safeMapList(value) {
+        const source = root.safeList(value)
+        const result = []
+        for (let index = 0; index < source.length; ++index) {
+            if (root.isMap(source[index]))
+                result.push(source[index])
+        }
+        return result
     }
 
     function stringValue(value) {
@@ -123,8 +149,12 @@ Item {
     function sortedEvents(events) {
         const source = root.safeList(events)
         const decorated = []
-        for (let index = 0; index < source.length; ++index)
-            decorated.push({ "item": source[index], "index": index })
+        for (let index = 0; index < source.length; ++index) {
+            decorated.push({
+                "item": root.safeMap(source[index]),
+                "index": index
+            })
+        }
         decorated.sort(function(left, right) {
             const difference = root.dateSortKey(left.item ? left.item.startDate : undefined)
                              - root.dateSortKey(right.item ? right.item.startDate : undefined)
@@ -139,8 +169,12 @@ Item {
     function sortedNotes(notes) {
         const source = root.safeList(notes)
         const decorated = []
-        for (let index = 0; index < source.length; ++index)
-            decorated.push({ "item": source[index], "index": index })
+        for (let index = 0; index < source.length; ++index) {
+            decorated.push({
+                "item": root.safeMap(source[index]),
+                "index": index
+            })
+        }
         decorated.sort(function(left, right) {
             const leftOrder = left.item && Number.isFinite(Number(left.item.order))
                             ? Number(left.item.order) : Number.MAX_SAFE_INTEGER
@@ -158,7 +192,7 @@ Item {
         const result = []
         const source = root.safeList(root.terms)
         for (let index = 0; index < source.length; ++index) {
-            const term = source[index] || ({})
+            const term = root.safeMap(source[index])
             result.push({
                 "label": root.stringValue(term.name) || "第 " + (index + 1) + " 学期",
                 "value": String(index)
@@ -184,6 +218,7 @@ Item {
             spacing: Theme.sectionGap
 
             SegmentedControl {
+                objectName: "structuredTermSelector"
                 Layout.fillWidth: root.compact
                 Layout.preferredWidth: Math.min(implicitWidth, contentColumn.width)
                 Layout.maximumWidth: contentColumn.width
@@ -198,6 +233,7 @@ Item {
             }
 
             Card {
+                objectName: "structuredCalendarEmptyState"
                 Layout.fillWidth: true
                 visible: root.terms.length === 0
                 implicitHeight: emptyLayout.implicitHeight + Theme.cardPadding * 2
@@ -245,8 +281,8 @@ Item {
 
                         Text {
                             Layout.fillWidth: true
-                            text: root.stringValue(root.calendarData.title)
-                                  || root.stringValue(root.calendarData.academicYear)
+                            text: root.stringValue(root.normalizedCalendar.title)
+                                  || root.stringValue(root.normalizedCalendar.academicYear)
                                   || "学年校历"
                             font.pixelSize: Theme.fontSection
                             font.weight: Theme.weightStrong
@@ -266,6 +302,7 @@ Item {
                     }
 
                     AppButton {
+                        objectName: "structuredCalendarOriginalButton"
                         Layout.alignment: root.compact ? Qt.AlignLeft
                                                       : Qt.AlignRight | Qt.AlignVCenter
                         text: "查看原版"
@@ -299,11 +336,11 @@ Item {
                     delegate: Card {
                         id: weekCard
                         required property var modelData
+                        readonly property var weekData: root.safeMap(weekCard.modelData)
 
                         Layout.fillWidth: true
                         implicitHeight: weekLayout.implicitHeight + Theme.spacing12 * 2
-                        color: root.phaseBackground(weekCard.modelData
-                                                    ? weekCard.modelData.phase : "")
+                        color: root.phaseBackground(weekCard.weekData.phase)
                         elevation: 0
 
                         ColumnLayout {
@@ -319,28 +356,23 @@ Item {
                                 Text {
                                     Layout.fillWidth: true
                                     text: "第 " + root.stringValue(
-                                        weekCard.modelData ? weekCard.modelData.weekNo : "") + " 周"
+                                        weekCard.weekData.weekNo) + " 周"
                                     font.pixelSize: Theme.fontBody
                                     font.weight: Theme.weightStrong
                                     color: Theme.text
                                 }
                                 Text {
-                                    text: root.stringValue(weekCard.modelData
-                                                           ? weekCard.modelData.label : "")
-                                          || root.phaseLabel(weekCard.modelData
-                                                             ? weekCard.modelData.phase : "")
+                                    text: root.stringValue(weekCard.weekData.label)
+                                          || root.phaseLabel(weekCard.weekData.phase)
                                     font.pixelSize: Theme.fontCaption
                                     font.weight: Theme.weightMedium
-                                    color: root.phaseForeground(weekCard.modelData
-                                                                ? weekCard.modelData.phase : "")
+                                    color: root.phaseForeground(weekCard.weekData.phase)
                                 }
                             }
                             Text {
                                 Layout.fillWidth: true
-                                text: root.dateRange(weekCard.modelData
-                                                     ? weekCard.modelData.startDate : undefined,
-                                                     weekCard.modelData
-                                                     ? weekCard.modelData.endDate : undefined)
+                                text: root.dateRange(weekCard.weekData.startDate,
+                                                     weekCard.weekData.endDate)
                                 font.pixelSize: Theme.fontCaption
                                 color: Theme.mutedText
                                 wrapMode: Text.WordWrap
@@ -377,7 +409,13 @@ Item {
 
                     delegate: Card {
                         id: eventCard
+                        required property int index
                         required property var modelData
+                        readonly property var eventData: root.safeMap(eventCard.modelData)
+
+                        objectName: "structuredEventCard-"
+                                    + (root.stringValue(eventCard.eventData.id)
+                                       || String(eventCard.index))
 
                         Layout.fillWidth: true
                         implicitHeight: eventLayout.implicitHeight + Theme.spacing12 * 2
@@ -405,8 +443,7 @@ Item {
 
                                     Text {
                                         Layout.fillWidth: true
-                                        text: root.stringValue(eventCard.modelData
-                                                               ? eventCard.modelData.title : "")
+                                        text: root.stringValue(eventCard.eventData.title)
                                               || "未命名事项"
                                         font.pixelSize: Theme.fontBody
                                         font.weight: Theme.weightStrong
@@ -414,8 +451,7 @@ Item {
                                         wrapMode: Text.WordWrap
                                     }
                                     Text {
-                                        text: root.eventTypeLabel(eventCard.modelData
-                                                                  ? eventCard.modelData.type : "")
+                                        text: root.eventTypeLabel(eventCard.eventData.type)
                                         font.pixelSize: Theme.fontCaption
                                         font.weight: Theme.weightMedium
                                         color: Theme.accent
@@ -423,10 +459,8 @@ Item {
                                 }
                                 Text {
                                     Layout.fillWidth: true
-                                    text: root.dateRange(eventCard.modelData
-                                                         ? eventCard.modelData.startDate : undefined,
-                                                         eventCard.modelData
-                                                         ? eventCard.modelData.endDate : undefined)
+                                    text: root.dateRange(eventCard.eventData.startDate,
+                                                         eventCard.eventData.endDate)
                                     font.pixelSize: Theme.fontCaption
                                     color: Theme.mutedText
                                     wrapMode: Text.WordWrap
@@ -455,7 +489,6 @@ Item {
 
             Card {
                 id: notesCard
-                property bool expanded: false
 
                 Layout.fillWidth: true
                 visible: root.terms.length > 0
@@ -469,22 +502,23 @@ Item {
                     anchors.margins: Theme.cardPadding
                     spacing: Theme.spacing12
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Theme.spacing8
+                    AppButton {
+                        id: notesToggle
 
-                        Text {
-                            Layout.fillWidth: true
-                            text: notesCard.expanded ? "收起全部说明" : "展开全部说明"
-                            font.pixelSize: Theme.fontBody
-                            font.weight: Theme.weightStrong
-                            color: Theme.text
-                        }
-                        Text {
-                            text: notesCard.expanded ? "⌃" : "⌄"
-                            font.pixelSize: Theme.fontSection
-                            color: Theme.mutedText
-                        }
+                        objectName: "structuredNotesToggle"
+                        Layout.fillWidth: true
+                        type: "ghost"
+                        checkable: true
+                        text: notesToggle.checked ? "收起全部说明" : "展开全部说明"
+                        iconText: notesToggle.checked ? "⌃" : "⌄"
+                        Accessible.role: Accessible.Button
+                        Accessible.name: notesToggle.text
+                        Accessible.description: notesToggle.checked
+                                                ? "校历说明已展开" : "校历说明已收起"
+                        Accessible.checkable: true
+                        Accessible.checked: notesToggle.checked
+                        Keys.onReturnPressed: notesToggle.checked = !notesToggle.checked
+                        Keys.onEnterPressed: notesToggle.checked = !notesToggle.checked
                     }
 
                     Repeater {
@@ -494,24 +528,27 @@ Item {
                             id: noteRow
                             required property int index
                             required property var modelData
+                            readonly property var noteData: root.safeMap(noteRow.modelData)
 
+                            objectName: "structuredNote-"
+                                        + (root.stringValue(noteRow.noteData.order) || "unordered")
+                                        + "-" + noteRow.index
                             Layout.fillWidth: true
-                            visible: notesCard.expanded
+                            visible: notesToggle.checked
                             spacing: Theme.spacing8
 
                             Text {
                                 Layout.alignment: Qt.AlignTop
-                                text: root.stringValue(noteRow.modelData
-                                                       ? noteRow.modelData.order : "")
+                                text: root.stringValue(noteRow.noteData.order)
                                       || String(noteRow.index + 1)
                                 font.pixelSize: Theme.fontCaption
                                 font.weight: Theme.weightStrong
                                 color: Theme.accent
                             }
                             Text {
+                                objectName: "structuredNoteText"
                                 Layout.fillWidth: true
-                                text: root.stringValue(noteRow.modelData
-                                                       ? noteRow.modelData.text : "")
+                                text: root.stringValue(noteRow.noteData.text)
                                 font.pixelSize: Theme.fontBody
                                 color: Theme.text
                                 wrapMode: Text.WordWrap
@@ -520,9 +557,6 @@ Item {
                     }
                 }
 
-                TapHandler {
-                    onTapped: notesCard.expanded = !notesCard.expanded
-                }
             }
 
             Text {
