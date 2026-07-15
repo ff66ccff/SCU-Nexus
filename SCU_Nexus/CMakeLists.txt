@@ -447,6 +447,29 @@ target_link_libraries(ui_contract_tests PRIVATE
 
 add_test(NAME ui_contract_tests COMMAND ui_contract_tests)
 
+qt_add_executable(classroom_query_tests
+    tests/test_classroom_query.cpp
+    src/services/api/ApiDtos.h
+    src/models/ClassroomModels.h
+    src/models/ClassroomModels.cpp
+    src/models/TimeSlot.h
+    src/models/TimeSlot.cpp
+    src/models/ScheduleConfig.h
+    src/models/ScheduleConfig.cpp
+)
+
+target_include_directories(classroom_query_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(classroom_query_tests PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME classroom_query_tests COMMAND classroom_query_tests)
+
 qt_add_executable(grades_qml_tests
     tests/test_grades_qml.cpp
     src/app/Router.h
@@ -456,6 +479,8 @@ qt_add_executable(grades_qml_tests
     src/core/network/NetworkError.h
     src/models/GradeModels.h
     src/models/GradeModels.cpp
+    src/models/ClassroomModels.h
+    src/models/ClassroomModels.cpp
     src/repositories/QueryCacheRepository.h
     src/repositories/QueryCacheRepository.cpp
     src/services/api/ApiDtos.h
