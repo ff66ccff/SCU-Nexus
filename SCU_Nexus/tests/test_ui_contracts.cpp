@@ -187,6 +187,43 @@ private slots:
         QVERIFY(page.contains(QStringLiteral("ScrollView")));
     }
 
+    void calendarOrchestratesQwenThinkingAndFallbackStates()
+    {
+        const QString page = readUtf8(
+            QStringLiteral("qml/pages/calendar/AcademicCalendarPage.qml"));
+        const QString selector = functionBlockStartingAt(
+            page, QStringLiteral("ComboBox {"));
+        const QString refresh = functionBlockStartingAt(
+            page, QStringLiteral("RefreshButton {"));
+
+        QVERIFY(page.contains(QStringLiteral("thinking...")));
+        QVERIFY(page.contains(QStringLiteral("20000")));
+        QVERIFY(page.contains(QStringLiteral("40001")));
+        QVERIFY(page.contains(QStringLiteral("Math.random()")));
+        QVERIFY(page.contains(QStringLiteral("appSettings.hasQwenApiKey")));
+        QVERIFY(page.contains(QStringLiteral("StructuredAcademicCalendarView")));
+        QVERIFY(page.contains(QStringLiteral("router.navigate(\"Settings\")")));
+        QVERIFY(page.contains(QStringLiteral("当前学年暂未完成智能解析")));
+        QVERIFY2(!selector.isEmpty(), "Academic year ComboBox must remain present");
+        QVERIFY2(!refresh.isEmpty(), "Calendar RefreshButton must remain present");
+        QVERIFY(!selector.contains(QStringLiteral("visible:")));
+        QVERIFY(!refresh.contains(QStringLiteral("visible:")));
+
+        QDirIterator files(sourcePath(QStringLiteral("qml/pages/calendar")),
+                           QStringList{QStringLiteral("*.qml")},
+                           QDir::Files,
+                           QDirIterator::Subdirectories);
+        while (files.hasNext()) {
+            const QString path = files.next();
+            QFile file(path);
+            QVERIFY2(file.open(QIODevice::ReadOnly | QIODevice::Text), qPrintable(path));
+            const QString source = QString::fromUtf8(file.readAll());
+            QVERIFY2(!source.contains(QStringLiteral("仅用于演示")), qPrintable(path));
+            QVERIFY2(!source.contains(QStringLiteral("不会发送")), qPrintable(path));
+            QVERIFY2(!source.contains(QStringLiteral("模拟")), qPrintable(path));
+        }
+    }
+
     void structuredCalendarViewRendersCompleteSafeCalendarData()
     {
         const QString view = readUtf8(QStringLiteral(

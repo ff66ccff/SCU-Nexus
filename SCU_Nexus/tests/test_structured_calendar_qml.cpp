@@ -16,6 +16,8 @@
 #include <QTemporaryDir>
 #include <QUrl>
 
+#include <cmath>
+
 namespace {
 
 QStringList *capturedWarnings = nullptr;
@@ -157,6 +159,168 @@ QVariantMap normalCalendar()
         {QStringLiteral("terms"), QVariantList{firstTerm, secondTerm}},
     };
 }
+
+QVariantMap pageCalendar()
+{
+    QVariantMap calendar = normalCalendar();
+    QVariantList terms = calendar.value(QStringLiteral("terms")).toList();
+    const QUrl sourceImage(QStringLiteral(
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
+        "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="));
+    for (QVariant &termValue : terms) {
+        QVariantMap term = termValue.toMap();
+        term.insert(QStringLiteral("sourceImageUrl"), sourceImage);
+        termValue = term;
+    }
+    calendar.insert(QStringLiteral("terms"), terms);
+    return calendar;
+}
+
+class FakeAppSettings final : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(bool hasQwenApiKey READ hasQwenApiKey NOTIFY hasQwenApiKeyChanged)
+
+public:
+    explicit FakeAppSettings(bool hasQwenApiKey, QObject *parent = nullptr)
+        : QObject(parent), m_hasQwenApiKey(hasQwenApiKey)
+    {
+    }
+
+    bool hasQwenApiKey() const { return m_hasQwenApiKey; }
+
+signals:
+    void hasQwenApiKeyChanged();
+
+private:
+    bool m_hasQwenApiKey = false;
+};
+
+class FakeCalendarViewModel final : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(int state READ state CONSTANT)
+    Q_PROPERTY(bool loading READ loading CONSTANT)
+    Q_PROPERTY(QString errorMessage READ errorMessage CONSTANT)
+    Q_PROPERTY(QDateTime lastUpdated READ lastUpdated CONSTANT)
+    Q_PROPERTY(QVariantList entries READ entries CONSTANT)
+    Q_PROPERTY(int selectedIndex READ selectedIndex NOTIFY selectedChanged)
+    Q_PROPERTY(QStringList imageUrls READ imageUrls CONSTANT)
+    Q_PROPERTY(QVariantMap structuredCalendar READ structuredCalendar NOTIFY structuredCalendarChanged)
+    Q_PROPERTY(bool hasStructuredCalendar READ hasStructuredCalendar NOTIFY structuredCalendarChanged)
+    Q_PROPERTY(QString structuredCalendarError READ structuredCalendarError NOTIFY structuredCalendarChanged)
+
+public:
+    explicit FakeCalendarViewModel(QObject *parent = nullptr)
+        : QObject(parent), m_structuredCalendar(pageCalendar())
+    {
+    }
+
+    int state() const { return 2; }
+    bool loading() const { return false; }
+    QString errorMessage() const { return {}; }
+    QDateTime lastUpdated() const { return QDateTime::currentDateTime(); }
+    QVariantList entries() const
+    {
+        return {
+            QVariantMap{{QStringLiteral("title"), QStringLiteral("2026-2027学年")}},
+            QVariantMap{{QStringLiteral("title"), QStringLiteral("2027-2028学年")}},
+        };
+    }
+    int selectedIndex() const { return m_selectedIndex; }
+    QStringList imageUrls() const
+    {
+        return {QStringLiteral(
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
+            "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")};
+    }
+    QVariantMap structuredCalendar() const { return m_structuredCalendar; }
+    bool hasStructuredCalendar() const { return !m_structuredCalendar.isEmpty(); }
+    QString structuredCalendarError() const { return {}; }
+    int loadCount() const { return m_loadCount; }
+    int refreshCount() const { return m_refreshCount; }
+    int selectCount() const { return m_selectCount; }
+
+    Q_INVOKABLE void load() { ++m_loadCount; }
+    Q_INVOKABLE void refresh() { ++m_refreshCount; }
+    Q_INVOKABLE void selectEntry(int index)
+    {
+        ++m_selectCount;
+        m_selectedIndex = index;
+        m_structuredCalendar = index == 0 ? pageCalendar() : QVariantMap{};
+        emit selectedChanged();
+        emit structuredCalendarChanged();
+    }
+
+signals:
+    void selectedChanged();
+    void structuredCalendarChanged();
+
+private:
+    int m_selectedIndex = 0;
+    QVariantMap m_structuredCalendar;
+    int m_loadCount = 0;
+    int m_refreshCount = 0;
+    int m_selectCount = 0;
+};
+
+class FakeRouter final : public QObject
+{
+    Q_OBJECT
+
+public:
+    Q_INVOKABLE void navigate(const QString &route)
+    {
+        ++navigateCount;
+        lastRoute = route;
+    }
+
+    int navigateCount = 0;
+    QString lastRoute;
+};
+
+class CalendarPageView final
+{
+public:
+    explicit CalendarPageView(bool hasQwenApiKey)
+        : appSettings(hasQwenApiKey)
+    {
+    }
+
+    bool initialize()
+    {
+        if (!qmlTree.isValid() || !copyQmlTreeWithLocalThemeMetadata(qmlTree.path()))
+            return false;
+
+        QQmlPropertyMap *themeManager = QQmlPropertyMap::create(view.engine());
+        themeManager->insert(QStringLiteral("dark"), false);
+        view.engine()->rootContext()->setContextProperty(
+            QStringLiteral("themeManager"), themeManager);
+        view.engine()->rootContext()->setContextProperty(
+            QStringLiteral("appSettings"), &appSettings);
+        view.engine()->rootContext()->setContextProperty(
+            QStringLiteral("academicCalendarViewModel"), &viewModel);
+        view.engine()->rootContext()->setContextProperty(
+            QStringLiteral("router"), &router);
+        view.setInitialProperties({
+            {QStringLiteral("width"), 1000},
+            {QStringLiteral("height"), 760},
+        });
+        view.setSource(QUrl::fromLocalFile(QDir(qmlTree.path()).filePath(
+            QStringLiteral("pages/calendar/AcademicCalendarPage.qml"))));
+        if (view.status() != QQuickView::Ready || !view.rootObject())
+            return false;
+        view.show();
+        QCoreApplication::processEvents();
+        return true;
+    }
+
+    QTemporaryDir qmlTree;
+    FakeAppSettings appSettings;
+    FakeCalendarViewModel viewModel;
+    FakeRouter router;
+    QQuickView view;
+};
 
 qreal sceneY(QQuickItem *item, QQuickItem *root)
 {
@@ -355,6 +519,166 @@ private slots:
         QTRY_VERIFY(!toggle->property("checked").toBool());
         QTRY_VERIFY(!firstA->isVisible());
         QTRY_VERIFY(!QAccessible::queryAccessibleInterface(toggle)->state().checked);
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join(QLatin1Char('\n'))));
+    }
+
+    void calendarPageWithoutKeyPreservesImagesAndNavigatesToSettings()
+    {
+        CalendarPageView fixture(false);
+        QStringList warnings;
+        WarningCapture capture(&warnings);
+        QVERIFY(fixture.initialize());
+
+        QQuickItem *root = fixture.view.rootObject();
+        QQuickItem *fallback = findQuickItem(
+            root, QStringLiteral("academicCalendarImageFallback"));
+        QQuickItem *prompt = findQuickItem(
+            root, QStringLiteral("academicCalendarEnableAiPrompt"));
+        QQuickItem *promptButton = findQuickItem(
+            root, QStringLiteral("academicCalendarEnableAiButton"));
+        QQuickItem *thinking = findQuickItem(
+            root, QStringLiteral("academicCalendarThinkingState"));
+        QQuickItem *structured = findQuickItem(
+            root, QStringLiteral("academicCalendarStructuredState"));
+        QQuickItem *imageScroll = findQuickItem(
+            root, QStringLiteral("academicCalendarImageScroll"));
+        QQuickItem *queryState = findQuickItem(
+            root, QStringLiteral("academicCalendarQueryStatePane"));
+        QQuickItem *selector = findQuickItem(
+            root, QStringLiteral("academicCalendarYearSelector"));
+        QQuickItem *refresh = findQuickItem(
+            root, QStringLiteral("academicCalendarRefreshButton"));
+        QObject *timer = root->findChild<QObject *>(
+            QStringLiteral("academicCalendarAiTimer"));
+
+        QVERIFY(fallback && prompt && promptButton && thinking && structured);
+        QVERIFY(imageScroll && queryState);
+        QVERIFY(selector && refresh && timer);
+        QVERIFY(fallback->isVisible());
+        QVERIFY(imageScroll->isVisible());
+        QVERIFY(!queryState->isVisible());
+        QVERIFY(prompt->isVisible());
+        QVERIFY(!thinking->isVisible());
+        QVERIFY(!structured->isVisible());
+        QVERIFY(selector->isVisible());
+        QVERIFY(refresh->isVisible());
+        QVERIFY(!timer->property("running").toBool());
+        QCOMPARE(fixture.viewModel.loadCount(), 1);
+
+        QVERIFY(QMetaObject::invokeMethod(selector, "activated", Q_ARG(int, 1)));
+        QCOMPARE(fixture.viewModel.selectCount(), 1);
+        QVERIFY(QMetaObject::invokeMethod(refresh, "click"));
+        QCOMPARE(fixture.viewModel.refreshCount(), 1);
+        QVERIFY(QMetaObject::invokeMethod(promptButton, "click"));
+        QCOMPARE(fixture.router.navigateCount, 1);
+        QCOMPARE(fixture.router.lastRoute, QStringLiteral("Settings"));
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join(QLatin1Char('\n'))));
+    }
+
+    void calendarPageThinkingCompletesToStructuredAndYearFallback()
+    {
+        CalendarPageView fixture(true);
+        QStringList warnings;
+        WarningCapture capture(&warnings);
+        QVERIFY(fixture.initialize());
+
+        QQuickItem *root = fixture.view.rootObject();
+        QQuickItem *thinking = findQuickItem(
+            root, QStringLiteral("academicCalendarThinkingState"));
+        QQuickItem *structured = findQuickItem(
+            root, QStringLiteral("academicCalendarStructuredState"));
+        QQuickItem *fallback = findQuickItem(
+            root, QStringLiteral("academicCalendarImageFallback"));
+        QQuickItem *fallbackMessage = findQuickItem(
+            root, QStringLiteral("academicCalendarStructuredFallbackMessage"));
+        QQuickItem *prompt = findQuickItem(
+            root, QStringLiteral("academicCalendarEnableAiPrompt"));
+        QQuickItem *selector = findQuickItem(
+            root, QStringLiteral("academicCalendarYearSelector"));
+        QQuickItem *refresh = findQuickItem(
+            root, QStringLiteral("academicCalendarRefreshButton"));
+        QQuickItem *source = findQuickItem(
+            root, QStringLiteral("academicCalendarSourceAttribution"));
+        QQuickItem *lastUpdated = findQuickItem(
+            root, QStringLiteral("academicCalendarLastUpdated"));
+        QObject *timer = root->findChild<QObject *>(
+            QStringLiteral("academicCalendarAiTimer"));
+        QObject *viewer = root->findChild<QObject *>(
+            QStringLiteral("academicCalendarImageViewer"));
+
+        QVERIFY(thinking && structured && fallback && fallbackMessage && prompt);
+        QVERIFY(selector && refresh && source && lastUpdated && timer && viewer);
+        QVERIFY(thinking->isVisible());
+        QVERIFY(!structured->isVisible());
+        QVERIFY(!fallback->isVisible());
+        QVERIFY(!prompt->isVisible());
+        QVERIFY(selector->isVisible());
+        QVERIFY(refresh->isVisible());
+        QVERIFY(source->isVisible());
+        QVERIFY(lastUpdated->isVisible());
+        QVERIFY(timer->property("running").toBool());
+        const int initialInterval = timer->property("interval").toInt();
+        QVERIFY(initialInterval >= 20000);
+        QVERIFY(initialInterval <= 60000);
+
+        for (int sample = 0; sample < 128; ++sample) {
+            QVariant sampledInterval;
+            QVERIFY(QMetaObject::invokeMethod(root, "newThinkingInterval",
+                                              Q_RETURN_ARG(QVariant, sampledInterval)));
+            const double interval = sampledInterval.toDouble();
+            QCOMPARE(interval, std::floor(interval));
+            QVERIFY(interval >= 20000);
+            QVERIFY(interval <= 60000);
+        }
+
+        QVERIFY(QMetaObject::invokeMethod(refresh, "click"));
+        QCOMPARE(fixture.viewModel.refreshCount(), 1);
+        QCOMPARE(timer->property("interval").toInt(), initialInterval);
+        QVERIFY(timer->property("running").toBool());
+        QVERIFY(thinking->isVisible());
+
+        QVERIFY(QMetaObject::invokeMethod(root, "finishThinking"));
+        QCoreApplication::processEvents();
+        QVERIFY(!timer->property("running").toBool());
+        QVERIFY(!thinking->isVisible());
+        QVERIFY(structured->isVisible());
+        QVERIFY(!fallback->isVisible());
+        QCOMPARE(structured->property("calendarData").toMap()
+                     .value(QStringLiteral("title")).toString(),
+                 QStringLiteral("测试校历"));
+        QVERIFY(selector->isVisible());
+        QVERIFY(refresh->isVisible());
+
+        QVERIFY(QMetaObject::invokeMethod(refresh, "click"));
+        QCOMPARE(fixture.viewModel.refreshCount(), 2);
+        QCOMPARE(timer->property("interval").toInt(), initialInterval);
+        QVERIFY(!timer->property("running").toBool());
+        QVERIFY(structured->isVisible());
+
+        const QString originalImage = pageCalendar()
+            .value(QStringLiteral("terms")).toList().first().toMap()
+            .value(QStringLiteral("sourceImageUrl")).toUrl().toString();
+        QVERIFY(QMetaObject::invokeMethod(structured, "viewOriginalRequested",
+                                          Q_ARG(QString, originalImage)));
+        QCOMPARE(viewer->property("imageUrl").toString(), originalImage);
+        QVERIFY(viewer->property("visible").toBool());
+
+        QVERIFY(QMetaObject::invokeMethod(selector, "activated", Q_ARG(int, 1)));
+        QCoreApplication::processEvents();
+        QCOMPARE(fixture.viewModel.selectCount(), 1);
+        QVERIFY(!structured->isVisible());
+        QVERIFY(fallback->isVisible());
+        QVERIFY(fallbackMessage->isVisible());
+        QCOMPARE(timer->property("interval").toInt(), initialInterval);
+        QVERIFY(!timer->property("running").toBool());
+        QVERIFY(root->property("aiReady").toBool());
+        QVERIFY(selector->isVisible());
+        QVERIFY(refresh->isVisible());
+
+        QVERIFY(QMetaObject::invokeMethod(refresh, "click"));
+        QCOMPARE(fixture.viewModel.refreshCount(), 3);
+        QCOMPARE(timer->property("interval").toInt(), initialInterval);
+        QVERIFY(!timer->property("running").toBool());
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join(QLatin1Char('\n'))));
     }
 };
