@@ -123,6 +123,41 @@ QVariantMap note(int order, const QString &text)
     };
 }
 
+QVariantMap week(int weekNo, const QDate &startDate, const QDate &endDate)
+{
+    return {
+        {QStringLiteral("weekNo"), weekNo},
+        {QStringLiteral("phase"), QStringLiteral("teaching")},
+        {QStringLiteral("startDate"), startDate},
+        {QStringLiteral("endDate"), endDate},
+        {QStringLiteral("label"), QStringLiteral("教学周")},
+    };
+}
+
+QVariantMap calendarWithWeeks()
+{
+    return {
+        {QStringLiteral("title"), QStringLiteral("当前周测试校历")},
+        {QStringLiteral("terms"), QVariantList{
+            QVariantMap{
+                {QStringLiteral("id"), QStringLiteral("summer")},
+                {QStringLiteral("name"), QStringLiteral("夏季学期")},
+                {QStringLiteral("startDate"), QDate(2026, 7, 5)},
+                {QStringLiteral("endDate"), QDate(2026, 7, 25)},
+                {QStringLiteral("sourceImageUrl"),
+                 QUrl(QStringLiteral("https://example.test/calendar.png"))},
+                {QStringLiteral("weeks"), QVariantList{
+                    week(1, QDate(2026, 7, 5), QDate(2026, 7, 11)),
+                    week(2, QDate(2026, 7, 12), QDate(2026, 7, 18)),
+                    week(3, QDate(2026, 7, 19), QDate(2026, 7, 25)),
+                }},
+                {QStringLiteral("events"), QVariantList{}},
+                {QStringLiteral("notes"), QVariantList{}},
+            },
+        }},
+    };
+}
+
 QVariantMap normalCalendar()
 {
     const QVariantMap firstTerm{
@@ -475,6 +510,61 @@ private slots:
         QCOMPARE(originalSpy.size(), 1);
         QCOMPARE(originalSpy.first().first().toString(),
                  QStringLiteral("https://example.test/spring.png"));
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join(QLatin1Char('\n'))));
+    }
+
+    void exactlyOneContainingWeekIsMarkedCurrentAndAccessible()
+    {
+        CalendarView fixture;
+        QStringList warnings;
+        WarningCapture capture(&warnings);
+        QVERIFY(fixture.initialize());
+        warnings.clear();
+
+        QQuickItem *root = fixture.view.rootObject();
+        QVERIFY(root->setProperty("currentDate", QDate(2026, 7, 15)));
+        QVERIFY(root->setProperty("calendarData", calendarWithWeeks()));
+        QCoreApplication::processEvents();
+
+        QList<QQuickItem *> cards;
+        QList<QQuickItem *> labels;
+        for (int weekNo = 1; weekNo <= 3; ++weekNo) {
+            QQuickItem *card = findQuickItem(
+                root, QStringLiteral("structuredWeekCard-%1").arg(weekNo));
+            QQuickItem *label = findQuickItem(
+                root, QStringLiteral("structuredWeekCurrentLabel-%1").arg(weekNo));
+            QVERIFY(card);
+            QVERIFY(label);
+            cards.append(card);
+            labels.append(label);
+        }
+
+        QCOMPARE(cards.at(0)->property("currentWeek").toBool(), false);
+        QCOMPARE(cards.at(1)->property("currentWeek").toBool(), true);
+        QCOMPARE(cards.at(2)->property("currentWeek").toBool(), false);
+        QCOMPARE(labels.at(0)->isVisible(), false);
+        QCOMPARE(labels.at(1)->isVisible(), true);
+        QCOMPARE(labels.at(1)->property("text").toString(), QStringLiteral("当前周"));
+        QCOMPARE(labels.at(2)->isVisible(), false);
+
+        for (int index = 0; index < cards.size(); ++index) {
+            QAccessibleInterface *accessible =
+                QAccessible::queryAccessibleInterface(cards.at(index));
+            QVERIFY(accessible);
+            QCOMPARE(accessible->text(QAccessible::Name).contains(QStringLiteral("当前周")),
+                     index == 1);
+        }
+
+        QVERIFY(root->setProperty("currentDate", QDate(2030, 1, 1)));
+        QCoreApplication::processEvents();
+        for (int index = 0; index < cards.size(); ++index) {
+            QCOMPARE(cards.at(index)->property("currentWeek").toBool(), false);
+            QCOMPARE(labels.at(index)->isVisible(), false);
+            QAccessibleInterface *accessible =
+                QAccessible::queryAccessibleInterface(cards.at(index));
+            QVERIFY(accessible);
+            QVERIFY(!accessible->text(QAccessible::Name).contains(QStringLiteral("当前周")));
+        }
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join(QLatin1Char('\n'))));
     }
 

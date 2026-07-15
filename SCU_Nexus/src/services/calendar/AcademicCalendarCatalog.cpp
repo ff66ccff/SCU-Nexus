@@ -14,6 +14,14 @@
 
 namespace {
 constexpr auto ScuJwcOrigin = "https://jwc.scu.edu.cn";
+const QStringList ExpectedAcademicYearOrder{
+    QStringLiteral("2026-2027"),
+    QStringLiteral("2025-2026"),
+    QStringLiteral("2024-2025"),
+    QStringLiteral("2023-2024"),
+    QStringLiteral("2022-2023"),
+    QStringLiteral("2021-2022")
+};
 
 bool fail(QString *error, const QString &message)
 {
@@ -455,8 +463,9 @@ bool AcademicCalendarCatalog::load()
                           &calendars, &m_errorMessage)) {
         return false;
     }
-    if (calendars.isEmpty()) {
-        m_errorMessage = QStringLiteral("root.calendars must not be empty");
+    if (calendars.size() != ExpectedAcademicYearOrder.size()) {
+        m_errorMessage = QStringLiteral(
+            "root.calendars must contain exactly the six captured academic years");
         return false;
     }
 
@@ -475,6 +484,13 @@ bool AcademicCalendarCatalog::load()
         if (!parseCalendar(value.toObject(),
                            QStringLiteral("root.calendars[%1]").arg(index),
                            &academicYears, &termIds, &eventIds, &calendar, &m_errorMessage)) {
+            return false;
+        }
+        if (calendar.academicYear != ExpectedAcademicYearOrder.at(index)) {
+            m_errorMessage = QStringLiteral(
+                "root.calendars[%1].academicYear must be %2 for the captured baseline")
+                                 .arg(index)
+                                 .arg(ExpectedAcademicYearOrder.at(index));
             return false;
         }
         parsedCalendars.append(std::move(calendar));

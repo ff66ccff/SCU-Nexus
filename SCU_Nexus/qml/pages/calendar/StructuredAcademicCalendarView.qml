@@ -11,6 +11,7 @@ Item {
 
     property var calendarData: ({})
     property int selectedTermIndex: 0
+    property date currentDate: new Date()
     readonly property var normalizedCalendar: root.safeMap(root.calendarData)
     readonly property var terms: root.safeMapList(root.normalizedCalendar.terms)
     readonly property var selectedTerm: root.selectedTermIndex >= 0
@@ -144,6 +145,24 @@ Item {
         if (!match)
             return Number.MAX_SAFE_INTEGER
         return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    }
+
+    function calendarDayKey(value) {
+        if (value instanceof Date && !isNaN(value.getTime()))
+            return Date.UTC(value.getFullYear(), value.getMonth(), value.getDate())
+        const text = root.stringValue(value)
+        const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+        if (!match)
+            return Number.NaN
+        return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    }
+
+    function isDateInRange(value, startDate, endDate) {
+        const valueKey = root.calendarDayKey(value)
+        const startKey = root.calendarDayKey(startDate)
+        const endKey = root.calendarDayKey(endDate)
+        return Number.isFinite(valueKey) && Number.isFinite(startKey)
+                && Number.isFinite(endKey) && valueKey >= startKey && valueKey <= endKey
     }
 
     function sortedEvents(events) {
@@ -337,6 +356,20 @@ Item {
                         id: weekCard
                         required property var modelData
                         readonly property var weekData: root.safeMap(weekCard.modelData)
+                        readonly property bool currentWeek: root.isDateInRange(
+                            root.currentDate,
+                            weekCard.weekData.startDate,
+                            weekCard.weekData.endDate)
+
+                        objectName: "structuredWeekCard-"
+                                    + root.stringValue(weekCard.weekData.weekNo)
+                        Accessible.role: Accessible.ListItem
+                        Accessible.name: "第 " + root.stringValue(weekCard.weekData.weekNo)
+                                         + " 周" + (weekCard.currentWeek ? "，当前周" : "")
+                        Accessible.description: root.dateRange(
+                            weekCard.weekData.startDate, weekCard.weekData.endDate)
+                            + "，" + (root.stringValue(weekCard.weekData.label)
+                                      || root.phaseLabel(weekCard.weekData.phase))
 
                         Layout.fillWidth: true
                         implicitHeight: weekLayout.implicitHeight + Theme.spacing12 * 2
@@ -368,6 +401,15 @@ Item {
                                     font.weight: Theme.weightMedium
                                     color: root.phaseForeground(weekCard.weekData.phase)
                                 }
+                                Text {
+                                    objectName: "structuredWeekCurrentLabel-"
+                                                + root.stringValue(weekCard.weekData.weekNo)
+                                    visible: weekCard.currentWeek
+                                    text: "当前周"
+                                    font.pixelSize: Theme.fontCaption
+                                    font.weight: Theme.weightStrong
+                                    color: Theme.accent
+                                }
                             }
                             Text {
                                 Layout.fillWidth: true
@@ -377,6 +419,18 @@ Item {
                                 color: Theme.mutedText
                                 wrapMode: Text.WordWrap
                             }
+                        }
+
+                        Rectangle {
+                            objectName: "structuredWeekCurrentOutline-"
+                                        + root.stringValue(weekCard.weekData.weekNo)
+                            z: 1
+                            anchors.fill: parent
+                            radius: weekCard.radius
+                            color: "transparent"
+                            border.width: weekCard.currentWeek ? 2 : 0
+                            border.color: Theme.accent
+                            visible: weekCard.currentWeek
                         }
                     }
                 }

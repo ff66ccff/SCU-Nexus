@@ -243,6 +243,10 @@ private slots:
         QVERIFY(view.contains(QStringLiteral("events")));
         QVERIFY(view.contains(QStringLiteral("notes")));
         QVERIFY(view.contains(QStringLiteral("weekNo")));
+        QVERIFY(view.contains(QStringLiteral("property date currentDate")));
+        QVERIFY(view.contains(QStringLiteral("currentWeek")));
+        QVERIFY(view.contains(QStringLiteral("当前周")));
+        QVERIFY(view.contains(QStringLiteral("Accessible.name")));
         QVERIFY(view.contains(QStringLiteral("startDate")));
         QVERIFY(view.contains(QStringLiteral("endDate")));
         QVERIFY(view.contains(QStringLiteral("查看原版")));
