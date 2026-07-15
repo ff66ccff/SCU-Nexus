@@ -120,6 +120,8 @@ qt_add_executable(SCU_Nexus
     src/models/GradeModels.cpp
     src/repositories/QueryCacheRepository.h
     src/repositories/QueryCacheRepository.cpp
+    src/services/calendar/AcademicCalendarCatalog.h
+    src/services/calendar/AcademicCalendarCatalog.cpp
     src/services/calendar/AcademicCalendarService.h
     src/services/calendar/AcademicCalendarService.cpp
     src/services/calendar/HolidayService.h
@@ -162,6 +164,13 @@ qt_add_executable(SCU_Nexus
     src/viewmodels/ScheduleImportViewModel.cpp
     src/viewmodels/CourseEditViewModel.h
     src/viewmodels/CourseEditViewModel.cpp
+)
+
+qt_add_resources(SCU_Nexus "structured_academic_calendars"
+    PREFIX "/calendar"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources/calendar"
+    FILES
+        resources/calendar/academic_calendars.json
 )
 
 target_compile_definitions(SCU_Nexus PRIVATE
@@ -317,6 +326,8 @@ qt_add_executable(person_d_query_tests
     src/models/GradeModels.cpp
     src/repositories/QueryCacheRepository.h
     src/repositories/QueryCacheRepository.cpp
+    src/services/calendar/AcademicCalendarCatalog.h
+    src/services/calendar/AcademicCalendarCatalog.cpp
     src/services/calendar/AcademicCalendarService.h
     src/services/calendar/AcademicCalendarService.cpp
     src/services/calendar/HolidayService.h
@@ -333,6 +344,13 @@ qt_add_executable(person_d_query_tests
     src/viewmodels/GradesViewModel.cpp
     src/viewmodels/QueryCacheViewModel.h
     src/viewmodels/QueryCacheViewModel.cpp
+)
+
+qt_add_resources(person_d_query_tests "test_structured_academic_calendars"
+    PREFIX "/calendar"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources/calendar"
+    FILES
+        resources/calendar/academic_calendars.json
 )
 
 target_include_directories(person_d_query_tests PRIVATE

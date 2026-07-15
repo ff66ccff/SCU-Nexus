@@ -4,6 +4,7 @@
 #include "src/models/ExamPlanModels.h"
 #include "src/models/GradeModels.h"
 #include "src/repositories/QueryCacheRepository.h"
+#include "src/services/calendar/AcademicCalendarCatalog.h"
 #include "src/services/calendar/AcademicCalendarService.h"
 #include "src/services/grades/GradeStatisticsService.h"
 #include "src/services/zhjw/ZhjwQueryService.h"
@@ -169,6 +170,138 @@ QString calendarImagesPayload(const QStringList &images)
         array.append(image);
     }
     return QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact));
+}
+
+QJsonObject validStructuredCalendarDocument()
+{
+    const auto makeWeek = [](int weekNo, const QString &startDate, const QString &endDate) {
+        return QJsonObject{
+            {QStringLiteral("weekNo"), weekNo},
+            {QStringLiteral("phase"), QStringLiteral("teaching")},
+            {QStringLiteral("startDate"), startDate},
+            {QStringLiteral("endDate"), endDate},
+            {QStringLiteral("label"), QStringLiteral("教学周")}
+        };
+    };
+    const auto makeTerm = [&makeWeek](const QString &id,
+                                      const QString &name,
+                                      const QString &startDate,
+                                      const QString &endDate,
+                                      const QString &weekOneStart,
+                                      const QString &weekOneEnd,
+                                      const QString &weekTwoStart,
+                                      const QString &weekTwoEnd) {
+        return QJsonObject{
+            {QStringLiteral("id"), id},
+            {QStringLiteral("name"), name},
+            {QStringLiteral("startDate"), startDate},
+            {QStringLiteral("endDate"), endDate},
+            {QStringLiteral("sourceImageUrl"), QStringLiteral("https://jwc.scu.edu.cn/calendar.png")},
+            {QStringLiteral("weeks"), QJsonArray{
+                 makeWeek(1, weekOneStart, weekOneEnd),
+                 makeWeek(2, weekTwoStart, weekTwoEnd)
+             }},
+            {QStringLiteral("events"), QJsonArray{
+                 QJsonObject{
+                     {QStringLiteral("id"), id + QStringLiteral("-event-01")},
+                     {QStringLiteral("type"), QStringLiteral("instruction")},
+                     {QStringLiteral("title"), QStringLiteral("正式行课")},
+                     {QStringLiteral("startDate"), weekOneStart},
+                     {QStringLiteral("endDate"), weekOneStart}
+                 }
+             }},
+            {QStringLiteral("notes"), QJsonArray{
+                 QJsonObject{
+                     {QStringLiteral("number"), 1},
+                     {QStringLiteral("text"), QStringLiteral("测试说明")}
+                 }
+             }}
+        };
+    };
+
+    return QJsonObject{
+        {QStringLiteral("schemaVersion"), 1},
+        {QStringLiteral("sourceIndexUrl"), QStringLiteral("https://jwc.scu.edu.cn/cdxl.htm")},
+        {QStringLiteral("capturedAt"), QStringLiteral("2026-07-15")},
+        {QStringLiteral("calendars"), QJsonArray{
+             QJsonObject{
+                 {QStringLiteral("academicYear"), QStringLiteral("2026-2027")},
+                 {QStringLiteral("title"), QStringLiteral("2026—2027学年四川大学校历")},
+                 {QStringLiteral("sourcePagePath"), QStringLiteral("/info/1101/10727.htm")},
+                 {QStringLiteral("publishedAt"), QStringLiteral("2026-07-08")},
+                 {QStringLiteral("terms"), QJsonArray{
+                      makeTerm(QStringLiteral("2026-fall"), QStringLiteral("秋季学期"),
+                               QStringLiteral("2026-08-30"), QStringLiteral("2026-09-12"),
+                               QStringLiteral("2026-08-30"), QStringLiteral("2026-09-05"),
+                               QStringLiteral("2026-09-06"), QStringLiteral("2026-09-12")),
+                      makeTerm(QStringLiteral("2027-spring"), QStringLiteral("春季学期"),
+                               QStringLiteral("2027-02-21"), QStringLiteral("2027-03-06"),
+                               QStringLiteral("2027-02-21"), QStringLiteral("2027-02-27"),
+                               QStringLiteral("2027-02-28"), QStringLiteral("2027-03-06"))
+                  }}
+             }
+         }}
+    };
+}
+
+QString writeStructuredCalendarFixture(QTemporaryDir &dir, const QJsonObject &root)
+{
+    const QString path = dir.filePath(QStringLiteral("academic-calendars.json"));
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return {};
+    }
+    if (file.write(QJsonDocument(root).toJson()) < 0) {
+        return {};
+    }
+    file.close();
+    return file.error() == QFileDevice::NoError ? path : QString{};
+}
+
+template<typename Mutation>
+void mutateCalendar(QJsonObject &root, int calendarIndex, Mutation mutation)
+{
+    QJsonArray calendars = root.value(QStringLiteral("calendars")).toArray();
+    QJsonObject calendar = calendars.at(calendarIndex).toObject();
+    mutation(calendar);
+    calendars.replace(calendarIndex, calendar);
+    root.insert(QStringLiteral("calendars"), calendars);
+}
+
+template<typename Mutation>
+void mutateTerm(QJsonObject &root, int termIndex, Mutation mutation)
+{
+    mutateCalendar(root, 0, [termIndex, &mutation](QJsonObject &calendar) {
+        QJsonArray terms = calendar.value(QStringLiteral("terms")).toArray();
+        QJsonObject term = terms.at(termIndex).toObject();
+        mutation(term);
+        terms.replace(termIndex, term);
+        calendar.insert(QStringLiteral("terms"), terms);
+    });
+}
+
+template<typename Mutation>
+void mutateWeek(QJsonObject &root, int weekIndex, Mutation mutation)
+{
+    mutateTerm(root, 0, [weekIndex, &mutation](QJsonObject &term) {
+        QJsonArray weeks = term.value(QStringLiteral("weeks")).toArray();
+        QJsonObject week = weeks.at(weekIndex).toObject();
+        mutation(week);
+        weeks.replace(weekIndex, week);
+        term.insert(QStringLiteral("weeks"), weeks);
+    });
+}
+
+template<typename Mutation>
+void mutateEvent(QJsonObject &root, int eventIndex, Mutation mutation)
+{
+    mutateTerm(root, 0, [eventIndex, &mutation](QJsonObject &term) {
+        QJsonArray events = term.value(QStringLiteral("events")).toArray();
+        QJsonObject event = events.at(eventIndex).toObject();
+        mutation(event);
+        events.replace(eventIndex, event);
+        term.insert(QStringLiteral("events"), events);
+    });
 }
 
 struct StaticNetworkResponse
@@ -488,6 +621,10 @@ class PersonDQueryTest : public QObject
     Q_OBJECT
 
 private slots:
+    void loadsStructuredAcademicCalendarResourceAndNormalizesLookup();
+    void structuredCalendarModelsConvertToVariant();
+    void rejectsInvalidStructuredAcademicCalendar_data();
+    void rejectsInvalidStructuredAcademicCalendar();
     void parsesCalendarEntriesAndImages();
     void decodesQuotedGb18030CalendarCharset();
     void decodesQuotedUtf8CalendarCharset();
@@ -582,6 +719,165 @@ private slots:
     void examViewModelUsesCacheWhenLoggedOut();
     void gradesViewModelKeepsCacheWhenRefreshFails();
 };
+
+void PersonDQueryTest::loadsStructuredAcademicCalendarResourceAndNormalizesLookup()
+{
+    AcademicCalendarCatalog catalog;
+    QVERIFY2(catalog.load(), qPrintable(catalog.errorMessage()));
+    QCOMPARE(catalog.calendars().size(), 6);
+
+    const auto byTitle = catalog.calendarForEntry(
+        QStringLiteral("2026-2027学年四川大学校历"), QString());
+    QVERIFY(byTitle.has_value());
+    QCOMPARE(byTitle->academicYear, QStringLiteral("2026-2027"));
+    QCOMPARE(byTitle->terms.size(), 2);
+
+    const auto byAbsolutePath = catalog.calendarForEntry(
+        QString(), QStringLiteral("https://jwc.scu.edu.cn/info/1101/8144.htm"));
+    QVERIFY(byAbsolutePath.has_value());
+    QCOMPARE(byAbsolutePath->academicYear, QStringLiteral("2021-2022"));
+    QVERIFY(!catalog.calendarForEntry(QStringLiteral("no year"), QStringLiteral("/missing")).has_value());
+}
+
+void PersonDQueryTest::structuredCalendarModelsConvertToVariant()
+{
+    StructuredCalendarWeek week{1, QStringLiteral("teaching"),
+                                QDate(2026, 8, 30), QDate(2026, 9, 5),
+                                QStringLiteral("教学周")};
+    StructuredCalendarEvent event{QStringLiteral("event-1"), QStringLiteral("instruction"),
+                                  QStringLiteral("正式行课"), QDate(2026, 8, 30),
+                                  QDate(2026, 8, 30), true};
+    StructuredCalendarNote note{1, QStringLiteral("测试说明")};
+    StructuredCalendarTerm term{QStringLiteral("2026-fall"), QStringLiteral("秋季学期"),
+                                QDate(2026, 8, 30), QDate(2026, 9, 5),
+                                QUrl(QStringLiteral("https://jwc.scu.edu.cn/calendar.png")),
+                                {week}, {event}, {note}};
+    StructuredAcademicCalendar calendar{QStringLiteral("2026-2027"),
+                                         QStringLiteral("2026—2027学年四川大学校历"),
+                                         QStringLiteral("/info/1101/10727.htm"),
+                                         QDate(2026, 7, 8), {term}};
+
+    const QVariantMap value = calendar.toVariant();
+    QCOMPARE(value.value(QStringLiteral("academicYear")).toString(), QStringLiteral("2026-2027"));
+    QCOMPARE(value.value(QStringLiteral("publishedAt")).toDate(), QDate(2026, 7, 8));
+    const QVariantMap termValue = value.value(QStringLiteral("terms")).toList().first().toMap();
+    QCOMPARE(termValue.value(QStringLiteral("sourceImageUrl")).toUrl(), term.sourceImageUrl);
+    QCOMPARE(termValue.value(QStringLiteral("weeks")).toList().first().toMap()
+                 .value(QStringLiteral("weekNo")).toInt(), 1);
+    QCOMPARE(termValue.value(QStringLiteral("events")).toList().first().toMap()
+                 .value(QStringLiteral("affectsTeaching")).toBool(), true);
+    QCOMPARE(termValue.value(QStringLiteral("notes")).toList().first().toMap()
+                 .value(QStringLiteral("order")).toInt(), 1);
+}
+
+void PersonDQueryTest::rejectsInvalidStructuredAcademicCalendar_data()
+{
+    QTest::addColumn<QJsonObject>("root");
+
+    const auto addCase = [](const char *name, auto mutation) {
+        QJsonObject root = validStructuredCalendarDocument();
+        mutation(root);
+        QTest::newRow(name) << root;
+    };
+
+    addCase("unsupported-schema", [](QJsonObject &root) {
+        root.insert(QStringLiteral("schemaVersion"), 2);
+    });
+    addCase("invalid-published-date", [](QJsonObject &root) {
+        mutateCalendar(root, 0, [](QJsonObject &calendar) {
+            calendar.insert(QStringLiteral("publishedAt"), QStringLiteral("2026-02-30"));
+        });
+    });
+    addCase("reversed-term-range", [](QJsonObject &root) {
+        mutateTerm(root, 0, [](QJsonObject &term) {
+            term.insert(QStringLiteral("endDate"), QStringLiteral("2026-08-29"));
+        });
+    });
+    addCase("reversed-event-range", [](QJsonObject &root) {
+        mutateEvent(root, 0, [](QJsonObject &event) {
+            event.insert(QStringLiteral("endDate"), QStringLiteral("2026-08-29"));
+        });
+    });
+    addCase("invalid-phase", [](QJsonObject &root) {
+        mutateWeek(root, 0, [](QJsonObject &week) {
+            week.insert(QStringLiteral("phase"), QStringLiteral("reading-week"));
+        });
+    });
+    addCase("invalid-event-type", [](QJsonObject &root) {
+        mutateEvent(root, 0, [](QJsonObject &event) {
+            event.insert(QStringLiteral("type"), QStringLiteral("other"));
+        });
+    });
+    addCase("duplicate-academic-year", [](QJsonObject &root) {
+        QJsonArray calendars = root.value(QStringLiteral("calendars")).toArray();
+        calendars.append(calendars.first());
+        root.insert(QStringLiteral("calendars"), calendars);
+    });
+    addCase("duplicate-term-id", [](QJsonObject &root) {
+        mutateCalendar(root, 0, [](QJsonObject &calendar) {
+            QJsonArray terms = calendar.value(QStringLiteral("terms")).toArray();
+            QJsonObject secondTerm = terms.at(1).toObject();
+            secondTerm.insert(QStringLiteral("id"),
+                              terms.first().toObject().value(QStringLiteral("id")));
+            terms.replace(1, secondTerm);
+            calendar.insert(QStringLiteral("terms"), terms);
+        });
+    });
+    addCase("duplicate-event-id", [](QJsonObject &root) {
+        mutateTerm(root, 0, [](QJsonObject &term) {
+            QJsonArray events = term.value(QStringLiteral("events")).toArray();
+            events.append(events.first());
+            term.insert(QStringLiteral("events"), events);
+        });
+    });
+    addCase("duplicate-week-number", [](QJsonObject &root) {
+        mutateWeek(root, 1, [](QJsonObject &week) {
+            week.insert(QStringLiteral("weekNo"), 1);
+        });
+    });
+    addCase("non-contiguous-weeks", [](QJsonObject &root) {
+        mutateWeek(root, 1, [](QJsonObject &week) {
+            week.insert(QStringLiteral("startDate"), QStringLiteral("2026-09-07"));
+            week.insert(QStringLiteral("endDate"), QStringLiteral("2026-09-13"));
+        });
+    });
+    addCase("non-seven-day-week", [](QJsonObject &root) {
+        mutateWeek(root, 0, [](QJsonObject &week) {
+            week.insert(QStringLiteral("endDate"), QStringLiteral("2026-09-04"));
+        });
+    });
+    addCase("wrong-term-count", [](QJsonObject &root) {
+        mutateCalendar(root, 0, [](QJsonObject &calendar) {
+            QJsonArray terms = calendar.value(QStringLiteral("terms")).toArray();
+            terms.removeLast();
+            calendar.insert(QStringLiteral("terms"), terms);
+        });
+    });
+    addCase("missing-calendar-title", [](QJsonObject &root) {
+        mutateCalendar(root, 0, [](QJsonObject &calendar) {
+            calendar.remove(QStringLiteral("title"));
+        });
+    });
+    addCase("missing-week-label", [](QJsonObject &root) {
+        mutateWeek(root, 0, [](QJsonObject &week) {
+            week.remove(QStringLiteral("label"));
+        });
+    });
+}
+
+void PersonDQueryTest::rejectsInvalidStructuredAcademicCalendar()
+{
+    QFETCH(QJsonObject, root);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = writeStructuredCalendarFixture(dir, root);
+    QVERIFY(!path.isEmpty());
+
+    AcademicCalendarCatalog catalog(path);
+    QVERIFY(!catalog.load());
+    QVERIFY(!catalog.errorMessage().isEmpty());
+    QVERIFY(catalog.calendars().isEmpty());
+}
 
 void PersonDQueryTest::parsesCalendarEntriesAndImages()
 {
