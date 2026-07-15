@@ -16,6 +16,7 @@
 #include "src/services/api/ZhjwParsers.h"
 
 #include <QEventLoop>
+#include <QFile>
 #include <QHostAddress>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -258,6 +259,8 @@ private slots:
     void zhjwExamPlanParserRecognizesExplicitEmptyMarkers();
     void zhjwExamPlanParserRejectsUnrelatedHtml();
     void zhjwExamPlanParserRecognizesUnparseableWidget();
+    void zhjwParsersReadClassroomIndexAndAvailability();
+    void zhjwParsersRejectMalformedClassroomPayloads();
     void zhjwParsersDetectExpiredSessions();
     void authViewModelWritesFreshCaptchaUrlEachTime();
     void authViewModelRejectsLoginBeforeCaptchaLoaded();
@@ -266,6 +269,7 @@ private slots:
     void scuAuthParsesCaptchaDataUrl();
     void scuAuthTokenTtlAndStorageWork();
     void zhjwApiExposesDocumentedEndpoints();
+    void zhjwApiRequestsClassroomIndexAndAvailability();
     void sm2CryptoEncryptsToC1C2C3Base64();
     void scuAuthLoginRequestsSm2ThenTokenAndStoresToken();
     void scuAuthLoginParsesRestTokenHttp400JsonError();
@@ -693,6 +697,45 @@ void PersonBFoundationTest::zhjwExamPlanParserRecognizesUnparseableWidget()
     QVERIFY(!result.explicitlyEmpty);
 }
 
+void PersonBFoundationTest::zhjwParsersReadClassroomIndexAndAvailability()
+{
+    QFile indexFile(QFINDTESTDATA("fixtures/classroom_index.html"));
+    QVERIFY(indexFile.open(QIODevice::ReadOnly));
+    ClassroomIndexDto index;
+    QString error;
+    QVERIFY2(ZhjwParsers::parseClassroomIndex(QString::fromUtf8(indexFile.readAll()),
+                                              &index,
+                                              &error),
+             qPrintable(error));
+    QCOMPARE(index.campuses.size(), 2);
+    QCOMPARE(index.campuses.first().campusName, QStringLiteral("江安"));
+    QCOMPARE(index.buildings.first().teachingBuildingNumber, QStringLiteral("101"));
+
+    QFile queryFile(QFINDTESTDATA("fixtures/classroom_query.json"));
+    QVERIFY(queryFile.open(QIODevice::ReadOnly));
+    ClassroomQueryResultDto result;
+    QVERIFY2(ZhjwParsers::parseClassroomQuery(queryFile.readAll(), &result, &error),
+             qPrintable(error));
+    QCOMPARE(result.classrooms.size(), 1);
+    QCOMPARE(result.classrooms.first().placeNum, 120);
+    QCOMPARE(result.timeSlots.first().continuingSession, 2);
+    QCOMPARE(result.teachingWeek, 20);
+}
+
+void PersonBFoundationTest::zhjwParsersRejectMalformedClassroomPayloads()
+{
+    ClassroomIndexDto index;
+    ClassroomQueryResultDto result;
+    QString error;
+
+    QVERIFY(!ZhjwParsers::parseClassroomIndex(QStringLiteral("<html>维护中</html>"),
+                                              &index,
+                                              &error));
+    QVERIFY(!error.isEmpty());
+    QVERIFY(!ZhjwParsers::parseClassroomQuery(QByteArrayLiteral("[]"), &result, &error));
+    QVERIFY(!error.isEmpty());
+}
+
 // 验证综合教务页面解析器行为。
 void PersonBFoundationTest::zhjwParsersDetectExpiredSessions()
 {
@@ -801,6 +844,64 @@ void PersonBFoundationTest::zhjwApiExposesDocumentedEndpoints()
     QCOMPARE(ZhjwApiService::zhjwBase(), QString("http://zhjw.scu.edu.cn"));
     QCOMPARE(ZhjwApiService::jwcCalendarUrl(), QString("https://jwc.scu.edu.cn/cdxl.htm"));
     QVERIFY(ZhjwApiService::isSessionExpired("<html>统一身份认证 用户登录</html>", 200));
+}
+
+void PersonBFoundationTest::zhjwApiRequestsClassroomIndexAndAvailability()
+{
+    auto* client = new FakeCookieHttpClient();
+    const QString indexUrl = QStringLiteral(
+        "http://zhjw.scu.edu.cn/student/teachingResources/classroomUseStatus/index");
+    const QString queryUrl = QStringLiteral(
+        "http://zhjw.scu.edu.cn/student/teachingResources/classroomUseStatus/jasInfo");
+
+    QFile indexFile(QFINDTESTDATA("fixtures/classroom_index.html"));
+    QFile queryFile(QFINDTESTDATA("fixtures/classroom_query.json"));
+    QVERIFY(indexFile.open(QIODevice::ReadOnly));
+    QVERIFY(queryFile.open(QIODevice::ReadOnly));
+
+    HttpResponse indexResponse;
+    indexResponse.statusCode = 200;
+    indexResponse.body = indexFile.readAll();
+    indexResponse.finalUrl = QUrl(indexUrl);
+    client->responses[indexUrl] = indexResponse;
+
+    HttpResponse queryResponse;
+    queryResponse.statusCode = 200;
+    queryResponse.body = queryFile.readAll();
+    queryResponse.finalUrl = QUrl(queryUrl);
+    client->responses[queryUrl] = queryResponse;
+
+    FakeZhjwAuthService auth(client);
+    ZhjwApiService api(nullptr, &auth);
+    ClassroomIndexDto index;
+    ClassroomQueryResultDto result;
+    ApiError indexError;
+    ApiError queryError;
+    api.fetchClassroomIndex(
+        [&](const ClassroomIndexDto& value, const ApiError& error) {
+            index = value;
+            indexError = error;
+        });
+    api.fetchClassroomAvailability(
+        QStringLiteral("01"),
+        QStringLiteral("101"),
+        QStringLiteral("2026-07-15"),
+        [&](const ClassroomQueryResultDto& value, const ApiError& error) {
+            result = value;
+            queryError = error;
+        });
+
+    QCOMPARE(indexError.type, ApiErrorType::Unknown);
+    QCOMPARE(queryError.type, ApiErrorType::Unknown);
+    QCOMPARE(client->getUrls, QStringList{indexUrl});
+    QCOMPARE(client->postUrls, QStringList{queryUrl});
+    QVERIFY(client->postBodies.first().contains("xqh=01"));
+    QVERIFY(client->postBodies.first().contains("jxlh=101"));
+    QVERIFY(client->postBodies.first().contains("searchDate=2026-07-15"));
+    QCOMPARE(client->postHeaders.first().value(QStringLiteral("X-Requested-With")),
+             QStringLiteral("XMLHttpRequest"));
+    QCOMPARE(index.campuses.size(), 2);
+    QCOMPARE(result.classrooms.size(), 1);
 }
 
 // 验证 SM2 加密输出格式符合接口要求。

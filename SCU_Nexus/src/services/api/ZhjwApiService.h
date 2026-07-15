@@ -25,6 +25,8 @@ public:
     using ScheduleCallback = std::function<void(const QJsonObject& schedule, const ApiError& error)>;
     using ExamPlanCallback = std::function<void(const QList<ExamPlanItemDto>& exams, const ApiError& error)>;
     using JsonCallback = std::function<void(const QJsonObject& json, const ApiError& error)>;
+    using ClassroomIndexCallback = std::function<void(const ClassroomIndexDto& index, const ApiError& error)>;
+    using ClassroomAvailabilityCallback = std::function<void(const ClassroomQueryResultDto& result, const ApiError& error)>;
 
     explicit ZhjwApiService(QObject* parent = nullptr, ZhjwAuthService* authService = nullptr);
 
@@ -36,6 +38,11 @@ public:
     void fetchCurrentWeek(WeekCallback callback);
     void fetchSemesters(SemestersCallback callback);
     void fetchJwxtSchedule(const QString& planCode, ScheduleCallback callback);
+    void fetchClassroomIndex(ClassroomIndexCallback callback);
+    void fetchClassroomAvailability(const QString& campusNumber,
+                                    const QString& buildingNumber,
+                                    const QString& searchDate,
+                                    ClassroomAvailabilityCallback callback);
     void fetchExamPlan(ExamPlanCallback callback);
     void fetchSchemeScores(JsonCallback callback);
     void fetchPassingScores(JsonCallback callback);

@@ -3,6 +3,7 @@
 
 #include "src/services/api/ApiDtos.h"
 
+#include <QByteArray>
 #include <QList>
 #include <QString>
 
@@ -24,6 +25,12 @@ int parseCurrentWeek(const QString& html);
 QList<SemesterDto> parseSemesters(const QString& html);
 ExamPlanParseResult parseExamPlanResult(const QString& html);
 QList<ExamPlanItemDto> parseExamPlan(const QString& html);
+bool parseClassroomIndex(const QString& html,
+                         ClassroomIndexDto* result,
+                         QString* errorMessage = nullptr);
+bool parseClassroomQuery(const QByteArray& body,
+                         ClassroomQueryResultDto* result,
+                         QString* errorMessage = nullptr);
 // 成绩 callback 路径含服务端动态段，必须先访问入口页再提取，不能写死 URL。
 QString extractSchemeScoresCallback(const QString& html);
 QString extractPassingScoresCallback(const QString& html);

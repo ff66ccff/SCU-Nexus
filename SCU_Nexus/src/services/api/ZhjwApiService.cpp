@@ -133,6 +133,82 @@ void ZhjwApiService::fetchJwxtSchedule(const QString& planCode, ScheduleCallback
     });
 }
 
+void ZhjwApiService::fetchClassroomIndex(ClassroomIndexCallback callback)
+{
+    request(QUrl(zhjwBase() + QStringLiteral(
+                     "/student/teachingResources/classroomUseStatus/index")),
+            htmlHeaders(zhjwBase() + QStringLiteral("/")),
+            [callback = std::move(callback)](const HttpResponse& response,
+                                             const ApiError& error) {
+        if (error.type != ApiErrorType::Unknown) {
+            callback({}, error);
+            return;
+        }
+
+        ClassroomIndexDto index;
+        QString parseMessage;
+        if (!ZhjwParsers::parseClassroomIndex(QString::fromUtf8(response.body),
+                                              &index,
+                                              &parseMessage)) {
+            callback({}, makeError(ApiErrorType::ParseFailed,
+                                   parseMessage,
+                                   response.statusCode,
+                                   safeBodySummary(QString::fromUtf8(response.body))));
+            return;
+        }
+        callback(index, {});
+    });
+}
+
+void ZhjwApiService::fetchClassroomAvailability(
+    const QString& campusNumber,
+    const QString& buildingNumber,
+    const QString& searchDate,
+    ClassroomAvailabilityCallback callback)
+{
+    QUrlQuery form;
+    form.addQueryItem(QStringLiteral("xqh"), campusNumber);
+    form.addQueryItem(QStringLiteral("jxlh"), buildingNumber);
+    form.addQueryItem(QStringLiteral("jslx"), QString());
+    form.addQueryItem(QStringLiteral("jasm"), QString());
+    form.addQueryItem(QStringLiteral("zwFrom"), QString());
+    form.addQueryItem(QStringLiteral("zwTo"), QString());
+    form.addQueryItem(QStringLiteral("searchDate"), searchDate);
+
+    const QString indexUrl = zhjwBase()
+        + QStringLiteral("/student/teachingResources/classroomUseStatus/index");
+    postForm(QUrl(zhjwBase() + QStringLiteral(
+                      "/student/teachingResources/classroomUseStatus/jasInfo")),
+             form.toString(QUrl::FullyEncoded).toUtf8(),
+             {
+                 {QStringLiteral("Accept"),
+                  QStringLiteral("application/json, text/javascript, */*; q=0.01")},
+                 {QStringLiteral("Content-Type"),
+                  QStringLiteral("application/x-www-form-urlencoded; charset=UTF-8")},
+                 {QStringLiteral("Referer"), indexUrl},
+                 {QStringLiteral("User-Agent"), NetworkSettings::kDefaultUserAgent},
+                 {QStringLiteral("X-Requested-With"), QStringLiteral("XMLHttpRequest")},
+             },
+             [callback = std::move(callback)](const HttpResponse& response,
+                                              const ApiError& error) {
+        if (error.type != ApiErrorType::Unknown) {
+            callback({}, error);
+            return;
+        }
+
+        ClassroomQueryResultDto result;
+        QString parseMessage;
+        if (!ZhjwParsers::parseClassroomQuery(response.body, &result, &parseMessage)) {
+            callback({}, makeError(ApiErrorType::ParseFailed,
+                                   parseMessage,
+                                   response.statusCode,
+                                   safeBodySummary(QString::fromUtf8(response.body))));
+            return;
+        }
+        callback(result, {});
+    });
+}
+
 // 空列表只有在页面明确出现空结果文案时才算成功，避免把系统维护页伪装成“无考试”。
 void ZhjwApiService::fetchExamPlan(ExamPlanCallback callback)
 {

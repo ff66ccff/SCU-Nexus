@@ -1,5 +1,9 @@
 #include "ZhjwParsers.h"
 
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
 #include <QRegularExpression>
 
 namespace {
@@ -36,6 +40,39 @@ QString extractCallback(const QString& html, const QString& suffix)
             .arg(suffix));
     const QRegularExpressionMatch match = regex.match(html);
     return match.hasMatch() ? match.captured(1) : QString();
+}
+
+bool failParse(QString* errorMessage, const QString& message)
+{
+    if (errorMessage) {
+        *errorMessage = message;
+    }
+    return false;
+}
+
+QString hiddenJsonValue(const QString& html, const QString& id)
+{
+    const QRegularExpression regex(
+        QStringLiteral("<input[^>]*id\\s*=\\s*[\"']%1[\"'][^>]*value\\s*=\\s*'([^']*)'[^>]*>")
+            .arg(QRegularExpression::escape(id)),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch match = regex.match(html);
+    return match.hasMatch() ? match.captured(1) : QString();
+}
+
+QString jsonString(const QJsonValue& value)
+{
+    return value.isString() ? value.toString() : value.toVariant().toString();
+}
+
+int jsonInt(const QJsonValue& value, int fallback = 0)
+{
+    if (value.isDouble()) {
+        return value.toInt(fallback);
+    }
+    bool ok = false;
+    const int parsed = value.toString().toInt(&ok);
+    return ok ? parsed : fallback;
 }
 
 }
@@ -122,6 +159,147 @@ ExamPlanParseResult parseExamPlanResult(const QString& html)
 QList<ExamPlanItemDto> parseExamPlan(const QString& html)
 {
     return parseExamPlanResult(html).items;
+}
+
+bool parseClassroomIndex(const QString& html,
+                         ClassroomIndexDto* result,
+                         QString* errorMessage)
+{
+    if (!result) {
+        return failParse(errorMessage, QStringLiteral("教室索引输出参数无效"));
+    }
+
+    const QString campusJson = hiddenJsonValue(html, QStringLiteral("xqList"));
+    const QString buildingJson = hiddenJsonValue(html, QStringLiteral("jxlList"));
+    if (campusJson.isEmpty() || buildingJson.isEmpty()) {
+        return failParse(errorMessage, QStringLiteral("教室查询页面缺少校区或教学楼数据"));
+    }
+
+    QJsonParseError campusError;
+    QJsonParseError buildingError;
+    const QJsonDocument campusDocument = QJsonDocument::fromJson(campusJson.toUtf8(), &campusError);
+    const QJsonDocument buildingDocument = QJsonDocument::fromJson(buildingJson.toUtf8(), &buildingError);
+    if (campusError.error != QJsonParseError::NoError || !campusDocument.isArray()
+        || buildingError.error != QJsonParseError::NoError || !buildingDocument.isArray()) {
+        return failParse(errorMessage, QStringLiteral("校区或教学楼数据格式无效"));
+    }
+
+    ClassroomIndexDto parsed;
+    for (const QJsonValue& value : campusDocument.array()) {
+        if (!value.isObject()) {
+            return failParse(errorMessage, QStringLiteral("校区条目格式无效"));
+        }
+        const QJsonObject object = value.toObject();
+        ClassroomCampusDto campus{
+            object.value(QStringLiteral("campusName")).toString().trimmed(),
+            jsonString(object.value(QStringLiteral("campusNumber"))).trimmed()
+        };
+        if (campus.campusName.isEmpty() || campus.campusNumber.isEmpty()) {
+            return failParse(errorMessage, QStringLiteral("校区条目缺少名称或编号"));
+        }
+        parsed.campuses.append(campus);
+    }
+
+    for (const QJsonValue& value : buildingDocument.array()) {
+        if (!value.isObject()) {
+            return failParse(errorMessage, QStringLiteral("教学楼条目格式无效"));
+        }
+        const QJsonObject object = value.toObject();
+        const QJsonObject id = object.value(QStringLiteral("id")).toObject();
+        ClassroomBuildingDto building{
+            jsonString(id.value(QStringLiteral("campusNumber"))).trimmed(),
+            jsonString(id.value(QStringLiteral("teachingBuildingNumber"))).trimmed(),
+            object.value(QStringLiteral("teachingBuildingName")).toString().trimmed()
+        };
+        if (building.campusNumber.isEmpty() || building.teachingBuildingNumber.isEmpty()
+            || building.teachingBuildingName.isEmpty()) {
+            return failParse(errorMessage, QStringLiteral("教学楼条目缺少必要字段"));
+        }
+        parsed.buildings.append(building);
+    }
+
+    *result = parsed;
+    if (errorMessage) {
+        errorMessage->clear();
+    }
+    return true;
+}
+
+bool parseClassroomQuery(const QByteArray& body,
+                         ClassroomQueryResultDto* result,
+                         QString* errorMessage)
+{
+    if (!result) {
+        return failParse(errorMessage, QStringLiteral("教室查询输出参数无效"));
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(body, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        return failParse(errorMessage, QStringLiteral("教室查询响应不是有效 JSON 对象"));
+    }
+
+    const QJsonObject root = document.object();
+    if (!root.value(QStringLiteral("classrooms")).isArray()
+        || !root.value(QStringLiteral("classroomTime")).isArray()) {
+        return failParse(errorMessage, QStringLiteral("教室查询响应缺少列表字段"));
+    }
+
+    ClassroomQueryResultDto parsed;
+    parsed.date = root.value(QStringLiteral("date")).toString();
+    parsed.teachingWeek = jsonInt(root.value(QStringLiteral("jxzc")));
+
+    for (const QJsonValue& value : root.value(QStringLiteral("classrooms")).toArray()) {
+        if (!value.isObject()) {
+            return failParse(errorMessage, QStringLiteral("教室条目格式无效"));
+        }
+        const QJsonObject object = value.toObject();
+        const QJsonObject id = object.value(QStringLiteral("id")).toObject();
+        ClassroomInfoDto room;
+        room.classroomName = object.value(QStringLiteral("classroomName")).toString().trimmed();
+        room.classroomStatusCode = jsonString(object.value(QStringLiteral("classroomStatusCode")));
+        room.classroomTypeCode = jsonString(object.value(QStringLiteral("classroomTypeCode")));
+        room.campusNumber = jsonString(id.value(QStringLiteral("campusNumber"))).trimmed();
+        room.classroomNumber = jsonString(id.value(QStringLiteral("classroomNumber"))).trimmed();
+        room.teachingBuildingNumber = jsonString(id.value(QStringLiteral("teachingBuildingNumber"))).trimmed();
+        room.placeNum = qMax(0, jsonInt(object.value(QStringLiteral("placeNum"))));
+        room.remark = object.value(QStringLiteral("remark")).toString().trimmed();
+        room.borrowable = object.value(QStringLiteral("sfkjy")).toString().trimmed();
+        if (room.classroomName.isEmpty() || room.campusNumber.isEmpty()
+            || room.classroomNumber.isEmpty() || room.teachingBuildingNumber.isEmpty()) {
+            return failParse(errorMessage, QStringLiteral("教室条目缺少必要字段"));
+        }
+        parsed.classrooms.append(room);
+    }
+
+    for (const QJsonValue& value : root.value(QStringLiteral("classroomTime")).toArray()) {
+        if (!value.isObject()) {
+            return failParse(errorMessage, QStringLiteral("教室占用条目格式无效"));
+        }
+        const QJsonObject object = value.toObject();
+        const QJsonObject id = object.value(QStringLiteral("id")).toObject();
+        ClassroomTimeSlotDto slot;
+        slot.campusNumber = jsonString(id.value(QStringLiteral("campusNumber"))).trimmed();
+        slot.teachingBuildingNumber = jsonString(id.value(QStringLiteral("teachingBuildingNumber"))).trimmed();
+        slot.classroomNumber = jsonString(id.value(QStringLiteral("classroomNumber"))).trimmed();
+        slot.weekday = jsonInt(id.value(QStringLiteral("xq")));
+        slot.sessionStart = jsonInt(id.value(QStringLiteral("sessionstart")));
+        slot.continuingSession = jsonInt(object.value(QStringLiteral("continuingsession")), 1);
+        slot.timeStateNumber = jsonString(object.value(QStringLiteral("timestatenumber")));
+        slot.occupancyModuleId = jsonString(object.value(QStringLiteral("occupancymoduleId")));
+        if (slot.campusNumber.isEmpty() || slot.teachingBuildingNumber.isEmpty()
+            || slot.classroomNumber.isEmpty() || slot.sessionStart < 1 || slot.sessionStart > 12
+            || slot.continuingSession < 1) {
+            return failParse(errorMessage, QStringLiteral("教室占用条目缺少必要字段"));
+        }
+        parsed.timeSlots.append(slot);
+    }
+
+    *result = parsed;
+    if (errorMessage) {
+        errorMessage->clear();
+    }
+    return true;
 }
 
 // 提取培养方案成绩接口回调路径。
