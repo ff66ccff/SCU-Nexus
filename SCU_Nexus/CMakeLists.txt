@@ -203,6 +203,7 @@ qt_add_qml_module(SCU_Nexus
         qml/components/SearchBar.qml
         qml/components/SectionHeader.qml
         qml/components/SegmentedControl.qml
+        qml/components/SourceAttribution.qml
         qml/components/ToastHost.qml
         qml/components/query/LastUpdatedLabel.qml
         qml/components/query/RefreshButton.qml

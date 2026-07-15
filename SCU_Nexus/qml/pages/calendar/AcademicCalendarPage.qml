@@ -48,6 +48,11 @@ Item {
             }
         }
 
+        SourceAttribution {
+            Layout.fillWidth: true
+            sourceUrl: "https://jwc.scu.edu.cn/cdxl.htm"
+        }
+
         LastUpdatedLabel {
             Layout.fillWidth: true
             value: academicCalendarViewModel.lastUpdated

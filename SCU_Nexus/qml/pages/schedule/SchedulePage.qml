@@ -119,6 +119,11 @@ Page {
                       : "离线查看、编辑和管理本地课表"
         }
 
+        SourceAttribution {
+            Layout.fillWidth: true
+            sourceUrl: "http://zhjw.scu.edu.cn/student/courseSelect/thisSemesterCurriculum/index"
+        }
+
         Flow {
             Layout.fillWidth: true
             Layout.preferredHeight: childrenRect.height

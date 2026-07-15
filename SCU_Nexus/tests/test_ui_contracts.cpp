@@ -95,6 +95,24 @@ private slots:
         QVERIFY(grid.contains(QStringLiteral("totalTracks")));
     }
 
+    void sourceAttributionsExposeExactClickableUrls()
+    {
+        const QString component = readUtf8(
+            QStringLiteral("qml/components/SourceAttribution.qml"));
+        const QString schedule = readUtf8(
+            QStringLiteral("qml/pages/schedule/SchedulePage.qml"));
+        const QString calendar = readUtf8(
+            QStringLiteral("qml/pages/calendar/AcademicCalendarPage.qml"));
+
+        QVERIFY2(!component.isEmpty(), "SourceAttribution.qml must exist");
+        QVERIFY(component.contains(QStringLiteral("数据来自")));
+        QVERIFY(component.contains(QStringLiteral("Qt.openUrlExternally")));
+        QVERIFY(component.contains(QStringLiteral("MouseArea")));
+        QVERIFY(schedule.contains(QStringLiteral(
+            "http://zhjw.scu.edu.cn/student/courseSelect/thisSemesterCurriculum/index")));
+        QVERIFY(calendar.contains(QStringLiteral("https://jwc.scu.edu.cn/cdxl.htm")));
+    }
+
     void scheduleDialogsAreResponsiveAndPreserveBusinessSignals()
     {
         const QString management = readUtf8(
