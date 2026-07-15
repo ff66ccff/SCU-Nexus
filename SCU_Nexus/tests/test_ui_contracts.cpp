@@ -201,6 +201,9 @@ private slots:
         QVERIFY(page.contains(QStringLiteral("40001")));
         QVERIFY(page.contains(QStringLiteral("Math.random()")));
         QVERIFY(page.contains(QStringLiteral("appSettings.hasQwenApiKey")));
+        QVERIFY(page.contains(QStringLiteral("property bool aiEnabled: false")));
+        QCOMPARE(page.count(QStringLiteral(
+                     "root.aiEnabled = appSettings.hasQwenApiKey")), 1);
         QVERIFY(page.contains(QStringLiteral("StructuredAcademicCalendarView")));
         QVERIFY(page.contains(QStringLiteral("router.navigate(\"Settings\")")));
         QVERIFY(page.contains(QStringLiteral("当前学年暂未完成智能解析")));

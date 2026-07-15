@@ -13,7 +13,7 @@ import "../../styles"
 Item {
     id: root
 
-    property bool aiEnabled: appSettings.hasQwenApiKey
+    property bool aiEnabled: false
     property bool aiReady: false
     property bool aiThinking: false
     readonly property bool structuredAvailable:
@@ -35,6 +35,7 @@ Item {
     }
 
     Component.onCompleted: {
+        root.aiEnabled = appSettings.hasQwenApiKey
         academicCalendarViewModel.load()
         if (root.aiEnabled) {
             root.aiThinking = true

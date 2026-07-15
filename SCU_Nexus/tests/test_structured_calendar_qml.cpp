@@ -179,7 +179,8 @@ QVariantMap pageCalendar()
 class FakeAppSettings final : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(bool hasQwenApiKey READ hasQwenApiKey NOTIFY hasQwenApiKeyChanged)
+    Q_PROPERTY(bool hasQwenApiKey READ hasQwenApiKey WRITE setHasQwenApiKey
+                   NOTIFY hasQwenApiKeyChanged)
 
 public:
     explicit FakeAppSettings(bool hasQwenApiKey, QObject *parent = nullptr)
@@ -188,6 +189,13 @@ public:
     }
 
     bool hasQwenApiKey() const { return m_hasQwenApiKey; }
+    void setHasQwenApiKey(bool hasQwenApiKey)
+    {
+        if (m_hasQwenApiKey == hasQwenApiKey)
+            return;
+        m_hasQwenApiKey = hasQwenApiKey;
+        emit hasQwenApiKeyChanged();
+    }
 
 signals:
     void hasQwenApiKeyChanged();
@@ -679,6 +687,96 @@ private slots:
         QCOMPARE(fixture.viewModel.refreshCount(), 3);
         QCOMPARE(timer->property("interval").toInt(), initialInterval);
         QVERIFY(!timer->property("running").toBool());
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join(QLatin1Char('\n'))));
+    }
+
+    void calendarPageSnapshotsQwenModeAtEntry()
+    {
+        QStringList warnings;
+        WarningCapture capture(&warnings);
+
+        CalendarPageView unkeyedPage(false);
+        QVERIFY(unkeyedPage.initialize());
+        QQuickItem *unkeyedRoot = unkeyedPage.view.rootObject();
+        QQuickItem *unkeyedPrompt = findQuickItem(
+            unkeyedRoot, QStringLiteral("academicCalendarEnableAiPrompt"));
+        QQuickItem *unkeyedFallback = findQuickItem(
+            unkeyedRoot, QStringLiteral("academicCalendarImageFallback"));
+        QObject *unkeyedTimer = unkeyedRoot->findChild<QObject *>(
+            QStringLiteral("academicCalendarAiTimer"));
+        QVERIFY(unkeyedPrompt && unkeyedFallback && unkeyedTimer);
+        QVERIFY(unkeyedPrompt->isVisible());
+        QVERIFY(unkeyedFallback->isVisible());
+        QVERIFY(!unkeyedTimer->property("running").toBool());
+
+        unkeyedPage.appSettings.setHasQwenApiKey(true);
+        QCoreApplication::processEvents();
+        QVERIFY(!unkeyedRoot->property("aiEnabled").toBool());
+        QVERIFY(unkeyedPrompt->isVisible());
+        QVERIFY(unkeyedFallback->isVisible());
+        QVERIFY(!unkeyedTimer->property("running").toBool());
+        QVERIFY(!unkeyedRoot->property("aiThinking").toBool());
+        QVERIFY(!unkeyedRoot->property("aiReady").toBool());
+
+        CalendarPageView keyedPageAfterAdd(
+            unkeyedPage.appSettings.hasQwenApiKey());
+        QVERIFY(keyedPageAfterAdd.initialize());
+        QQuickItem *keyedRoot = keyedPageAfterAdd.view.rootObject();
+        QQuickItem *keyedPrompt = findQuickItem(
+            keyedRoot, QStringLiteral("academicCalendarEnableAiPrompt"));
+        QQuickItem *keyedThinking = findQuickItem(
+            keyedRoot, QStringLiteral("academicCalendarThinkingState"));
+        QQuickItem *keyedStructured = findQuickItem(
+            keyedRoot, QStringLiteral("academicCalendarStructuredState"));
+        QQuickItem *keyedRefresh = findQuickItem(
+            keyedRoot, QStringLiteral("academicCalendarRefreshButton"));
+        QObject *keyedTimer = keyedRoot->findChild<QObject *>(
+            QStringLiteral("academicCalendarAiTimer"));
+        QVERIFY(keyedPrompt && keyedThinking && keyedStructured
+                && keyedRefresh && keyedTimer);
+        QVERIFY(keyedRoot->property("aiEnabled").toBool());
+        QVERIFY(keyedThinking->isVisible());
+        QVERIFY(!keyedPrompt->isVisible());
+        QVERIFY(keyedTimer->property("running").toBool());
+        const int keyedInterval = keyedTimer->property("interval").toInt();
+        QVERIFY(keyedInterval >= 20000);
+        QVERIFY(keyedInterval <= 60000);
+
+        keyedPageAfterAdd.appSettings.setHasQwenApiKey(false);
+        QCoreApplication::processEvents();
+        QVERIFY(keyedRoot->property("aiEnabled").toBool());
+        QVERIFY(keyedThinking->isVisible());
+        QVERIFY(!keyedPrompt->isVisible());
+        QVERIFY(keyedTimer->property("running").toBool());
+        QCOMPARE(keyedTimer->property("interval").toInt(), keyedInterval);
+
+        QVERIFY(QMetaObject::invokeMethod(keyedRefresh, "click"));
+        QCOMPARE(keyedPageAfterAdd.viewModel.refreshCount(), 1);
+        QVERIFY(keyedTimer->property("running").toBool());
+        QCOMPARE(keyedTimer->property("interval").toInt(), keyedInterval);
+        QVERIFY(!keyedPrompt->isVisible());
+
+        QVERIFY(QMetaObject::invokeMethod(keyedRoot, "finishThinking"));
+        QCoreApplication::processEvents();
+        QVERIFY(keyedStructured->isVisible());
+        QVERIFY(!keyedPrompt->isVisible());
+        QVERIFY(!keyedTimer->property("running").toBool());
+
+        CalendarPageView unkeyedPageAfterClear(
+            keyedPageAfterAdd.appSettings.hasQwenApiKey());
+        QVERIFY(unkeyedPageAfterClear.initialize());
+        QQuickItem *newUnkeyedRoot = unkeyedPageAfterClear.view.rootObject();
+        QQuickItem *newUnkeyedPrompt = findQuickItem(
+            newUnkeyedRoot, QStringLiteral("academicCalendarEnableAiPrompt"));
+        QQuickItem *newUnkeyedFallback = findQuickItem(
+            newUnkeyedRoot, QStringLiteral("academicCalendarImageFallback"));
+        QObject *newUnkeyedTimer = newUnkeyedRoot->findChild<QObject *>(
+            QStringLiteral("academicCalendarAiTimer"));
+        QVERIFY(newUnkeyedPrompt && newUnkeyedFallback && newUnkeyedTimer);
+        QVERIFY(!newUnkeyedRoot->property("aiEnabled").toBool());
+        QVERIFY(newUnkeyedPrompt->isVisible());
+        QVERIFY(newUnkeyedFallback->isVisible());
+        QVERIFY(!newUnkeyedTimer->property("running").toBool());
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join(QLatin1Char('\n'))));
     }
 };
