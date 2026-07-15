@@ -11,6 +11,11 @@
 class CookieHttpClient;
 class ScuAuthService;
 
+// 把统一认证会话升级为教务系统会话。
+//
+// 它在 ScuAuthService 提供的同一个 CookieHttpClient 上手动走完教务 SSO 重定向链，
+// 并按 access token 缓存结果。API 层发现登录页/空响应时调用 invalidate()，下一次
+// getClient 会重新执行 SSO。并发请求同样通过等待队列合并。
 class ZhjwAuthService : public QObject
 {
     Q_OBJECT

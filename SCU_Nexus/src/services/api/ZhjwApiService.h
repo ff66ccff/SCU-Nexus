@@ -12,6 +12,10 @@
 
 class ZhjwAuthService;
 
+// 教务远端 API 门面。
+//
+// 这里负责认证、请求、会话失效重试和“远端格式”解析；不负责课表入库、考表排序、
+// 成绩模型/GPA 统计。课表和成绩接口因此返回原始 QJsonObject，避免跨模块重复建模。
 class ZhjwApiService : public QObject
 {
     Q_OBJECT
@@ -39,6 +43,7 @@ public:
 private:
     using ResponseCallback = std::function<void(const HttpResponse& response, const ApiError& error)>;
 
+    // GET/表单 POST 的公共包装：获取 SSO client，识别失效响应，并且只重试一次。
     void request(const QUrl& url,
                  const CookieHttpClient::Headers& headers,
                  ResponseCallback callback,
@@ -48,6 +53,7 @@ private:
                   const CookieHttpClient::Headers& headers,
                   ResponseCallback callback,
                   bool retried = false);
+    // 成绩接口是两步请求：入口 HTML 给出动态 callback path，callback 才返回 JSON。
     void fetchScoreJson(const QString& indexPath,
                         const QString& callbackKind,
                         const QString& parseFailureMessage,

@@ -8,37 +8,33 @@
 #include <QStringList>
 #include <QTimer>
 
-// 构造对象并初始化依赖关系。
 CookieHttpClient::CookieHttpClient(QObject* parent)
     : QObject(parent)
 {
 }
 
-// 读取指定资源并返回结果。
+// 普通 GET/POST 不自动跟随重定向，避免业务请求悄悄落到统一认证登录页。
 void CookieHttpClient::get(const QUrl& url, Callback callback, const Headers& headers)
 {
     send(QStringLiteral("GET"), url, {}, std::move(headers), std::move(callback), 0, false);
 }
 
-// 发送 POST 请求并复用统一网络处理流程。
 void CookieHttpClient::post(const QUrl& url, const QByteArray& body, Callback callback, const Headers& headers)
 {
     send(QStringLiteral("POST"), url, body, std::move(headers), std::move(callback), 0, false);
 }
 
-// 发起请求并按限制自动跟随重定向。
+// SSO 专用入口：每一跳都重新按目标 host 计算 Cookie，并保存本跳 Set-Cookie。
 void CookieHttpClient::followRedirects(const QUrl& url, Callback callback, const Headers& headers, int maxRedirects)
 {
     send(QStringLiteral("GET"), url, {}, std::move(headers), std::move(callback), maxRedirects, false);
 }
 
-// 清理内部状态或持久化数据。
 void CookieHttpClient::clearCookies()
 {
     m_cookieJar.clear();
 }
 
-// 处理 Cookie 的解析、存储或输出。
 QString CookieHttpClient::cookieSummaryForDebug() const
 {
     return m_cookieJar.cookieSummaryForDebug();
@@ -91,9 +87,11 @@ void CookieHttpClient::send(QString method,
             return;
         }
 
+        // Cookie 必须在跳转前保存，否则下一跳拿不到认证站点刚建立的会话。
         const QUrl redirectUrl = reply->attribute(QNetworkRequest::RedirectionTargetAttribute).toUrl();
         if (statusCode >= 300 && statusCode < 400 && redirectUrl.isValid() && redirectsRemaining > 0) {
             const QUrl nextUrl = url.resolved(redirectUrl);
+            // 303 按协议切换成 GET；307/308（以及当前兼容策略下的 301/302）保留方法和 body。
             const bool convertToGet = statusCode == 303;
             AuthLogger::instance().debug(QStringLiteral("CookieHttpClient"),
                                          QStringLiteral("redirect hop=%1 status=%2 %3 -> %4")
@@ -119,6 +117,8 @@ void CookieHttpClient::send(QString method,
             return;
         }
 
+        // 有 HTTP 状态码时保留完整响应，例如 rest_token 的 400 body 中有可展示的
+        // “验证码错误”。只有连 HTTP 响应都没收到的传输故障才自动重试一次。
         const bool hasHttpResponse = statusCode > 0;
         if (reply->error() != QNetworkReply::NoError && !hasHttpResponse) {
             const QString errorMessage = reply->errorString();
@@ -152,7 +152,7 @@ void CookieHttpClient::send(QString method,
     });
 }
 
-// 构建携带公共请求头和 Cookie 的网络请求。
+// 先写默认 UA/Cookie，再应用调用方 headers，允许少数接口覆盖 Accept、Referer 等头。
 QNetworkRequest CookieHttpClient::buildRequest(const QUrl& url, const Headers& headers) const
 {
     QNetworkRequest request(url);
@@ -170,7 +170,7 @@ QNetworkRequest CookieHttpClient::buildRequest(const QUrl& url, const Headers& h
     return request;
 }
 
-// 从响应头中提取 Cookie 并保存到 CookieJar。
+// Qt 会保留重复的 Set-Cookie 原始头，必须逐项收集，不能从普通 headers map 读取。
 void CookieHttpClient::storeCookies(const QUrl& url, QNetworkReply* reply)
 {
     QList<QByteArray> setCookieHeaders;
@@ -196,7 +196,6 @@ void CookieHttpClient::storeCookies(const QUrl& url, QNetworkReply* reply)
     }
 }
 
-// 构造统一的网络错误对象。
 ApiError CookieHttpClient::networkError(const QString& message, ApiErrorType type, int statusCode)
 {
     ApiError error;

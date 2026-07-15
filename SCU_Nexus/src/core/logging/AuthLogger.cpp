@@ -37,7 +37,8 @@ QString AuthLogEntry::format(bool includeDate) const
              message);
 }
 
-// 应用样式或脱敏规则到目标内容。
+// 同时覆盖 JSON、表单、查询参数和常见请求头格式。code 仅保留前四位用于
+// 对照重定向链，token/password/Cookie/身份字段则完全移除。
 QString AuthLogRedactor::apply(QString text)
 {
     text.replace(QRegularExpression(QStringLiteral(R"REGEX(("access_token"\s*:\s*)"[^"]*")REGEX"),
@@ -87,32 +88,28 @@ QString AuthLogRedactor::apply(QString text)
     return result;
 }
 
-// 构造对象并初始化依赖关系。
 AuthLogger::AuthLogger(int capacity)
     : m_capacity(qMax(1, capacity))
 {
 }
 
-// 返回认证日志的全局单例实例。
 AuthLogger& AuthLogger::instance()
 {
     static AuthLogger logger;
     return logger;
 }
 
-// 返回校历条目列表的界面数据。
 QList<AuthLogEntry> AuthLogger::entries() const
 {
     return m_entries;
 }
 
-// 清理内部状态或持久化数据。
 void AuthLogger::clear()
 {
     m_entries.clear();
 }
 
-// 写入一条认证日志并维护容量上限。
+// 无论调用方是否已脱敏，所有消息都必须在进入内存环形缓冲区前再过一遍 redactor。
 void AuthLogger::log(AuthLogLevel level, const QString& tag, const QString& message)
 {
     AuthLogEntry entry;

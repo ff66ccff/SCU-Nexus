@@ -42,7 +42,7 @@ QString opensslError()
     return QString::fromLatin1(buffer);
 }
 
-// 从 DER 数据中读取长度字段并推进偏移。
+// DER 长度既可能是单字节短格式，也可能是“长度所占字节数 + 大端长度”的长格式。
 bool readDerLength(const QByteArray& der, qsizetype* offset, qsizetype* length)
 {
     if (*offset >= der.size()) {
@@ -80,7 +80,7 @@ QByteArray readDerValue(const QByteArray& der, qsizetype* offset, unsigned char 
     return value;
 }
 
-// 将 DER 整数字段规整为 32 字节坐标。
+// DER INTEGER 为保持正数可能多一个 0x00；裸 SM2 坐标则必须恰好为 32 字节。
 QByteArray fixedInteger32(QByteArray value)
 {
     while (value.size() > 32 && value.at(0) == '\0') {
@@ -95,7 +95,8 @@ QByteArray fixedInteger32(QByteArray value)
     return value;
 }
 
-// 将 OpenSSL DER 密文转换为国密常用的 C1C2C3 格式。
+// OpenSSL 返回 ASN.1 Sequence(x, y, C3, C2)，学校接口要求裸字节
+// 04 || X(32) || Y(32) || C2 || C3，即 C1C2C3。
 QByteArray sm2DerToC1C2C3(const QByteArray& der)
 {
     qsizetype offset = 0;
@@ -127,7 +128,7 @@ QByteArray sm2DerToC1C2C3(const QByteArray& der)
 
 }
 
-// 使用 SM2 公钥加密明文并输出 Base64 结果。
+// 公钥允许省略非压缩点前缀 0x04；除此之外的长度/格式直接拒绝，避免用错曲线数据。
 QString Sm2Crypto::encryptWithBase64Key(const QString& plaintext, const QString& publicKeyBase64)
 {
     QByteArray publicKey = QByteArray::fromBase64(publicKeyBase64.toUtf8());
@@ -140,6 +141,7 @@ QString Sm2Crypto::encryptWithBase64Key(const QString& plaintext, const QString&
 
     EvpKeyPtr evpKey;
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    // OpenSSL 3 使用 provider/fromdata API 导入 SM2 公钥，避免调用已弃用的 EC_KEY API。
     EvpCtxPtr fromDataContext(EVP_PKEY_CTX_new_from_name(nullptr, "SM2", nullptr));
     if (!fromDataContext || EVP_PKEY_fromdata_init(fromDataContext.get()) != 1) {
         return {};
@@ -161,6 +163,7 @@ QString Sm2Crypto::encryptWithBase64Key(const QString& plaintext, const QString&
     }
     evpKey.reset(importedKey);
 #else
+    // OpenSSL 1.1.1 仍需先构造 EC_KEY，再把 EVP_PKEY 标记为 SM2。
     EcKeyPtr ecKey(EC_KEY_new_by_curve_name(NID_sm2));
     if (!ecKey) {
         return {};

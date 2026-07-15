@@ -6,6 +6,9 @@
 
 class ScuAuthService;
 
+// 登录页与 ScuAuthService 之间的 QML 边界。
+// ViewModel 只维护可展示状态，并把验证码字节落到缓存文件；QML 收集账号密码后
+// 立即转交服务层，不保存 token/Cookie，也不参与 SM2 加密和会话管理。
 class AuthViewModel : public QObject
 {
     Q_OBJECT
@@ -54,6 +57,7 @@ private:
     bool m_loading = false;
     bool m_captchaLoading = false;
     QUrl m_captchaImageUrl;
+    // 后端返回的 captcha code 必须和当前图片、用户输入一起提交，刷新图片时立即清空。
     QString m_captchaCode;
     QString m_errorMessage;
     int m_captchaImageSequence = 0;

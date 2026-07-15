@@ -24,6 +24,8 @@
 
 namespace {
 
+// 可编程的 HTTP 假客户端：记录请求，并按 URL 返回预置响应/错误。
+// B 层测试因此不会访问真实校园网，也不需要真实账号。
 class FakeCookieHttpClient : public CookieHttpClient
 {
 public:
@@ -97,6 +99,7 @@ private:
     }
 };
 
+// 只统计 getClient/invalidate，用于验证 API 会话过期后是否恰好重试一次。
 class FakeZhjwAuthService : public ZhjwAuthService
 {
 public:
@@ -122,6 +125,7 @@ public:
     int invalidateCount = 0;
 };
 
+// AuthViewModel 和 ZhjwAuthService 的测试替身，隔离真实验证码、token 与 SSO 请求。
 class FakeScuAuthService : public ScuAuthService
 {
 public:

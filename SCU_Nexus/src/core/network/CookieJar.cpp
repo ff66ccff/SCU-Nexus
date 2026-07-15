@@ -2,7 +2,8 @@
 
 #include <QStringList>
 
-// 解析响应中的 Set-Cookie 头并写入 Cookie 仓库。
+// 使用响应 host 作为仓库键，而不是直接信任服务端声明的宽 Domain。
+// 每段只读取第一个 name=value；Path、Expires、HttpOnly 等属性不属于请求头内容。
 void CookieJar::storeFromSetCookie(const QUrl& url, const QList<QByteArray>& setCookieHeaders)
 {
     const QString fallbackHost = normalizedHost(url.host());
@@ -30,7 +31,8 @@ void CookieJar::storeFromSetCookie(const QUrl& url, const QList<QByteArray>& set
     }
 }
 
-// 处理 Cookie 的解析、存储或输出。
+// 父域匹配是单向的：id.scu.edu.cn 的 Cookie 可发给 sub.id.scu.edu.cn，
+// 但绝不会发给 zhjw.scu.edu.cn 这类兄弟域。
 QString CookieJar::cookieHeader(const QUrl& url) const
 {
     const QString host = normalizedHost(url.host());
@@ -55,7 +57,7 @@ QString CookieJar::cookieHeader(const QUrl& url) const
     return pairs.join("; ");
 }
 
-// 处理 Cookie 的解析、存储或输出。
+// 调试摘要刻意排除 host 和 value，避免日志成为会话凭据的旁路存储。
 QString CookieJar::cookieSummaryForDebug() const
 {
     qsizetype storedPairCount = 0;
@@ -72,7 +74,6 @@ QString CookieJar::cookieSummaryForDebug() const
     return QStringLiteral("count=%1; names=%2").arg(storedPairCount).arg(names.join(QLatin1Char(',')));
 }
 
-// 清理内部状态或持久化数据。
 void CookieJar::clear()
 {
     m_cookiesByHost.clear();
@@ -88,7 +89,8 @@ QString CookieJar::normalizedHost(QString host)
     return host;
 }
 
-// 拆分可能被合并在同一行里的 Set-Cookie 字段。
+// 不能用 split(',')：Expires=Wed, 21 Oct ... 自身包含逗号。这里只在逗号后
+// 看起来确实出现新的 cookie-name= 时切分。
 QStringList CookieJar::splitCombinedSetCookieHeader(const QString& header)
 {
     QStringList result;
@@ -103,7 +105,6 @@ QStringList CookieJar::splitCombinedSetCookieHeader(const QString& header)
     return result;
 }
 
-// 判断条件是否成立并返回布尔结果。
 bool CookieJar::isCookiePairAhead(const QString& text, qsizetype commaIndex)
 {
     qsizetype i = commaIndex + 1;

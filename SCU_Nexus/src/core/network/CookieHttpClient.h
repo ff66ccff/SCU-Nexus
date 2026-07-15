@@ -14,6 +14,11 @@
 
 #include <functional>
 
+// 带会话 Cookie 的异步 HTTP 客户端，是统一认证和教务 SSO 共用的会话载体。
+//
+// 所有回调都由 Qt 网络事件循环触发，不阻塞 UI 线程。HTTP 4xx/5xx 会作为正常
+// HttpResponse 返回，只有超时、无 HTTP 响应的网络故障等才写入 ApiError。
+// followRedirects 会逐跳保存 Cookie；普通 get/post 禁止跳转并把意外 3xx 作为错误返回。
 class CookieHttpClient : public QObject
 {
     Q_OBJECT
@@ -33,6 +38,7 @@ public:
     virtual QString cookieSummaryForDebug() const;
 
 private:
+    // redirectsRemaining 为 0 表示不跟随重定向；retried 保证传输故障最多重试一次。
     void send(QString method,
               QUrl url,
               QByteArray body,
@@ -46,6 +52,7 @@ private:
     static ApiError networkError(const QString& message, ApiErrorType type, int statusCode = 0);
 
     QNetworkAccessManager m_manager;
+    // CookieJar 必须与客户端同寿命，SSO 后的教务请求才能复用同一组 Cookie。
     CookieJar m_cookieJar;
 };
 

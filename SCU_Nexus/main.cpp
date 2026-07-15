@@ -34,9 +34,9 @@ int main(int argc, char *argv[])
     app.setApplicationVersion(QStringLiteral(SCU_NEXUS_VERSION));
 
     // Fluent WinUI 3 是 Qt 6.8+ 自带的现代 Windows 11 风格；
-    // 若运行环境未安装该样式模块，Qt 会回退到默认样式并打印告警。
     QQuickStyle::setStyle("FluentWinUI3");
 
+    // 认证服务只有一个实例：登录页、教务 SSO 和所有 API 必须共享 token 与 Cookie 生命周期。
     ScuAuthService scuAuthService;
     AppSettings appSettings;
     Router router;
@@ -61,6 +61,8 @@ int main(int argc, char *argv[])
                 ok ? QString{} : QStringLiteral("无法打开或初始化课表数据库")};
         });
 
+    // B 模块主链路：统一认证 -> 教务 SSO -> 教务 API -> 查询层窄接口。
+    // 前三个对象共享会话；最后一个对象把接口适配给考表/成绩 ViewModel。
     ZhjwAuthService zhjwAuthService(nullptr, &scuAuthService);
     ZhjwApiService zhjwApiService(nullptr, &zhjwAuthService);
     ZhjwApiQueryService zhjwQueryService(nullptr, &zhjwApiService);
@@ -79,6 +81,7 @@ int main(int argc, char *argv[])
     scheduleImportViewModel.setLoggedIn(appController.loggedIn());
     courseEditViewModel.setRepository(&scheduleRepository);
 
+    // 课表模块只消费 B 层返回的学期 DTO、原始课表 JSON 和当前周；解析与入库仍由 C 层负责。
     scheduleImportViewModel.setRemoteApi(
         [&zhjwApiService](SCUNexus::ScheduleImportViewModel::SemestersResult done) {
             zhjwApiService.fetchSemesters(
@@ -116,6 +119,7 @@ int main(int argc, char *argv[])
                 });
         });
 
+    // 登录状态只控制页面是否允许发起查询；真正的会话有效性仍由 API 请求时在线校验。
     QObject::connect(&appController, &AppController::loginStateChanged,
                      &zhjwQueryService, &ZhjwApiQueryService::setLoggedIn);
     QObject::connect(&appController, &AppController::loginStateChanged,

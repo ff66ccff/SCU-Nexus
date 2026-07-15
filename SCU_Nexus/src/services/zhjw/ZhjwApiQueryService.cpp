@@ -28,6 +28,7 @@ void ZhjwApiQueryService::setLoggedIn(bool loggedIn)
 
 void ZhjwApiQueryService::fetchExamPlan(ExamPlanCallback callback)
 {
+    // 适配层不排序、不缓存、不改 DTO，查询 ViewModel 才拥有这些页面状态。
     if (!m_api) {
         callback({}, {ApiErrorType::ServiceUnavailable, QStringLiteral("教务 API 服务不可用")});
         return;
@@ -39,6 +40,7 @@ void ZhjwApiQueryService::fetchExamPlan(ExamPlanCallback callback)
 
 void ZhjwApiQueryService::fetchSchemeScores(JsonCallback callback)
 {
+    // 保留 B 层原始 JSON 和 ApiError，让成绩 ViewModel 统一做领域解析与错误展示。
     if (!m_api) {
         callback({}, {ApiErrorType::ServiceUnavailable, QStringLiteral("教务 API 服务不可用")});
         return;

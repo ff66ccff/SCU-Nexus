@@ -17,6 +17,8 @@ struct StartupStepResult
 
 using StartupStep = std::function<StartupStepResult()>;
 
+// 应用级装配边界：持有 AuthViewModel，并把登录状态同步给需要认证的业务模块。
+// 登录算法仍完全位于 B 层服务中，AppController 不接触 token、密码或 Cookie。
 class AppController : public QObject
 {
     Q_OBJECT

@@ -6,7 +6,7 @@
 
 #include <utility>
 
-// 构造对象并初始化依赖关系。
+// 注入同一个 ScuAuthService，保证登录页恢复的 token 能被 main.cpp 中的教务 SSO 链复用。
 AppController::AppController(QObject *parent,
                              ScuAuthService *authService,
                              StartupStep queryCacheInitializer,
@@ -50,7 +50,7 @@ QString AppController::appVersion() const
     return QCoreApplication::applicationVersion();
 }
 
-// 暴露认证视图模型给 QML 层使用。
+// 以 QObject 暴露可避免 AppController 头文件把认证实现细节传播给整个应用层。
 QObject* AppController::authViewModel() const
 {
     return m_authViewModel;
@@ -83,7 +83,7 @@ void AppController::initialize()
     emit startupFinished();
 }
 
-// 设置属性值并在变化时发出通知。
+// loginStateChanged 用于同步考表、成绩和在线课表入口，不代表服务端会话永久有效。
 void AppController::setLoginState(bool ok)
 {
     if (m_loggedIn == ok) {

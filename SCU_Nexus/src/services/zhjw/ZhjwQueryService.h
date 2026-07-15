@@ -9,6 +9,8 @@
 
 class ZhjwApiService;
 
+// 考表/成绩 ViewModel 面向的窄接口，便于用假服务测试页面状态和缓存逻辑。
+// 真实实现 ZhjwApiQueryService 仅转发 B 层 API；loggedIn 由应用装配层同步。
 class ZhjwQueryService : public QObject
 {
     Q_OBJECT

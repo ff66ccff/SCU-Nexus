@@ -21,6 +21,7 @@ CookieHttpClient::Headers htmlHeaders(const QString& referer)
     };
 }
 
+// 考表和成绩入口会根据浏览器导航 Accept 返回不同内容，不能复用普通 */* 头。
 CookieHttpClient::Headers browserHtmlHeaders(const QString& referer)
 {
     return {
@@ -38,7 +39,6 @@ QString safeBodySummary(const QString& body)
 
 }
 
-// 构造对象并初始化依赖关系。
 ZhjwApiService::ZhjwApiService(QObject* parent, ZhjwAuthService* authService)
     : QObject(parent)
     , m_authService(authService)
@@ -49,31 +49,28 @@ ZhjwApiService::ZhjwApiService(QObject* parent, ZhjwAuthService* authService)
     }
 }
 
-// 返回统一身份认证服务基础地址。
 QString ZhjwApiService::scuIdBase()
 {
     return QStringLiteral("https://id.scu.edu.cn");
 }
 
-// 返回综合教务系统基础地址。
 QString ZhjwApiService::zhjwBase()
 {
     return QStringLiteral("http://zhjw.scu.edu.cn");
 }
 
-// 返回教务处校历页面地址。
+// 仅集中暴露公开校历地址；页面抓取和解析由校历模块负责。
 QString ZhjwApiService::jwcCalendarUrl()
 {
     return QStringLiteral("https://jwc.scu.edu.cn/cdxl.htm");
 }
 
-// 判断条件是否成立并返回布尔结果。
 bool ZhjwApiService::isSessionExpired(const QString& body, int statusCode)
 {
     return ZhjwParsers::isSessionExpired(body, statusCode);
 }
 
-// 发起数据获取流程并通过回调返回结果。
+// 首页只负责提供“当前第 N 周”，解析失败不能静默回退为第 1 周。
 void ZhjwApiService::fetchCurrentWeek(WeekCallback callback)
 {
     request(QUrl(zhjwBase() + QStringLiteral("/")),
@@ -92,7 +89,7 @@ void ZhjwApiService::fetchCurrentWeek(WeekCallback callback)
     });
 }
 
-// 发起数据获取流程并通过回调返回结果。
+// option 的 value 是后续课表请求 planCode，label 原样交给导入层展示。
 void ZhjwApiService::fetchSemesters(SemestersCallback callback)
 {
     request(QUrl(zhjwBase() + QStringLiteral("/student/courseSelect/calendarSemesterCurriculum/index")),
@@ -111,7 +108,7 @@ void ZhjwApiService::fetchSemesters(SemestersCallback callback)
     });
 }
 
-// 发起数据获取流程并通过回调返回结果。
+// 这里只验证响应为 JSON；xkxx 到 Course/ScheduleConfig 的领域转换属于课表模块。
 void ZhjwApiService::fetchJwxtSchedule(const QString& planCode, ScheduleCallback callback)
 {
     QUrlQuery form;
@@ -136,7 +133,7 @@ void ZhjwApiService::fetchJwxtSchedule(const QString& planCode, ScheduleCallback
     });
 }
 
-// 发起数据获取流程并通过回调返回结果。
+// 空列表只有在页面明确出现空结果文案时才算成功，避免把系统维护页伪装成“无考试”。
 void ZhjwApiService::fetchExamPlan(ExamPlanCallback callback)
 {
     request(QUrl(zhjwBase() + QStringLiteral("/student/examinationManagement/examPlan/index")),
@@ -159,7 +156,7 @@ void ZhjwApiService::fetchExamPlan(ExamPlanCallback callback)
     });
 }
 
-// 发起数据获取流程并通过回调返回结果。
+// 两种成绩接口共享动态 callback 流程，返回原始 JSON 给成绩模块建模和统计。
 void ZhjwApiService::fetchSchemeScores(JsonCallback callback)
 {
     fetchScoreJson(QStringLiteral("/student/integratedQuery/scoreQuery/schemeScores/index"),
@@ -168,7 +165,6 @@ void ZhjwApiService::fetchSchemeScores(JsonCallback callback)
                    std::move(callback));
 }
 
-// 发起数据获取流程并通过回调返回结果。
 void ZhjwApiService::fetchPassingScores(JsonCallback callback)
 {
     fetchScoreJson(QStringLiteral("/student/integratedQuery/scoreQuery/allPassingScores/index"),
@@ -182,6 +178,7 @@ void ZhjwApiService::request(const QUrl& url,
                              ResponseCallback callback,
                              bool retried)
 {
+    // getClient 会合并并发 SSO；拿到的 client 已同时具备统一认证和教务 Cookie。
     m_authService->getClient([this, url, headers, callback = std::move(callback), retried](CookieHttpClient* client, const ApiError& authError) mutable {
         if (authError.type != ApiErrorType::Unknown || !client) {
             callback({}, authError.type == ApiErrorType::Unknown ? makeError(ApiErrorType::Unauthenticated, QStringLiteral("未登录")) : authError);
@@ -193,6 +190,7 @@ void ZhjwApiService::request(const QUrl& url,
                 callback(response, error);
                 return;
             }
+            // 除状态码外还必须识别 200 登录页和空 body，因为教务系统的失效响应并不稳定。
             const bool sessionExpired = isSessionExpired(body, response.statusCode);
             if ((error.type == ApiErrorType::Unauthenticated || sessionExpired) && !retried) {
                 AuthLogger::instance().warn(QStringLiteral("ZhjwApiService"),
@@ -229,6 +227,7 @@ void ZhjwApiService::postForm(const QUrl& url,
                 callback(response, error);
                 return;
             }
+            // POST 重试必须保留原 body/headers，课表 planCode 才不会在重新 SSO 后丢失。
             const bool sessionExpired = isSessionExpired(responseBody, response.statusCode);
             if ((error.type == ApiErrorType::Unauthenticated || sessionExpired) && !retried) {
                 AuthLogger::instance().warn(QStringLiteral("ZhjwApiService"),
@@ -262,6 +261,7 @@ void ZhjwApiService::fetchScoreJson(const QString& indexPath,
             return;
         }
         const QString indexBody = QString::fromUtf8(indexResponse.body);
+        // callback path 含服务端动态片段，每次都从本次入口 HTML 中提取。
         const QString callbackPath = callbackKind == QStringLiteral("schemeScores")
             ? ZhjwParsers::extractSchemeScoresCallback(indexBody)
             : ZhjwParsers::extractPassingScoresCallback(indexBody);
@@ -281,6 +281,7 @@ void ZhjwApiService::fetchScoreJson(const QString& indexPath,
             return;
         }
 
+        // callback 请求的 Referer 必须指回对应入口页，否则教务端可能拒绝或返回 HTML。
         request(QUrl(zhjwBase() + callbackPath),
                 {
                     {QStringLiteral("Accept"), QStringLiteral("application/json, text/plain, */*")},
@@ -299,7 +300,7 @@ void ZhjwApiService::fetchScoreJson(const QString& indexPath,
     });
 }
 
-// 解析外部数据并转换为内部结构。
+// B 层只确认顶层为 JSON object，不解释成绩/课表字段，避免与下游领域模型重复维护。
 QJsonObject ZhjwApiService::parseJsonObject(const QByteArray& body, const QString& context, ApiError* error)
 {
     QJsonParseError parseError;
@@ -322,7 +323,6 @@ QJsonObject ZhjwApiService::parseJsonObject(const QByteArray& body, const QStrin
     return document.object();
 }
 
-// 构造统一的接口错误对象。
 ApiError ZhjwApiService::makeError(ApiErrorType type, const QString& message, int statusCode, const QString& debugBody)
 {
     ApiError error;

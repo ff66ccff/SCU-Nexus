@@ -22,12 +22,15 @@ struct AuthLogEntry
     QString format(bool includeDate = false) const;
 };
 
+// 日志写入前的最后一道脱敏防线；调用方仍应避免主动传入完整响应或凭据。
 class AuthLogRedactor
 {
 public:
     static QString apply(QString text);
 };
 
+// 认证与教务网络链路的内存环形日志。
+// 日志不直接落盘，只有用户显式导出时才生成文本；容量上限防止长期运行无限增长。
 class AuthLogger
 {
 public:

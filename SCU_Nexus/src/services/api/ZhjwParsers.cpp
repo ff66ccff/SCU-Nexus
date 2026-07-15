@@ -4,7 +4,7 @@
 
 namespace {
 
-// 去除 HTML 标签并规整空白字符。
+// 教务页面不是严格 XML；这里只做字段级轻量清洗，不承担通用 HTML 解析。
 QString stripTags(QString text)
 {
     text.remove(QRegularExpression("<[^>]+>"));
@@ -15,7 +15,6 @@ QString stripTags(QString text)
     return text.simplified();
 }
 
-// 返回正则表达式的第一个捕获结果。
 QString firstCapture(const QString& text, const QString& pattern)
 {
     const QRegularExpression regex(pattern, QRegularExpression::DotMatchesEverythingOption);
@@ -29,7 +28,7 @@ QString labeledValue(const QString& text, const QString& label)
     return firstCapture(text, label + R"(\s*[:：]\s*(?:&nbsp;|\s)*([^<]+))");
 }
 
-// 从 HTML 中提取指定后缀的回调路径。
+// callback 中间段由服务端动态生成，只约束固定前缀和业务后缀。
 QString extractCallback(const QString& html, const QString& suffix)
 {
     const QRegularExpression regex(
@@ -43,7 +42,7 @@ QString extractCallback(const QString& html, const QString& suffix)
 
 namespace ZhjwParsers {
 
-// 判断条件是否成立并返回布尔结果。
+// 教务会话过期没有统一响应格式：重定向、空白 200、英文 login 页和中文统一认证页都可能出现。
 bool isSessionExpired(const QString& body, int statusCode)
 {
     const QString trimmed = body.trimmed();
@@ -56,7 +55,7 @@ bool isSessionExpired(const QString& body, int statusCode)
     return trimmed.contains("统一身份认证") || trimmed.contains("用户登录");
 }
 
-// 解析外部数据并转换为内部结构。
+// 未匹配时返回 0，由服务层统一映射为 ParseFailed，而不是猜测教学周。
 int parseCurrentWeek(const QString& html)
 {
     const QRegularExpression regex(QStringLiteral("第(\\d+)周"));
@@ -64,7 +63,7 @@ int parseCurrentWeek(const QString& html)
     return match.hasMatch() ? match.captured(1).toInt() : 0;
 }
 
-// 解析外部数据并转换为内部结构。
+// 保持服务端 option 顺序和 label 原文；当前学期标记由课表导入层处理。
 QList<SemesterDto> parseSemesters(const QString& html)
 {
     QList<SemesterDto> semesters;
@@ -79,7 +78,7 @@ QList<SemesterDto> parseSemesters(const QString& html)
     return semesters;
 }
 
-// 解析考表条目，并区分页面结构、明确空结果和无法识别的页面。
+// 解析考表条目，并区分“确实无考试”和“页面改版/返回了错误页面”。
 ExamPlanParseResult parseExamPlanResult(const QString& html)
 {
     ExamPlanParseResult result;
@@ -87,6 +86,7 @@ ExamPlanParseResult parseExamPlanResult(const QString& html)
         || html.contains(QStringLiteral("暂无数据"))
         || html.contains(QStringLiteral("没有查询到"));
 
+    // 以相邻 widget-box 为卡片边界，避免一个全局正则跨卡片串联字段。
     const QRegularExpression blockRegex(
         R"((<div[^>]+class\s*=\s*"[^"]*widget-box\s+widget-color-[^"]*"[^>]*>.*?)(?=<div[^>]+class\s*=\s*"[^"]*widget-box\s+widget-color-|$))",
         QRegularExpression::DotMatchesEverythingOption);
@@ -118,7 +118,7 @@ ExamPlanParseResult parseExamPlanResult(const QString& html)
     return result;
 }
 
-// 保留旧调用接口，仅返回成功解析出的考表条目。
+// 保留旧调用接口；需要区分空态与解析失败的新代码应使用 parseExamPlanResult。
 QList<ExamPlanItemDto> parseExamPlan(const QString& html)
 {
     return parseExamPlanResult(html).items;
