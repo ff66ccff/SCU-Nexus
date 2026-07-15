@@ -380,6 +380,9 @@ QString normalizedPath(QString path)
     if (path.startsWith(origin, Qt::CaseInsensitive)) {
         path.remove(0, origin.size());
     }
+    if (!path.isEmpty() && !path.startsWith(QLatin1Char('/'))) {
+        path.prepend(QLatin1Char('/'));
+    }
     return path;
 }
 

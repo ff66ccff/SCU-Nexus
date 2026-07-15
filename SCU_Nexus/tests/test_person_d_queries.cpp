@@ -625,6 +625,10 @@ private slots:
     void structuredCalendarModelsConvertToVariant();
     void rejectsInvalidStructuredAcademicCalendar_data();
     void rejectsInvalidStructuredAcademicCalendar();
+    void rejectsWrongStructuredAcademicCalendarTypes_data();
+    void rejectsWrongStructuredAcademicCalendarTypes();
+    void structuredCalendarReloadClearsStateAfterFailure();
+    void structuredCalendarReloadRecoversAfterCorrection();
     void parsesCalendarEntriesAndImages();
     void decodesQuotedGb18030CalendarCharset();
     void decodesQuotedUtf8CalendarCharset();
@@ -736,6 +740,19 @@ void PersonDQueryTest::loadsStructuredAcademicCalendarResourceAndNormalizesLooku
         QString(), QStringLiteral("https://jwc.scu.edu.cn/info/1101/8144.htm"));
     QVERIFY(byAbsolutePath.has_value());
     QCOMPARE(byAbsolutePath->academicYear, QStringLiteral("2021-2022"));
+
+    const QList<AcademicCalendarEntry> serviceEntries = AcademicCalendarService::parseEntries(
+        QStringLiteral("<a href=\"info/1101/8144.htm\">2021-2022</a>"));
+    QCOMPARE(serviceEntries.size(), 1);
+    QCOMPARE(serviceEntries.first().path, QStringLiteral("info/1101/8144.htm"));
+    const auto byServicePath = catalog.calendarForEntry(QString(), serviceEntries.first().path);
+    QVERIFY(byServicePath.has_value());
+    QCOMPARE(byServicePath->academicYear, byAbsolutePath->academicYear);
+
+    const auto byRootRelativePath = catalog.calendarForEntry(
+        QString(), QStringLiteral("/info/1101/8144.htm"));
+    QVERIFY(byRootRelativePath.has_value());
+    QCOMPARE(byRootRelativePath->academicYear, byAbsolutePath->academicYear);
     QVERIFY(!catalog.calendarForEntry(QStringLiteral("no year"), QStringLiteral("/missing")).has_value());
 }
 
@@ -835,10 +852,15 @@ void PersonDQueryTest::rejectsInvalidStructuredAcademicCalendar_data()
             week.insert(QStringLiteral("weekNo"), 1);
         });
     });
+    addCase("nonsequential-week-number", [](QJsonObject &root) {
+        mutateWeek(root, 1, [](QJsonObject &week) {
+            week.insert(QStringLiteral("weekNo"), 3);
+        });
+    });
     addCase("non-contiguous-weeks", [](QJsonObject &root) {
         mutateWeek(root, 1, [](QJsonObject &week) {
-            week.insert(QStringLiteral("startDate"), QStringLiteral("2026-09-07"));
-            week.insert(QStringLiteral("endDate"), QStringLiteral("2026-09-13"));
+            week.insert(QStringLiteral("startDate"), QStringLiteral("2026-09-05"));
+            week.insert(QStringLiteral("endDate"), QStringLiteral("2026-09-11"));
         });
     });
     addCase("non-seven-day-week", [](QJsonObject &root) {
@@ -877,6 +899,100 @@ void PersonDQueryTest::rejectsInvalidStructuredAcademicCalendar()
     QVERIFY(!catalog.load());
     QVERIFY(!catalog.errorMessage().isEmpty());
     QVERIFY(catalog.calendars().isEmpty());
+}
+
+void PersonDQueryTest::rejectsWrongStructuredAcademicCalendarTypes_data()
+{
+    QTest::addColumn<QJsonObject>("root");
+    QTest::addColumn<QString>("expectedError");
+
+    const auto addCase = [](const char *name, const QString &expectedError, auto mutation) {
+        QJsonObject root = validStructuredCalendarDocument();
+        mutation(root);
+        QTest::newRow(name) << root << expectedError;
+    };
+
+    addCase("required-string-is-number", QStringLiteral(".title must be a non-empty string"),
+            [](QJsonObject &root) {
+        mutateCalendar(root, 0, [](QJsonObject &calendar) {
+            calendar.insert(QStringLiteral("title"), 2026);
+        });
+    });
+    addCase("required-array-is-object", QStringLiteral(".terms must be an array"),
+            [](QJsonObject &root) {
+        mutateCalendar(root, 0, [](QJsonObject &calendar) {
+            calendar.insert(QStringLiteral("terms"), QJsonObject{});
+        });
+    });
+    addCase("required-integer-is-string", QStringLiteral(".weekNo must be an integer"),
+            [](QJsonObject &root) {
+        mutateWeek(root, 0, [](QJsonObject &week) {
+            week.insert(QStringLiteral("weekNo"), QStringLiteral("1"));
+        });
+    });
+    addCase("optional-boolean-is-string", QStringLiteral(".affectsTeaching must be a boolean"),
+            [](QJsonObject &root) {
+        mutateEvent(root, 0, [](QJsonObject &event) {
+            event.insert(QStringLiteral("affectsTeaching"), QStringLiteral("false"));
+        });
+    });
+}
+
+void PersonDQueryTest::rejectsWrongStructuredAcademicCalendarTypes()
+{
+    QFETCH(QJsonObject, root);
+    QFETCH(QString, expectedError);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = writeStructuredCalendarFixture(dir, root);
+    QVERIFY(!path.isEmpty());
+
+    AcademicCalendarCatalog catalog(path);
+    QVERIFY(!catalog.load());
+    QVERIFY2(catalog.errorMessage().contains(expectedError),
+             qPrintable(QStringLiteral("Expected error containing '%1', got '%2'")
+                            .arg(expectedError, catalog.errorMessage())));
+    QVERIFY(catalog.calendars().isEmpty());
+}
+
+void PersonDQueryTest::structuredCalendarReloadClearsStateAfterFailure()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = writeStructuredCalendarFixture(dir, validStructuredCalendarDocument());
+    QVERIFY(!path.isEmpty());
+
+    AcademicCalendarCatalog catalog(path);
+    QVERIFY2(catalog.load(), qPrintable(catalog.errorMessage()));
+    QCOMPARE(catalog.calendars().size(), 1);
+    QVERIFY(catalog.errorMessage().isEmpty());
+
+    QJsonObject invalidRoot = validStructuredCalendarDocument();
+    invalidRoot.insert(QStringLiteral("schemaVersion"), 2);
+    QCOMPARE(writeStructuredCalendarFixture(dir, invalidRoot), path);
+    QVERIFY(!catalog.load());
+    QVERIFY(catalog.calendars().isEmpty());
+    QVERIFY(!catalog.errorMessage().isEmpty());
+}
+
+void PersonDQueryTest::structuredCalendarReloadRecoversAfterCorrection()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QJsonObject invalidRoot = validStructuredCalendarDocument();
+    invalidRoot.insert(QStringLiteral("schemaVersion"), 2);
+    const QString path = writeStructuredCalendarFixture(dir, invalidRoot);
+    QVERIFY(!path.isEmpty());
+
+    AcademicCalendarCatalog catalog(path);
+    QVERIFY(!catalog.load());
+    QVERIFY(catalog.calendars().isEmpty());
+    QVERIFY(!catalog.errorMessage().isEmpty());
+
+    QCOMPARE(writeStructuredCalendarFixture(dir, validStructuredCalendarDocument()), path);
+    QVERIFY2(catalog.load(), qPrintable(catalog.errorMessage()));
+    QCOMPARE(catalog.calendars().size(), 1);
+    QVERIFY(catalog.errorMessage().isEmpty());
 }
 
 void PersonDQueryTest::parsesCalendarEntriesAndImages()
