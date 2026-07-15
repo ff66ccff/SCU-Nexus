@@ -1,5 +1,7 @@
 #include "viewmodels/AcademicCalendarViewModel.h"
 
+#include "services/calendar/AcademicCalendarCatalog.h"
+
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -208,6 +210,27 @@ bool AcademicCalendarViewModel::hasCache() const { return m_hasCache; }
 int AcademicCalendarViewModel::selectedIndex() const { return m_selectedIndex; }
 // 返回当前校历详情图片地址列表。
 QStringList AcademicCalendarViewModel::imageUrls() const { return m_imageUrls; }
+// 返回当前选中项对应的结构化校历数据。
+QVariantMap AcademicCalendarViewModel::structuredCalendar() const
+{
+    return m_structuredCalendar;
+}
+// 返回当前选中项是否有结构化校历数据。
+bool AcademicCalendarViewModel::hasStructuredCalendar() const
+{
+    return !m_structuredCalendar.isEmpty();
+}
+// 返回结构化校历目录加载错误。
+QString AcademicCalendarViewModel::structuredCalendarError() const
+{
+    return m_structuredCalendarError;
+}
+
+void AcademicCalendarViewModel::setStructuredCalendarCatalog(AcademicCalendarCatalog *catalog)
+{
+    m_structuredCalendarCatalog = catalog;
+    syncStructuredCalendar();
+}
 
 // 返回校历条目列表的界面数据。
 QVariantList AcademicCalendarViewModel::entries() const
@@ -315,6 +338,7 @@ void AcademicCalendarViewModel::clearCache()
     syncHasCache();
     m_lastUpdated = {};
     m_entriesUpdatedAt = {};
+    syncStructuredCalendar();
     if (entriesDidChange) {
         emit entriesChanged();
     }
@@ -338,6 +362,7 @@ void AcademicCalendarViewModel::selectEntry(int index)
         return;
     }
     m_selectedIndex = index;
+    syncStructuredCalendar();
     emit selectedChanged();
     if (m_cache && !writeSelectedCache()) {
         emit toastRequested(CacheWriteWarning);
@@ -480,6 +505,7 @@ void AcademicCalendarViewModel::readCache()
     if (m_selectedIndex < 0 && !m_entries.isEmpty()) {
         m_selectedIndex = 0;
     }
+    syncStructuredCalendar();
     emit selectedChanged();
     if (migrateLegacySelection) {
         if (!writeSelectedCache()) {
@@ -625,6 +651,31 @@ void AcademicCalendarViewModel::syncHasCache()
     emit cacheChanged();
 }
 
+void AcademicCalendarViewModel::syncStructuredCalendar()
+{
+    QVariantMap structuredCalendar;
+    QString errorMessage;
+    if (m_structuredCalendarCatalog) {
+        errorMessage = m_structuredCalendarCatalog->errorMessage();
+        if (m_selectedIndex >= 0 && m_selectedIndex < m_entries.size()) {
+            const AcademicCalendarEntry &selected = m_entries.at(m_selectedIndex);
+            const auto calendar = m_structuredCalendarCatalog->calendarForEntry(
+                selected.title, selected.path);
+            if (calendar.has_value()) {
+                structuredCalendar = calendar->toVariant();
+            }
+        }
+    }
+
+    if (m_structuredCalendar == structuredCalendar
+        && m_structuredCalendarError == errorMessage) {
+        return;
+    }
+    m_structuredCalendar = std::move(structuredCalendar);
+    m_structuredCalendarError = std::move(errorMessage);
+    emit structuredCalendarChanged();
+}
+
 // 应用样式或脱敏规则到目标内容。
 void AcademicCalendarViewModel::applyEntries(const QList<AcademicCalendarEntry> &entries, bool fromNetwork)
 {
@@ -698,6 +749,7 @@ void AcademicCalendarViewModel::applyEntries(const QList<AcademicCalendarEntry> 
         }
         reloadSelected();
     }
+    syncStructuredCalendar();
     emit entriesChanged();
     emit selectedChanged();
 }

@@ -644,6 +644,10 @@ private slots:
     void calendarViewModelRestoresCacheOnTypedFailure_data();
     void calendarViewModelRestoresCacheOnTypedFailure();
     void calendarViewModelPreservesExplicitEmptyCache();
+    void calendarViewModelMapsStructuredCalendarFromNetwork();
+    void calendarViewModelMapsStructuredCalendarAfterCacheRestore();
+    void calendarViewModelTracksStructuredCalendarSelection();
+    void calendarViewModelExposesStructuredCatalogError();
     void calendarExplicitEmptyListClearsPriorDetail();
     void calendarRefreshIgnoresStaleDetail_data();
     void calendarRefreshIgnoresStaleDetail();
@@ -1355,6 +1359,193 @@ void PersonDQueryTest::calendarViewModelPreservesExplicitEmptyCache()
     QVERIFY(reader.entries().isEmpty());
     QCOMPARE(reader.lastUpdated(), cachedAt);
     QCOMPARE(toastSpy.count(), 1);
+}
+
+void PersonDQueryTest::calendarViewModelMapsStructuredCalendarFromNetwork()
+{
+    AcademicCalendarCatalog catalog;
+    QVERIFY2(catalog.load(), qPrintable(catalog.errorMessage()));
+
+    StaticNetworkAccessManager network;
+    network.responses = {
+        {QStringLiteral(
+             "<a href=\"info/1101/10727.htm\">2026-2027</a>"
+             "<a href=\"info/1101/8144.htm\">2021-2022</a>").toUtf8()},
+        {QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"), 200,
+         QNetworkReply::NoError, true}
+    };
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(nullptr, &service, nullptr);
+    QSignalSpy structuredSpy(&model, &AcademicCalendarViewModel::structuredCalendarChanged);
+
+    const QueryState stateBeforeInjection = model.state();
+    const QStringList imagesBeforeInjection = model.imageUrls();
+    model.setStructuredCalendarCatalog(&catalog);
+
+    QVERIFY(!model.hasStructuredCalendar());
+    QVERIFY(model.structuredCalendar().isEmpty());
+    QVERIFY(model.structuredCalendarError().isEmpty());
+    QCOMPARE(model.state(), stateBeforeInjection);
+    QCOMPARE(model.imageUrls(), imagesBeforeInjection);
+
+    model.load();
+
+    QTRY_COMPARE(model.entries().size(), 2);
+    QTRY_VERIFY(model.hasStructuredCalendar());
+    QCOMPARE(model.structuredCalendar().value(QStringLiteral("academicYear")).toString(),
+             QStringLiteral("2026-2027"));
+    QCOMPARE(model.selectedIndex(), 0);
+    QVERIFY(model.imageUrls().isEmpty());
+    QCOMPARE(model.state(), QueryState::Refreshing);
+    QVERIFY(structuredSpy.count() >= 1);
+}
+
+void PersonDQueryTest::calendarViewModelMapsStructuredCalendarAfterCacheRestore()
+{
+    const AcademicCalendarEntry recent{
+        QStringLiteral("2026-2027"), QStringLiteral("info/1101/10727.htm")};
+    const AcademicCalendarEntry older{
+        QStringLiteral("2021-2022"), QStringLiteral("info/1101/8144.htm")};
+    const QStringList cachedImages{QStringLiteral("https://example.invalid/2021-2022.png")};
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({recent, older})), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       calendarSelectedPayload(older)), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(calendarImagesCacheKey(older.path),
+                       calendarImagesPayload(cachedImages)), qPrintable(cache.lastError()));
+
+    StaticNetworkAccessManager network;
+    network.responses.append({QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"), 200,
+                              QNetworkReply::NoError, true});
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(&cache, &service, nullptr);
+
+    model.load();
+
+    QCOMPARE(model.selectedIndex(), 1);
+    QCOMPARE(model.imageUrls(), cachedImages);
+    QCOMPARE(model.state(), QueryState::Refreshing);
+    QVERIFY(!model.hasStructuredCalendar());
+
+    AcademicCalendarCatalog catalog;
+    QVERIFY2(catalog.load(), qPrintable(catalog.errorMessage()));
+    const QueryState stateBeforeInjection = model.state();
+    const QStringList imagesBeforeInjection = model.imageUrls();
+    model.setStructuredCalendarCatalog(&catalog);
+
+    QVERIFY(model.hasStructuredCalendar());
+    QCOMPARE(model.structuredCalendar().value(QStringLiteral("academicYear")).toString(),
+             QStringLiteral("2021-2022"));
+    QVERIFY(model.structuredCalendarError().isEmpty());
+    QCOMPARE(model.state(), stateBeforeInjection);
+    QCOMPARE(model.imageUrls(), imagesBeforeInjection);
+}
+
+void PersonDQueryTest::calendarViewModelTracksStructuredCalendarSelection()
+{
+    const AcademicCalendarEntry recent{
+        QStringLiteral("2026-2027"), QStringLiteral("info/1101/10727.htm")};
+    const AcademicCalendarEntry unmatched{
+        QStringLiteral("2099-2100"), QStringLiteral("info/1101/99999.htm")};
+    const AcademicCalendarEntry older{
+        QStringLiteral("2021-2022"), QStringLiteral("info/1101/8144.htm")};
+    const QStringList recentImages{QStringLiteral("https://example.invalid/recent.png")};
+    const QStringList unmatchedImages{QStringLiteral("https://example.invalid/unmatched.png")};
+    const QStringList olderImages{QStringLiteral("https://example.invalid/older.png")};
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({recent, unmatched, older})), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       calendarSelectedPayload(recent)), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(calendarImagesCacheKey(recent.path),
+                       calendarImagesPayload(recentImages)), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(calendarImagesCacheKey(unmatched.path),
+                       calendarImagesPayload(unmatchedImages)), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(calendarImagesCacheKey(older.path),
+                       calendarImagesPayload(olderImages)), qPrintable(cache.lastError()));
+
+    StaticNetworkAccessManager network;
+    for (int i = 0; i < 4; ++i) {
+        network.responses.append({QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"), 200,
+                                  QNetworkReply::NoError, true});
+    }
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(&cache, &service, nullptr);
+    AcademicCalendarCatalog catalog;
+    QVERIFY2(catalog.load(), qPrintable(catalog.errorMessage()));
+    model.setStructuredCalendarCatalog(&catalog);
+    model.load();
+
+    QCOMPARE(model.structuredCalendar().value(QStringLiteral("academicYear")).toString(),
+             QStringLiteral("2026-2027"));
+    QCOMPARE(model.imageUrls(), recentImages);
+
+    model.selectEntry(2);
+    QCOMPARE(model.structuredCalendar().value(QStringLiteral("academicYear")).toString(),
+             QStringLiteral("2021-2022"));
+    QCOMPARE(model.imageUrls(), olderImages);
+
+    model.selectEntry(1);
+    QVERIFY(!model.hasStructuredCalendar());
+    QVERIFY(model.structuredCalendar().isEmpty());
+    QCOMPARE(model.imageUrls(), unmatchedImages);
+    QCOMPARE(model.state(), QueryState::Refreshing);
+
+    model.selectEntry(0);
+    QCOMPARE(model.structuredCalendar().value(QStringLiteral("academicYear")).toString(),
+             QStringLiteral("2026-2027"));
+    QCOMPARE(model.imageUrls(), recentImages);
+
+    model.clearCache();
+    QCOMPARE(model.selectedIndex(), -1);
+    QVERIFY(!model.hasStructuredCalendar());
+    QVERIFY(model.structuredCalendar().isEmpty());
+    QCOMPARE(model.state(), QueryState::Idle);
+}
+
+void PersonDQueryTest::calendarViewModelExposesStructuredCatalogError()
+{
+    const AcademicCalendarEntry entry{
+        QStringLiteral("2026-2027"), QStringLiteral("info/1101/10727.htm")};
+    const QStringList images{QStringLiteral("https://example.invalid/calendar.png")};
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QueryCacheRepository cache(dir.filePath(QStringLiteral("query-cache.sqlite")));
+    QVERIFY2(cache.open(), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarEntriesCacheKey),
+                       calendarEntriesPayload({entry})), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(QString::fromLatin1(CalendarSelectedCacheKey),
+                       calendarSelectedPayload(entry)), qPrintable(cache.lastError()));
+    QVERIFY2(cache.put(calendarImagesCacheKey(entry.path),
+                       calendarImagesPayload(images)), qPrintable(cache.lastError()));
+
+    StaticNetworkAccessManager network;
+    network.responses.append({QByteArray{}, QByteArrayLiteral("text/html; charset=utf-8"), 200,
+                              QNetworkReply::NoError, true});
+    AcademicCalendarService service(&network);
+    AcademicCalendarViewModel model(&cache, &service, nullptr);
+    model.load();
+
+    AcademicCalendarCatalog catalog(dir.filePath(QStringLiteral("missing.json")));
+    QVERIFY(!catalog.load());
+    QVERIFY(!catalog.errorMessage().isEmpty());
+    const QueryState stateBeforeInjection = model.state();
+    const QStringList imagesBeforeInjection = model.imageUrls();
+
+    model.setStructuredCalendarCatalog(&catalog);
+
+    QVERIFY(!model.hasStructuredCalendar());
+    QVERIFY(model.structuredCalendar().isEmpty());
+    QCOMPARE(model.structuredCalendarError(), catalog.errorMessage());
+    QCOMPARE(model.state(), stateBeforeInjection);
+    QCOMPARE(model.imageUrls(), imagesBeforeInjection);
 }
 
 void PersonDQueryTest::calendarExplicitEmptyListClearsPriorDetail()

@@ -9,6 +9,9 @@
 #include <QObject>
 #include <QSet>
 #include <QVariantList>
+#include <QVariantMap>
+
+class AcademicCalendarCatalog;
 
 class AcademicCalendarViewModel : public QObject
 {
@@ -22,6 +25,9 @@ class AcademicCalendarViewModel : public QObject
     Q_PROPERTY(int selectedIndex READ selectedIndex NOTIFY selectedChanged)
     Q_PROPERTY(QString selectedTitle READ selectedTitle NOTIFY selectedChanged)
     Q_PROPERTY(QStringList imageUrls READ imageUrls NOTIFY imageUrlsChanged)
+    Q_PROPERTY(QVariantMap structuredCalendar READ structuredCalendar NOTIFY structuredCalendarChanged)
+    Q_PROPERTY(bool hasStructuredCalendar READ hasStructuredCalendar NOTIFY structuredCalendarChanged)
+    Q_PROPERTY(QString structuredCalendarError READ structuredCalendarError NOTIFY structuredCalendarChanged)
 
 public:
     explicit AcademicCalendarViewModel(QueryCacheRepository *cache, QObject *parent = nullptr);
@@ -40,6 +46,11 @@ public:
     int selectedIndex() const;
     QString selectedTitle() const;
     QStringList imageUrls() const;
+    QVariantMap structuredCalendar() const;
+    bool hasStructuredCalendar() const;
+    QString structuredCalendarError() const;
+
+    void setStructuredCalendarCatalog(AcademicCalendarCatalog *catalog);
 
     Q_INVOKABLE void load();
     Q_INVOKABLE void refresh();
@@ -56,6 +67,7 @@ signals:
     void entriesChanged();
     void selectedChanged();
     void imageUrlsChanged();
+    void structuredCalendarChanged();
     void toastRequested(const QString &message);
 
 private:
@@ -74,10 +86,12 @@ private:
     bool readSelectedImagesCache(bool allowLegacyMigration,
                                  bool selectionSafelyAssociated = false);
     void syncHasCache();
+    void syncStructuredCalendar();
     void applyEntries(const QList<AcademicCalendarEntry> &entries, bool fromNetwork);
     void applyDetail(const AcademicCalendarDetail &detail, bool fromNetwork);
 
     QueryCacheRepository *m_cache = nullptr;
+    AcademicCalendarCatalog *m_structuredCalendarCatalog = nullptr;
     AcademicCalendarService m_service;
     AcademicCalendarService *m_activeService = &m_service;
     QueryState m_state = QueryState::Idle;
@@ -90,6 +104,8 @@ private:
     QList<AcademicCalendarEntry> m_entries;
     int m_selectedIndex = -1;
     QStringList m_imageUrls;
+    QVariantMap m_structuredCalendar;
+    QString m_structuredCalendarError;
     QString m_imageEntryPath;
     QString m_persistedImageKey;
     QSet<QString> m_knownEntryPaths;

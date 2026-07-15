@@ -15,6 +15,7 @@
 #include "src/services/api/ZhjwApiService.h"
 #include "src/services/auth/ScuAuthService.h"
 #include "src/services/auth/ZhjwAuthService.h"
+#include "src/services/calendar/AcademicCalendarCatalog.h"
 #include "src/services/zhjw/ZhjwQueryService.h"
 #include "src/viewmodels/AcademicCalendarViewModel.h"
 #include "src/viewmodels/ClassroomViewModel.h"
@@ -70,7 +71,10 @@ int main(int argc, char *argv[])
     zhjwQueryService.setLoggedIn(appController.loggedIn());
 
     QueryCacheViewModel queryCacheViewModel(&queryCache);
+    AcademicCalendarCatalog academicCalendarCatalog;
+    academicCalendarCatalog.load();
     AcademicCalendarViewModel academicCalendarViewModel(&queryCache);
+    academicCalendarViewModel.setStructuredCalendarCatalog(&academicCalendarCatalog);
     ClassroomViewModel classroomViewModel(&zhjwQueryService);
     ExamPlanViewModel examPlanViewModel(&queryCache, &zhjwQueryService);
     GradesViewModel gradesViewModel(&queryCache, &zhjwQueryService);
