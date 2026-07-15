@@ -108,7 +108,7 @@ QVariantMap event(const QString &id, const QDate &date)
 {
     return {
         {QStringLiteral("id"), id},
-        {QStringLiteral("type"), QStringLiteral("instruction")},
+        {QStringLiteral("type"), QStringLiteral("class_start")},
         {QStringLiteral("title"), id},
         {QStringLiteral("startDate"), date},
         {QStringLiteral("endDate"), date},
@@ -617,6 +617,65 @@ private slots:
         QTRY_VERIFY(!toggle->property("checked").toBool());
         QTRY_VERIFY(!firstA->isVisible());
         QTRY_VERIFY(!QAccessible::queryAccessibleInterface(toggle)->state().checked);
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join(QLatin1Char('\n'))));
+    }
+
+    void documentedEnumLabelsAreRendered()
+    {
+        CalendarView fixture;
+        QStringList warnings;
+        WarningCapture capture(&warnings);
+        QVERIFY(fixture.initialize());
+        warnings.clear();
+
+        QQuickItem *root = fixture.view.rootObject();
+        const QList<QPair<QString, QString>> phaseLabels{
+            {QStringLiteral("registration"), QStringLiteral("报到注册")},
+            {QStringLiteral("teaching"), QStringLiteral("教学周")},
+            {QStringLiteral("exam"), QStringLiteral("考试周")},
+            {QStringLiteral("practice"), QStringLiteral("实践周")},
+            {QStringLiteral("winter_break"), QStringLiteral("寒假")},
+            {QStringLiteral("summer_break"), QStringLiteral("暑假")},
+            {QStringLiteral("other"), QStringLiteral("其他安排")},
+        };
+        for (const auto &[value, expectedLabel] : phaseLabels) {
+            QVariant label;
+            QVERIFY(QMetaObject::invokeMethod(root, "phaseLabel",
+                                              Q_RETURN_ARG(QVariant, label),
+                                              Q_ARG(QVariant, value)));
+            QCOMPARE(label.toString(), expectedLabel);
+
+            QVariant background;
+            QVariant foreground;
+            QVERIFY(QMetaObject::invokeMethod(root, "phaseBackground",
+                                              Q_RETURN_ARG(QVariant, background),
+                                              Q_ARG(QVariant, value)));
+            QVERIFY(QMetaObject::invokeMethod(root, "phaseForeground",
+                                              Q_RETURN_ARG(QVariant, foreground),
+                                              Q_ARG(QVariant, value)));
+            QVERIFY(background.value<QColor>().isValid());
+            QVERIFY(foreground.value<QColor>().isValid());
+        }
+
+        const QList<QPair<QString, QString>> eventLabels{
+            {QStringLiteral("registration"), QStringLiteral("报到注册")},
+            {QStringLiteral("makeup_exam"), QStringLiteral("补缓考")},
+            {QStringLiteral("orientation"), QStringLiteral("入学教育")},
+            {QStringLiteral("class_start"), QStringLiteral("正式行课")},
+            {QStringLiteral("holiday"), QStringLiteral("节假日")},
+            {QStringLiteral("exam"), QStringLiteral("考试安排")},
+            {QStringLiteral("practice"), QStringLiteral("实践安排")},
+            {QStringLiteral("ceremony"), QStringLiteral("典礼")},
+            {QStringLiteral("sports_meeting"), QStringLiteral("运动会")},
+            {QStringLiteral("other"), QStringLiteral("其他安排")},
+        };
+        for (const auto &[value, expectedLabel] : eventLabels) {
+            QVariant label;
+            QVERIFY(QMetaObject::invokeMethod(root, "eventTypeLabel",
+                                              Q_RETURN_ARG(QVariant, label),
+                                              Q_ARG(QVariant, value)));
+            QCOMPARE(label.toString(), expectedLabel);
+        }
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join(QLatin1Char('\n'))));
     }
 

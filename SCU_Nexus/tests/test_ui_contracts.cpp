@@ -257,10 +257,31 @@ private slots:
         QVERIFY(view.contains(QStringLiteral("function eventTypeLabel")));
         QVERIFY(view.contains(QStringLiteral("function sortedEvents")));
         QVERIFY(view.contains(QStringLiteral("function sortedNotes")));
-        QVERIFY(view.contains(QStringLiteral("winter-break")));
-        QVERIFY(view.contains(QStringLiteral("summer-break")));
-        QVERIFY(view.contains(QStringLiteral("make-up-exam")));
-        QVERIFY(view.contains(QStringLiteral("final-exam")));
+        const QStringList stablePhases{
+            QStringLiteral("registration"), QStringLiteral("teaching"),
+            QStringLiteral("exam"), QStringLiteral("practice"),
+            QStringLiteral("winter_break"), QStringLiteral("summer_break"),
+            QStringLiteral("other")};
+        const QStringList stableEventTypes{
+            QStringLiteral("registration"), QStringLiteral("makeup_exam"),
+            QStringLiteral("orientation"), QStringLiteral("class_start"),
+            QStringLiteral("holiday"), QStringLiteral("exam"),
+            QStringLiteral("practice"), QStringLiteral("ceremony"),
+            QStringLiteral("sports_meeting"), QStringLiteral("other")};
+        for (const QString &value : stablePhases)
+            QVERIFY2(view.contains(QStringLiteral("case \"") + value + QLatin1Char('"')),
+                     qPrintable(value));
+        for (const QString &value : stableEventTypes)
+            QVERIFY2(view.contains(QStringLiteral("case \"") + value + QLatin1Char('"')),
+                     qPrintable(value));
+        const QStringList legacyValues{
+            QStringLiteral("winter-break"), QStringLiteral("summer-break"),
+            QStringLiteral("make-up-exam"), QStringLiteral("instruction"),
+            QStringLiteral("athletics"), QStringLiteral("final-exam"),
+            QStringLiteral("vacation")};
+        for (const QString &value : legacyValues)
+            QVERIFY2(!view.contains(QStringLiteral("case \"") + value + QLatin1Char('"')),
+                     qPrintable(value));
         QVERIFY(view.contains(QStringLiteral("Math.min")));
         QVERIFY(view.contains(QStringLiteral("function safeMap")));
         QVERIFY(view.contains(QStringLiteral("Array.isArray")));

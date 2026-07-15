@@ -131,10 +131,13 @@ bool parseWeek(const QJsonObject &object,
                QString *error)
 {
     static const QSet<QString> phases{
+        QStringLiteral("registration"),
         QStringLiteral("teaching"),
+        QStringLiteral("exam"),
         QStringLiteral("practice"),
-        QStringLiteral("winter-break"),
-        QStringLiteral("summer-break")
+        QStringLiteral("winter_break"),
+        QStringLiteral("summer_break"),
+        QStringLiteral("other")
     };
 
     if (!requiredInteger(object, QStringLiteral("weekNo"), context, &week->weekNo, error)
@@ -168,13 +171,15 @@ bool parseEvent(const QJsonObject &object,
 {
     static const QSet<QString> eventTypes{
         QStringLiteral("registration"),
-        QStringLiteral("make-up-exam"),
-        QStringLiteral("ceremony"),
-        QStringLiteral("instruction"),
+        QStringLiteral("makeup_exam"),
+        QStringLiteral("orientation"),
+        QStringLiteral("class_start"),
         QStringLiteral("holiday"),
-        QStringLiteral("athletics"),
-        QStringLiteral("final-exam"),
-        QStringLiteral("vacation")
+        QStringLiteral("exam"),
+        QStringLiteral("practice"),
+        QStringLiteral("ceremony"),
+        QStringLiteral("sports_meeting"),
+        QStringLiteral("other")
     };
 
     if (!requiredString(object, QStringLiteral("id"), context, &event->id, error)

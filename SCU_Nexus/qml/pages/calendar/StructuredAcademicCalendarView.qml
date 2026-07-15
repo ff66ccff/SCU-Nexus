@@ -88,37 +88,39 @@ Item {
 
     function phaseLabel(phase) {
         switch (root.stringValue(phase)) {
+        case "registration": return "报到注册"
         case "teaching": return "教学周"
         case "exam": return "考试周"
         case "practice": return "实践周"
-        case "winter-break":
         case "winter_break": return "寒假"
-        case "summer-break":
         case "summer_break": return "暑假"
+        case "other": return "其他安排"
         default: return "其他安排"
         }
     }
 
     function phaseBackground(phase) {
         switch (root.stringValue(phase)) {
+        case "registration": return Theme.primarySoft
         case "teaching": return Theme.primarySoft
         case "exam": return Theme.dangerSoft
         case "practice": return Theme.surfaceMuted
-        case "winter-break":
         case "winter_break": return Theme.controlPressed
-        case "summer-break":
         case "summer_break": return Theme.subtleActive
+        case "other": return Theme.control
         default: return Theme.control
         }
     }
 
     function phaseForeground(phase) {
         switch (root.stringValue(phase)) {
+        case "registration": return Theme.accent
         case "teaching": return Theme.accent
         case "exam": return Theme.danger
         case "practice": return Theme.success
-        case "summer-break":
         case "summer_break": return Theme.accent
+        case "winter_break": return Theme.mutedText
+        case "other": return Theme.mutedText
         default: return Theme.mutedText
         }
     }
@@ -126,13 +128,15 @@ Item {
     function eventTypeLabel(type) {
         switch (root.stringValue(type)) {
         case "registration": return "报到注册"
-        case "make-up-exam": return "补缓考"
-        case "ceremony": return "典礼"
-        case "instruction": return "教学安排"
+        case "makeup_exam": return "补缓考"
+        case "orientation": return "入学教育"
+        case "class_start": return "正式行课"
         case "holiday": return "节假日"
-        case "athletics": return "体育活动"
-        case "final-exam": return "期末考试"
-        case "vacation": return "假期"
+        case "exam": return "考试安排"
+        case "practice": return "实践安排"
+        case "ceremony": return "典礼"
+        case "sports_meeting": return "运动会"
+        case "other": return "其他安排"
         default: return "校历事项"
         }
     }

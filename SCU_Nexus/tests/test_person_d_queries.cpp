@@ -560,6 +560,10 @@ class PersonDQueryTest : public QObject
 private slots:
     void loadsStructuredAcademicCalendarResourceAndNormalizesLookup();
     void structuredCalendarModelsConvertToVariant();
+    void acceptsDocumentedStructuredCalendarEnums_data();
+    void acceptsDocumentedStructuredCalendarEnums();
+    void rejectsLegacyStructuredCalendarEnums_data();
+    void rejectsLegacyStructuredCalendarEnums();
     void rejectsInvalidStructuredAcademicCalendar_data();
     void rejectsInvalidStructuredAcademicCalendar();
     void rejectsIncompleteOrUnexpectedStructuredCalendarBaseline_data();
@@ -704,7 +708,7 @@ void PersonDQueryTest::structuredCalendarModelsConvertToVariant()
     StructuredCalendarWeek week{1, QStringLiteral("teaching"),
                                 QDate(2026, 8, 30), QDate(2026, 9, 5),
                                 QStringLiteral("教学周")};
-    StructuredCalendarEvent event{QStringLiteral("event-1"), QStringLiteral("instruction"),
+    StructuredCalendarEvent event{QStringLiteral("event-1"), QStringLiteral("class_start"),
                                   QStringLiteral("正式行课"), QDate(2026, 8, 30),
                                   QDate(2026, 8, 30), true};
     StructuredCalendarNote note{1, QStringLiteral("测试说明")};
@@ -728,6 +732,98 @@ void PersonDQueryTest::structuredCalendarModelsConvertToVariant()
                  .value(QStringLiteral("affectsTeaching")).toBool(), true);
     QCOMPARE(termValue.value(QStringLiteral("notes")).toList().first().toMap()
                  .value(QStringLiteral("order")).toInt(), 1);
+}
+
+void PersonDQueryTest::acceptsDocumentedStructuredCalendarEnums_data()
+{
+    QTest::addColumn<QString>("field");
+    QTest::addColumn<QString>("value");
+
+    const QStringList phases{
+        QStringLiteral("registration"), QStringLiteral("teaching"),
+        QStringLiteral("exam"), QStringLiteral("practice"),
+        QStringLiteral("winter_break"), QStringLiteral("summer_break"),
+        QStringLiteral("other")};
+    for (const QString &phase : phases)
+        QTest::newRow(qPrintable(QStringLiteral("phase-%1").arg(phase)))
+            << QStringLiteral("phase") << phase;
+
+    const QStringList eventTypes{
+        QStringLiteral("registration"), QStringLiteral("makeup_exam"),
+        QStringLiteral("orientation"), QStringLiteral("class_start"),
+        QStringLiteral("holiday"), QStringLiteral("exam"),
+        QStringLiteral("practice"), QStringLiteral("ceremony"),
+        QStringLiteral("sports_meeting"), QStringLiteral("other")};
+    for (const QString &type : eventTypes)
+        QTest::newRow(qPrintable(QStringLiteral("event-%1").arg(type)))
+            << QStringLiteral("event") << type;
+}
+
+void PersonDQueryTest::acceptsDocumentedStructuredCalendarEnums()
+{
+    QFETCH(QString, field);
+    QFETCH(QString, value);
+    QJsonObject root = validStructuredCalendarDocument();
+    if (field == QStringLiteral("phase")) {
+        mutateWeek(root, 0, [&value](QJsonObject &week) {
+            week.insert(QStringLiteral("phase"), value);
+        });
+    } else {
+        mutateEvent(root, 0, [&value](QJsonObject &event) {
+            event.insert(QStringLiteral("type"), value);
+        });
+    }
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = writeStructuredCalendarFixture(dir, root);
+    QVERIFY(!path.isEmpty());
+    AcademicCalendarCatalog catalog(path);
+    QVERIFY2(catalog.load(), qPrintable(catalog.errorMessage()));
+}
+
+void PersonDQueryTest::rejectsLegacyStructuredCalendarEnums_data()
+{
+    QTest::addColumn<QString>("field");
+    QTest::addColumn<QString>("value");
+
+    const QStringList phases{
+        QStringLiteral("winter-break"), QStringLiteral("summer-break")};
+    for (const QString &phase : phases)
+        QTest::newRow(qPrintable(QStringLiteral("phase-%1").arg(phase)))
+            << QStringLiteral("phase") << phase;
+
+    const QStringList eventTypes{
+        QStringLiteral("make-up-exam"), QStringLiteral("instruction"),
+        QStringLiteral("athletics"), QStringLiteral("final-exam"),
+        QStringLiteral("vacation")};
+    for (const QString &type : eventTypes)
+        QTest::newRow(qPrintable(QStringLiteral("event-%1").arg(type)))
+            << QStringLiteral("event") << type;
+}
+
+void PersonDQueryTest::rejectsLegacyStructuredCalendarEnums()
+{
+    QFETCH(QString, field);
+    QFETCH(QString, value);
+    QJsonObject root = validStructuredCalendarDocument();
+    if (field == QStringLiteral("phase")) {
+        mutateWeek(root, 0, [&value](QJsonObject &week) {
+            week.insert(QStringLiteral("phase"), value);
+        });
+    } else {
+        mutateEvent(root, 0, [&value](QJsonObject &event) {
+            event.insert(QStringLiteral("type"), value);
+        });
+    }
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = writeStructuredCalendarFixture(dir, root);
+    QVERIFY(!path.isEmpty());
+    AcademicCalendarCatalog catalog(path);
+    QVERIFY(!catalog.load());
+    QVERIFY(catalog.errorMessage().contains(QStringLiteral("unsupported value")));
 }
 
 void PersonDQueryTest::rejectsInvalidStructuredAcademicCalendar_data()
@@ -765,7 +861,7 @@ void PersonDQueryTest::rejectsInvalidStructuredAcademicCalendar_data()
     });
     addCase("invalid-event-type", [](QJsonObject &root) {
         mutateEvent(root, 0, [](QJsonObject &event) {
-            event.insert(QStringLiteral("type"), QStringLiteral("other"));
+            event.insert(QStringLiteral("type"), QStringLiteral("unsupported-event"));
         });
     });
     addCase("duplicate-academic-year", [](QJsonObject &root) {
