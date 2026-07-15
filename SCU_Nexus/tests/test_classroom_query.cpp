@@ -65,6 +65,7 @@ public:
     int indexCalls = 0;
     int roomCalls = 0;
     bool deferIndex = false;
+    bool deferRooms = false;
     ClassroomIndexDto index = sampleIndex();
     ClassroomQueryResultDto result = sampleResult();
     ApiError nextIndexError;
@@ -73,6 +74,7 @@ public:
     QString lastBuilding;
     QString lastDate;
     ClassroomIndexCallback pendingIndex;
+    QList<ClassroomAvailabilityCallback> pendingRooms;
 
     bool loggedIn() const override { return loggedInValue; }
 
@@ -108,6 +110,17 @@ public:
         lastCampus = campusNumber;
         lastBuilding = buildingNumber;
         lastDate = searchDate;
+        if (deferRooms) {
+            pendingRooms.append(std::move(callback));
+            return;
+        }
+        callback(result, std::exchange(nextRoomError, ApiError{}));
+    }
+
+    void completeNextRoom()
+    {
+        QVERIFY(!pendingRooms.isEmpty());
+        auto callback = pendingRooms.takeFirst();
         callback(result, std::exchange(nextRoomError, ApiError{}));
     }
 
@@ -134,6 +147,8 @@ private slots:
     void mapsLoginAndNetworkErrorsToQueryState();
     void ignoresDuplicateRefreshWhileLoading();
     void refreshFailureKeepsCurrentRoomsAndShowsToast();
+    void dateChangeDuringRequestIgnoresStaleResponse();
+    void navigatingBackDuringRequestIgnoresStaleResponse();
 };
 
 void ClassroomQueryTests::expandsContinuousPeriodsAndMapsStatuses()
@@ -309,6 +324,49 @@ void ClassroomQueryTests::refreshFailureKeepsCurrentRoomsAndShowsToast()
     QCOMPARE(model.rooms().size(), 2);
     QCOMPARE(toastSpy.size(), 1);
     QCOMPARE(toastSpy.first().first().toString(), QStringLiteral("刷新失败"));
+}
+
+void ClassroomQueryTests::dateChangeDuringRequestIgnoresStaleResponse()
+{
+    FakeClassroomQueryService service;
+    service.deferRooms = true;
+    ClassroomViewModel model(&service);
+    model.load();
+    model.selectCampus(0);
+    model.selectBuilding(0);
+    QCOMPARE(service.roomCalls, 1);
+
+    const QString tomorrow = QDate::currentDate().addDays(1).toString(Qt::ISODate);
+    model.setSelectedDate(tomorrow);
+    QCOMPARE(service.roomCalls, 2);
+    QCOMPARE(model.selectedDate(), tomorrow);
+
+    service.completeNextRoom();
+    QCOMPARE(model.state(), QueryState::Loading);
+    QCOMPARE(model.rooms().size(), 0);
+
+    service.completeNextRoom();
+    QCOMPARE(model.state(), QueryState::Loaded);
+    QCOMPARE(model.rooms().size(), 2);
+}
+
+void ClassroomQueryTests::navigatingBackDuringRequestIgnoresStaleResponse()
+{
+    FakeClassroomQueryService service;
+    service.deferRooms = true;
+    ClassroomViewModel model(&service);
+    model.load();
+    model.selectCampus(0);
+    model.selectBuilding(0);
+    QCOMPARE(model.state(), QueryState::Loading);
+
+    model.goBack();
+    QCOMPARE(model.viewMode(), QStringLiteral("building"));
+    service.completeNextRoom();
+
+    QCOMPARE(model.viewMode(), QStringLiteral("building"));
+    QCOMPARE(model.rooms().size(), 0);
+    QCOMPARE(model.state(), QueryState::Loaded);
 }
 
 QTEST_APPLESS_MAIN(ClassroomQueryTests)

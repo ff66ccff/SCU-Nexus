@@ -122,6 +122,7 @@ void ClassroomViewModel::selectCampus(int index)
     if (index < 0 || index >= m_index.campuses.size()) {
         return;
     }
+    cancelPendingRequest();
     m_selectedCampus = index;
     m_selectedBuilding = -1;
     m_visibleBuildings.clear();
@@ -146,6 +147,7 @@ void ClassroomViewModel::selectBuilding(int index)
     if (index < 0 || index >= m_visibleBuildings.size() || m_selectedCampus < 0) {
         return;
     }
+    cancelPendingRequest();
     m_selectedBuilding = index;
     m_viewMode = QStringLiteral("room");
     m_hasRoomResult = false;
@@ -159,6 +161,7 @@ void ClassroomViewModel::selectBuilding(int index)
 void ClassroomViewModel::goBack()
 {
     if (m_viewMode == QStringLiteral("room")) {
+        cancelPendingRequest();
         m_viewMode = QStringLiteral("building");
         m_selectedBuilding = -1;
         m_result = {};
@@ -166,9 +169,11 @@ void ClassroomViewModel::goBack()
         emit selectionChanged();
         emit roomsChanged();
         emit navigationChanged();
+        setState(m_index.campuses.isEmpty() ? QueryState::Empty : QueryState::Loaded);
         return;
     }
     if (m_viewMode == QStringLiteral("building")) {
+        cancelPendingRequest();
         m_viewMode = QStringLiteral("campus");
         m_selectedCampus = -1;
         m_visibleBuildings.clear();
@@ -191,6 +196,7 @@ void ClassroomViewModel::setSelectedDate(const QString &date)
     emit dateChanged();
     emit currentPeriodChanged();
     if (m_viewMode == QStringLiteral("room") && m_selectedBuilding >= 0) {
+        cancelPendingRequest();
         loadRooms();
     }
 }
@@ -235,9 +241,14 @@ void ClassroomViewModel::loadIndex()
         return;
     }
     m_requestInFlight = true;
+    const quint64 requestGeneration = ++m_requestGeneration;
     setError(QString());
     setState(m_index.campuses.isEmpty() ? QueryState::Loading : QueryState::Refreshing);
-    m_service->fetchClassroomIndex([this](const ClassroomIndexDto &index, const ApiError &error) {
+    m_service->fetchClassroomIndex([this, requestGeneration](const ClassroomIndexDto &index,
+                                                            const ApiError &error) {
+        if (requestGeneration != m_requestGeneration) {
+            return;
+        }
         m_requestInFlight = false;
         if (hasError(error)) {
             finishWithError(error, !m_index.campuses.isEmpty());
@@ -256,6 +267,7 @@ void ClassroomViewModel::loadRooms()
         return;
     }
     m_requestInFlight = true;
+    const quint64 requestGeneration = ++m_requestGeneration;
     setError(QString());
     setState(m_hasRoomResult ? QueryState::Refreshing : QueryState::Loading);
     const QString campusNumber = m_index.campuses.at(m_selectedCampus).campusNumber;
@@ -265,7 +277,10 @@ void ClassroomViewModel::loadRooms()
         campusNumber,
         buildingNumber,
         selectedDate(),
-        [this](const ClassroomQueryResultDto &result, const ApiError &error) {
+        [this, requestGeneration](const ClassroomQueryResultDto &result, const ApiError &error) {
+            if (requestGeneration != m_requestGeneration) {
+                return;
+            }
             m_requestInFlight = false;
             if (hasError(error)) {
                 finishWithError(error, m_hasRoomResult);
@@ -277,6 +292,15 @@ void ClassroomViewModel::loadRooms()
             emit roomsChanged();
             setState(m_result.classrooms.isEmpty() ? QueryState::Empty : QueryState::Loaded);
         });
+}
+
+void ClassroomViewModel::cancelPendingRequest()
+{
+    if (!m_requestInFlight) {
+        return;
+    }
+    ++m_requestGeneration;
+    m_requestInFlight = false;
 }
 
 void ClassroomViewModel::setState(QueryState state)

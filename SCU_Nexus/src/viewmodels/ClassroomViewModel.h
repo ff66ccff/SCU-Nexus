@@ -73,6 +73,7 @@ signals:
 private:
     void loadIndex();
     void loadRooms();
+    void cancelPendingRequest();
     void setState(QueryState state);
     void setError(const QString &message);
     void finishWithError(const ApiError &error, bool keepRooms);
@@ -92,5 +93,6 @@ private:
     int m_filterPeriodStart = 0;
     int m_filterPeriodEnd = 0;
     bool m_requestInFlight = false;
+    quint64 m_requestGeneration = 0;
     bool m_hasRoomResult = false;
 };
