@@ -29,7 +29,9 @@
 
 ### 数据来源链接
 
-课表页和校历页在各自模块标题附近新增一行来源说明。说明文本完整显示要求中的 URL，并通过 QML `MouseArea` 调用 `Qt.openUrlExternally(url)`。鼠标悬停使用手型光标，链接使用主题强调色，确保视觉上可识别为可点击内容。
+课表页、校历页和教室查询页在各自模块标题附近新增一行来源说明。三处统一复用 `SourceAttribution`，以“数据来自”开头，完整显示各自要求中的 URL，并通过 QML `MouseArea` 调用 `Qt.openUrlExternally(url)`。鼠标悬停使用手型光标，链接使用主题强调色，确保视觉上可识别为可点击内容。
+
+教室查询页参考课表页布局，在标题栏之后、查询操作之前放置全宽来源说明，并在校区、教学楼和教室三个查询层级始终显示。教室查询来源 URL 固定为 `http://zhjw.scu.edu.cn/student/teachingResources/classroomCurriculum/index`。
 
 ### 教室查询入口
 
