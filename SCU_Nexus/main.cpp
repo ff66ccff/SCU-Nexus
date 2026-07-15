@@ -63,8 +63,7 @@ int main(int argc, char *argv[])
                 ok ? QString{} : QStringLiteral("无法打开或初始化课表数据库")};
         });
 
-    // B 模块主链路：统一认证 -> 教务 SSO -> 教务 API -> 查询层窄接口。
-    // 前三个对象共享会话；最后一个对象把接口适配给考表/成绩 ViewModel。
+    // 统一认证、教务 SSO 与教务 API 共享同一会话生命周期。
     ZhjwAuthService zhjwAuthService(nullptr, &scuAuthService);
     ZhjwApiService zhjwApiService(nullptr, &zhjwAuthService);
     ZhjwApiQueryService zhjwQueryService(nullptr, &zhjwApiService);
@@ -87,7 +86,7 @@ int main(int argc, char *argv[])
     scheduleImportViewModel.setLoggedIn(appController.loggedIn());
     courseEditViewModel.setRepository(&scheduleRepository);
 
-    // 课表模块只消费 B 层返回的学期 DTO、原始课表 JSON 和当前周；解析与入库仍由 C 层负责。
+    // 课表导入只消费学期 DTO、原始课表 JSON 和当前周，解析与入库由课表模块负责。
     scheduleImportViewModel.setRemoteApi(
         [&zhjwApiService](SCUNexus::ScheduleImportViewModel::SemestersResult done) {
             zhjwApiService.fetchSemesters(

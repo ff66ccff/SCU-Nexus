@@ -52,7 +52,7 @@ ScuAuthService::ScuAuthService(QObject* parent, QSettings* settings, ClientFacto
     , m_clientFactory(std::move(clientFactory))
 {
     if (!m_settings) {
-        // TODO(Person B): replace QSettings with OS secure storage before storing production tokens long term.
+        // 仅持久化短时 access token；密码和 Cookie 始终只保存在当前进程中。
         m_settings = new QSettings(QStringLiteral("SCU"), QStringLiteral("SCU_Nexus"), this);
         m_ownsSettings = true;
     }

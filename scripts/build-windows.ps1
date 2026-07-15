@@ -146,7 +146,23 @@ if (-not $SkipTests) {
   if ($LASTEXITCODE -ne 0) { throw "Tests failed; packaging stopped." }
 }
 
-& $CPack --config (Join-Path $BuildDir "CPackConfig.cmake") -G ZIP -B $PackageDir
+$cpackConfig = Join-Path $BuildDir "CPackConfig.cmake"
+$packageNameMatch = Select-String -Path $cpackConfig `
+  -Pattern '^set\(CPACK_PACKAGE_FILE_NAME "([^"]+)"\)$' |
+  Select-Object -First 1
+if (-not $packageNameMatch) {
+  throw "Cannot determine the package file name from $cpackConfig."
+}
+$packageBaseName = $packageNameMatch.Matches[0].Groups[1].Value
+Get-ChildItem $PackageDir -File -ErrorAction SilentlyContinue |
+  Where-Object { $_.Name -like "$packageBaseName.*" } |
+  Remove-Item -Force
+$cpackWorkingDir = Join-Path $PackageDir "_CPack_Packages"
+if (Test-Path $cpackWorkingDir) {
+  Remove-Item $cpackWorkingDir -Recurse -Force
+}
+
+& $CPack --config $cpackConfig -G ZIP -B $PackageDir
 if ($LASTEXITCODE -ne 0) { throw "Portable ZIP packaging failed." }
 
 if (-not $SkipInstaller) {
@@ -168,7 +184,7 @@ if (-not $SkipInstaller) {
   }
 
   if ($makensis) {
-    & $CPack --config (Join-Path $BuildDir "CPackConfig.cmake") -G NSIS -B $PackageDir
+    & $CPack --config $cpackConfig -G NSIS -B $PackageDir
     if ($LASTEXITCODE -ne 0) { throw "NSIS installer packaging failed." }
   } else {
     Write-Warning "NSIS was not found; installer skipped. Run 'winget install --id NSIS.NSIS --exact' and retry."
