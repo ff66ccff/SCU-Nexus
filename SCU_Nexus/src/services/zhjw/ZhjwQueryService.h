@@ -19,6 +19,8 @@ class ZhjwQueryService : public QObject
 public:
     using ExamPlanCallback = std::function<void(const QList<ExamPlanItemDto> &items, const ApiError &error)>;
     using JsonCallback = std::function<void(const QJsonObject &root, const ApiError &error)>;
+    using ClassroomIndexCallback = std::function<void(const ClassroomIndexDto &index, const ApiError &error)>;
+    using ClassroomAvailabilityCallback = std::function<void(const ClassroomQueryResultDto &result, const ApiError &error)>;
 
     explicit ZhjwQueryService(QObject *parent = nullptr);
     ~ZhjwQueryService() override = default;
@@ -28,6 +30,11 @@ public:
     virtual void fetchExamPlan(ExamPlanCallback callback) = 0;
     virtual void fetchSchemeScores(JsonCallback callback) = 0;
     virtual void fetchPassingScores(JsonCallback callback) = 0;
+    virtual void fetchClassroomIndex(ClassroomIndexCallback callback);
+    virtual void fetchClassroomAvailability(const QString &campusNumber,
+                                            const QString &buildingNumber,
+                                            const QString &searchDate,
+                                            ClassroomAvailabilityCallback callback);
 
 signals:
     void loggedInChanged();
@@ -43,6 +50,11 @@ public:
     void fetchExamPlan(ExamPlanCallback callback) override;
     void fetchSchemeScores(JsonCallback callback) override;
     void fetchPassingScores(JsonCallback callback) override;
+    void fetchClassroomIndex(ClassroomIndexCallback callback) override;
+    void fetchClassroomAvailability(const QString &campusNumber,
+                                    const QString &buildingNumber,
+                                    const QString &searchDate,
+                                    ClassroomAvailabilityCallback callback) override;
 
 private:
     ZhjwApiService *m_api = nullptr;

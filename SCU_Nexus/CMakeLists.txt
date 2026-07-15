@@ -114,6 +114,8 @@ qt_add_executable(SCU_Nexus
     src/models/AcademicCalendarModels.cpp
     src/models/ExamPlanModels.h
     src/models/ExamPlanModels.cpp
+    src/models/ClassroomModels.h
+    src/models/ClassroomModels.cpp
     src/models/GradeModels.h
     src/models/GradeModels.cpp
     src/repositories/QueryCacheRepository.h
@@ -131,6 +133,8 @@ qt_add_executable(SCU_Nexus
     src/viewmodels/AcademicCalendarViewModel.cpp
     src/viewmodels/ExamPlanViewModel.h
     src/viewmodels/ExamPlanViewModel.cpp
+    src/viewmodels/ClassroomViewModel.h
+    src/viewmodels/ClassroomViewModel.cpp
     src/viewmodels/GradesViewModel.h
     src/viewmodels/GradesViewModel.cpp
     src/viewmodels/QueryCacheViewModel.h
@@ -449,13 +453,20 @@ add_test(NAME ui_contract_tests COMMAND ui_contract_tests)
 
 qt_add_executable(classroom_query_tests
     tests/test_classroom_query.cpp
+    src/common/QueryState.h
+    src/common/QueryState.cpp
+    src/core/network/NetworkError.h
     src/services/api/ApiDtos.h
+    src/services/zhjw/ZhjwQueryService.h
+    src/services/zhjw/ZhjwQueryService.cpp
     src/models/ClassroomModels.h
     src/models/ClassroomModels.cpp
     src/models/TimeSlot.h
     src/models/TimeSlot.cpp
     src/models/ScheduleConfig.h
     src/models/ScheduleConfig.cpp
+    src/viewmodels/ClassroomViewModel.h
+    src/viewmodels/ClassroomViewModel.cpp
 )
 
 target_include_directories(classroom_query_tests PRIVATE

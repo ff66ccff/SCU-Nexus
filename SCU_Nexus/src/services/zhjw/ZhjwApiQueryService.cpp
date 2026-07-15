@@ -60,3 +60,28 @@ void ZhjwApiQueryService::fetchPassingScores(JsonCallback callback)
         callback(root, error);
     });
 }
+
+void ZhjwApiQueryService::fetchClassroomIndex(ClassroomIndexCallback callback)
+{
+    if (!m_api) {
+        callback({}, {ApiErrorType::ServiceUnavailable, QStringLiteral("教务 API 服务不可用")});
+        return;
+    }
+    m_api->fetchClassroomIndex(std::move(callback));
+}
+
+void ZhjwApiQueryService::fetchClassroomAvailability(
+    const QString &campusNumber,
+    const QString &buildingNumber,
+    const QString &searchDate,
+    ClassroomAvailabilityCallback callback)
+{
+    if (!m_api) {
+        callback({}, {ApiErrorType::ServiceUnavailable, QStringLiteral("教务 API 服务不可用")});
+        return;
+    }
+    m_api->fetchClassroomAvailability(campusNumber,
+                                      buildingNumber,
+                                      searchDate,
+                                      std::move(callback));
+}
