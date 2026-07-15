@@ -17,7 +17,7 @@ public:
         Login,
         Schedule,
         AcademicCalendar,
-        ExamPlan,
+        Classroom,
         Grades,
         Settings
     };

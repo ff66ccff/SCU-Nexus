@@ -88,8 +88,8 @@ Rectangle {
                                     scheduleViewModel.load()
                                 } else if (router.currentRoute === "AcademicCalendar") {
                                     academicCalendarViewModel.refresh()
-                                } else if (router.currentRoute === "ExamPlan") {
-                                    examPlanViewModel.refresh()
+                                } else if (router.currentRoute === "Classroom") {
+                                    classroomViewModel.refresh()
                                 } else if (router.currentRoute === "Grades") {
                                     gradesViewModel.refreshSchemeScores()
                                     gradesViewModel.refreshPassingScores()
@@ -120,8 +120,8 @@ Rectangle {
                     LoginRequiredView {
                         anchors.fill: parent
                         visible: protectedRouteBlocked(router.currentRoute)
-                        message: router.currentRoute === "ExamPlan"
-                                 ? "考表查询需要登录教务系统"
+                        message: router.currentRoute === "Classroom"
+                                 ? "教室查询需要登录教务系统"
                                  : "教务成绩需要登录教务系统"
                         onLoginRequested: router.navigate("Login")
                     }
@@ -134,14 +134,14 @@ Rectangle {
 
     // 判断受保护页面是否因未登录而需要拦截。
     function protectedRouteBlocked(route) {
-        return !appController.loggedIn && (route === "ExamPlan" || route === "Grades")
+        return !appController.loggedIn && (route === "Classroom" || route === "Grades")
     }
 
     // 根据当前路由返回对应的 QML 页面资源路径。
     function pageSource(route) {
         if (route === "Schedule") return "qrc:/SCU_Nexus/qml/pages/schedule/SchedulePage.qml"
         if (route === "AcademicCalendar") return "qrc:/SCU_Nexus/qml/pages/calendar/AcademicCalendarPage.qml"
-        if (route === "ExamPlan") return "qrc:/SCU_Nexus/qml/pages/exam/ExamPlanPage.qml"
+        if (route === "Classroom") return "qrc:/SCU_Nexus/qml/pages/classroom/ClassroomPage.qml"
         if (route === "Grades") return "qrc:/SCU_Nexus/qml/pages/grades/GradesPage.qml"
         if (route === "Settings") return "qrc:/SCU_Nexus/qml/SettingsPage.qml"
         if (route === "Login") return "qrc:/SCU_Nexus/qml/LoginPage.qml"

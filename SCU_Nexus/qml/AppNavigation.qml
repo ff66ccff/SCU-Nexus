@@ -17,7 +17,7 @@ Item {
     readonly property var navItems: [
         { name: "课表", route: "Schedule", icon: "\uE787" },
         { name: "校历", route: "AcademicCalendar", icon: "\uE823" },
-        { name: "考表", route: "ExamPlan", icon: "\uE9D9" },
+        { name: "教室查询", route: "Classroom", icon: "\uE80F" },
         { name: "成绩", route: "Grades", icon: "\uE82D" },
         { name: "设置", route: "Settings", icon: "\uE713" }
     ]

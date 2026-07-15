@@ -59,7 +59,7 @@ private slots:
         const QStringList routes{
             QStringLiteral("Schedule"),
             QStringLiteral("AcademicCalendar"),
-            QStringLiteral("ExamPlan"),
+            QStringLiteral("Classroom"),
             QStringLiteral("Grades"),
             QStringLiteral("Settings")};
         for (const QString &route : routes) {
@@ -73,7 +73,7 @@ private slots:
 
         QVERIFY(shell.contains(QStringLiteral("LoginRequiredView")));
         QVERIFY(shell.contains(QStringLiteral("protectedRouteBlocked")));
-        QVERIFY(shell.contains(QStringLiteral("ExamPlan")));
+        QVERIFY(shell.contains(QStringLiteral("Classroom")));
         QVERIFY(shell.contains(QStringLiteral("Grades")));
     }
 
@@ -149,25 +149,47 @@ private slots:
         QVERIFY(page.contains(QStringLiteral("ScrollView")));
     }
 
-    void examPreservesNormalFieldsAndAllQueryStates()
+    void classroomPagePreservesMigratedQueryFlowAndAllStates()
     {
         const QString page = readUtf8(
-            QStringLiteral("qml/pages/exam/ExamPlanPage.qml"));
+            QStringLiteral("qml/pages/classroom/ClassroomPage.qml"));
         const QString card = readUtf8(
-            QStringLiteral("qml/pages/exam/ExamCard.qml"));
+            QStringLiteral("qml/pages/classroom/ClassroomRoomCard.qml"));
+        const QString detail = readUtf8(
+            QStringLiteral("qml/pages/classroom/ClassroomDetailDialog.qml"));
+        const QString dateDialog = readUtf8(
+            QStringLiteral("qml/pages/classroom/ClassroomDateDialog.qml"));
+        const QString periodDialog = readUtf8(
+            QStringLiteral("qml/pages/classroom/ClassroomPeriodDialog.qml"));
+        const QString navigation = readUtf8(QStringLiteral("qml/AppNavigation.qml"));
+        const QString routerHeader = readUtf8(QStringLiteral("src/app/Router.h"));
+        const QString routerSource = readUtf8(QStringLiteral("src/app/Router.cpp"));
 
-        QVERIFY(page.contains(QStringLiteral("examPlanViewModel.exams")));
+        QVERIFY2(!page.isEmpty(), "ClassroomPage.qml must exist");
+        QVERIFY(navigation.contains(QStringLiteral("教室查询")));
+        QVERIFY(!navigation.contains(QStringLiteral("route: \"ExamPlan\"")));
+        QVERIFY(routerHeader.contains(QStringLiteral("Classroom")));
+        QVERIFY(routerSource.contains(QStringLiteral("教室查询")));
+
+        QVERIFY(page.contains(QStringLiteral("classroomViewModel.campuses")));
+        QVERIFY(page.contains(QStringLiteral("classroomViewModel.buildings")));
+        QVERIFY(page.contains(QStringLiteral("classroomViewModel.rooms")));
+        QVERIFY(page.contains(QStringLiteral("selectedDate")));
+        QVERIFY(page.contains(QStringLiteral("setPeriodFilter")));
         QVERIFY(page.contains(QStringLiteral("QueryStatePane")));
-        QVERIFY(page.contains(QStringLiteral("emptyDescription")));
         QVERIFY(page.contains(QStringLiteral("loginMessage")));
 
         QVERIFY(card.contains(QStringLiteral("Card {")));
-        QVERIFY(card.contains(QStringLiteral("courseName")));
-        QVERIFY(card.contains(QStringLiteral("timeRange")));
-        QVERIFY(card.contains(QStringLiteral("location")));
-        QVERIFY(card.contains(QStringLiteral("seatNumber")));
-        QVERIFY(card.contains(QStringLiteral("ticketNumber")));
-        QVERIFY(card.contains(QStringLiteral("tip")));
+        QVERIFY(card.contains(QStringLiteral("periods")));
+        QVERIFY(card.contains(QStringLiteral("statusText")));
+        QVERIFY(card.contains(QStringLiteral("12")));
+        QVERIFY(detail.contains(QStringLiteral("座位数")));
+        QVERIFY(detail.contains(QStringLiteral("可借用")));
+        QVERIFY(detail.contains(QStringLiteral("备注")));
+        QVERIFY(detail.contains(QStringLiteral("第")));
+        QVERIFY(dateDialog.contains(QStringLiteral("selectedDate")));
+        QVERIFY(periodDialog.contains(QStringLiteral("periodStart")));
+        QVERIFY(periodDialog.contains(QStringLiteral("periodEnd")));
     }
 
     void gradesExposeThreeRealFilteredViewsWithoutRanking()

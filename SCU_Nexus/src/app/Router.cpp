@@ -14,7 +14,7 @@ QString Router::routeTitle() const
     case AppRoute::Login: return "登录";
     case AppRoute::Schedule: return "课表管理";
     case AppRoute::AcademicCalendar: return "校历查询";
-    case AppRoute::ExamPlan: return "考表查询";
+    case AppRoute::Classroom: return "教室查询";
     case AppRoute::Grades: return "教务成绩";
     case AppRoute::Settings: return "设置";
     default: return "SCU Nexus";
@@ -64,7 +64,7 @@ bool Router::routeFromString(const QString& route, AppRoute* outRoute) const
     if (route == "Login") *outRoute = AppRoute::Login;
     else if (route == "Schedule") *outRoute = AppRoute::Schedule;
     else if (route == "AcademicCalendar") *outRoute = AppRoute::AcademicCalendar;
-    else if (route == "ExamPlan") *outRoute = AppRoute::ExamPlan;
+    else if (route == "Classroom") *outRoute = AppRoute::Classroom;
     else if (route == "Grades") *outRoute = AppRoute::Grades;
     else if (route == "Settings") *outRoute = AppRoute::Settings;
     else return false;
@@ -78,7 +78,7 @@ QString Router::routeToString(AppRoute route) const
     case AppRoute::Login: return "Login";
     case AppRoute::Schedule: return "Schedule";
     case AppRoute::AcademicCalendar: return "AcademicCalendar";
-    case AppRoute::ExamPlan: return "ExamPlan";
+    case AppRoute::Classroom: return "Classroom";
     case AppRoute::Grades: return "Grades";
     case AppRoute::Settings: return "Settings";
     default: return "";

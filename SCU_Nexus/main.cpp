@@ -17,6 +17,7 @@
 #include "src/services/auth/ZhjwAuthService.h"
 #include "src/services/zhjw/ZhjwQueryService.h"
 #include "src/viewmodels/AcademicCalendarViewModel.h"
+#include "src/viewmodels/ClassroomViewModel.h"
 #include "src/viewmodels/ExamPlanViewModel.h"
 #include "src/viewmodels/GradesViewModel.h"
 #include "src/viewmodels/QueryCacheViewModel.h"
@@ -70,6 +71,7 @@ int main(int argc, char *argv[])
 
     QueryCacheViewModel queryCacheViewModel(&queryCache);
     AcademicCalendarViewModel academicCalendarViewModel(&queryCache);
+    ClassroomViewModel classroomViewModel(&zhjwQueryService);
     ExamPlanViewModel examPlanViewModel(&queryCache, &zhjwQueryService);
     GradesViewModel gradesViewModel(&queryCache, &zhjwQueryService);
 
@@ -126,6 +128,8 @@ int main(int argc, char *argv[])
                      &scheduleImportViewModel, &SCUNexus::ScheduleImportViewModel::setLoggedIn);
     QObject::connect(&academicCalendarViewModel, &AcademicCalendarViewModel::toastRequested,
                      &toastManager, [&toastManager](const QString &message) { toastManager.show(message, QStringLiteral("warning")); });
+    QObject::connect(&classroomViewModel, &ClassroomViewModel::toastRequested,
+                     &toastManager, [&toastManager](const QString &message) { toastManager.show(message, QStringLiteral("warning")); });
     QObject::connect(&examPlanViewModel, &ExamPlanViewModel::toastRequested,
                      &toastManager, [&toastManager](const QString &message) { toastManager.show(message, QStringLiteral("warning")); });
     QObject::connect(&gradesViewModel, &GradesViewModel::toastRequested,
@@ -138,6 +142,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("toastManager", &toastManager);
     engine.rootContext()->setContextProperty("queryCacheViewModel", &queryCacheViewModel);
     engine.rootContext()->setContextProperty("academicCalendarViewModel", &academicCalendarViewModel);
+    engine.rootContext()->setContextProperty("classroomViewModel", &classroomViewModel);
     engine.rootContext()->setContextProperty("examPlanViewModel", &examPlanViewModel);
     engine.rootContext()->setContextProperty("gradesViewModel", &gradesViewModel);
     engine.rootContext()->setContextProperty("scheduleViewModel", &scheduleViewModel);
