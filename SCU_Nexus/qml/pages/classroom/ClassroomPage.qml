@@ -62,6 +62,11 @@ Item {
             }
         }
 
+        SourceAttribution {
+            Layout.fillWidth: true
+            sourceUrl: "http://zhjw.scu.edu.cn/student/teachingResources/classroomCurriculum/index"
+        }
+
         RowLayout {
             Layout.fillWidth: true
             visible: classroomViewModel.viewMode === "room"

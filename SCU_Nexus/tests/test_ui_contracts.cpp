@@ -103,6 +103,8 @@ private slots:
             QStringLiteral("qml/pages/schedule/SchedulePage.qml"));
         const QString calendar = readUtf8(
             QStringLiteral("qml/pages/calendar/AcademicCalendarPage.qml"));
+        const QString classroom = readUtf8(
+            QStringLiteral("qml/pages/classroom/ClassroomPage.qml"));
 
         QVERIFY2(!component.isEmpty(), "SourceAttribution.qml must exist");
         QVERIFY(component.contains(QStringLiteral("数据来自")));
@@ -111,6 +113,8 @@ private slots:
         QVERIFY(schedule.contains(QStringLiteral(
             "http://zhjw.scu.edu.cn/student/courseSelect/thisSemesterCurriculum/index")));
         QVERIFY(calendar.contains(QStringLiteral("https://jwc.scu.edu.cn/cdxl.htm")));
+        QVERIFY(classroom.contains(QStringLiteral(
+            "http://zhjw.scu.edu.cn/student/teachingResources/classroomCurriculum/index")));
     }
 
     void scheduleDialogsAreResponsiveAndPreserveBusinessSignals()
