@@ -495,8 +495,6 @@ qt_add_executable(grades_qml_tests
     src/core/network/NetworkError.h
     src/models/GradeModels.h
     src/models/GradeModels.cpp
-    src/models/ClassroomModels.h
-    src/models/ClassroomModels.cpp
     src/repositories/QueryCacheRepository.h
     src/repositories/QueryCacheRepository.cpp
     src/services/api/ApiDtos.h
