@@ -224,6 +224,21 @@ private slots:
             QVERIFY2(!source.contains(QStringLiteral("排名")), qPrintable(path));
         }
     }
+
+    void settingsExposesQwenApiKeyPersistenceControls()
+    {
+        const QString page = readUtf8(QStringLiteral("qml/SettingsPage.qml"));
+
+        QVERIFY(page.contains(QStringLiteral("智能服务")));
+        QVERIFY(page.contains(QStringLiteral("Qwen API Key")));
+        QVERIFY(page.contains(QStringLiteral("passwordMode: true")));
+        QVERIFY(page.contains(QStringLiteral("appSettings.qwenApiKey")));
+        QVERIFY(page.contains(QStringLiteral("saveQwenApiKey")));
+        QVERIFY(page.contains(QStringLiteral("clearQwenApiKey")));
+        QVERIFY(!page.contains(QStringLiteral("仅用于演示")));
+        QVERIFY(!page.contains(QStringLiteral("不会发送")));
+        QVERIFY(!page.contains(QStringLiteral("模拟")));
+    }
 };
 
 QTEST_APPLESS_MAIN(UiContractsTests)

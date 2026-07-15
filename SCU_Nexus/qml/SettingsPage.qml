@@ -212,6 +212,65 @@ Item {
             Text {
                 Layout.fillWidth: true
                 Layout.topMargin: Theme.spacing8
+                text: "智能服务"
+                font.pixelSize: Theme.fontLabel
+                font.weight: Theme.weightStrong
+                color: Theme.mutedText
+            }
+
+            Card {
+                Layout.fillWidth: true
+                implicitHeight: qwenLayout.implicitHeight + 2 * root.cardMargin
+
+                ColumnLayout {
+                    id: qwenLayout
+                    anchors.fill: parent
+                    anchors.margins: root.cardMargin
+                    spacing: Theme.spacing16
+
+                    SectionHeader {
+                        Layout.fillWidth: true
+                        title: "Qwen API Key"
+                        description: "管理智能服务使用的 Qwen API 访问凭证"
+                    }
+
+                    AppTextField {
+                        id: qwenApiKeyField
+                        Layout.fillWidth: true
+                        label: "Qwen API Key"
+                        passwordMode: true
+                        clearable: true
+                        onAccepted: root.saveQwenApiKey()
+
+                        Component.onCompleted: text = appSettings.qwenApiKey
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.spacing8
+
+                        Item {
+                            Layout.fillWidth: true
+                        }
+
+                        AppButton {
+                            text: "清除"
+                            type: "secondary"
+                            onClicked: root.clearQwenApiKey()
+                        }
+
+                        AppButton {
+                            text: "保存"
+                            type: "primary"
+                            onClicked: root.saveQwenApiKey()
+                        }
+                    }
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.spacing8
                 text: "外观"
                 font.pixelSize: Theme.fontLabel
                 font.weight: Theme.weightStrong
@@ -339,5 +398,23 @@ Item {
         confirmDialog.confirmText = "清除"
         confirmDialog.type = "danger"
         confirmDialog.open()
+    }
+
+    function saveQwenApiKey() {
+        if (appSettings.saveQwenApiKey(qwenApiKeyField.text)) {
+            qwenApiKeyField.text = appSettings.qwenApiKey
+            toastManager.show("Qwen API Key 已保存", "success")
+        } else {
+            toastManager.show("Qwen API Key 保存失败", "error")
+        }
+    }
+
+    function clearQwenApiKey() {
+        if (appSettings.clearQwenApiKey()) {
+            qwenApiKeyField.text = appSettings.qwenApiKey
+            toastManager.show("Qwen API Key 已清除", "success")
+        } else {
+            toastManager.show("Qwen API Key 清除失败", "error")
+        }
     }
 }

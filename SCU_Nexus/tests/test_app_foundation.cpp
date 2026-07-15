@@ -1,10 +1,65 @@
 #include <QtTest>
+#include <QDir>
+#include <QFileInfo>
+#include <QSettings>
 #include <QTemporaryDir>
 #include "src/app/AppController.h"
 #include "src/app/AppSettings.h"
 #include "src/common/QueryState.h"
 #include "src/repositories/QueryCacheRepository.h"
 #include "src/viewmodels/QueryCacheViewModel.h"
+
+namespace {
+
+QString currentIniUserPath()
+{
+    const QString probeOrganization = QStringLiteral("SCUNexusSettingsPathProbe");
+    const QSettings probe(QSettings::IniFormat,
+                          QSettings::UserScope,
+                          probeOrganization,
+                          QStringLiteral("PathProbe"));
+    QString path = QDir::fromNativeSeparators(QFileInfo(probe.fileName()).absolutePath());
+    const QString organizationSuffix = QStringLiteral("/") + probeOrganization;
+    if (path.endsWith(organizationSuffix))
+        path.chop(organizationSuffix.size());
+    return path;
+}
+
+class TemporarySettingsScope final
+{
+public:
+    explicit TemporarySettingsScope(const QString &path)
+        : m_previousFormat(QSettings::defaultFormat())
+        , m_previousOrganization(QCoreApplication::organizationName())
+        , m_previousApplication(QCoreApplication::applicationName())
+        , m_previousIniUserPath(currentIniUserPath())
+    {
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, path);
+        QCoreApplication::setOrganizationName(QStringLiteral("SCUNexusTests"));
+        QCoreApplication::setApplicationName(QStringLiteral("AppSettingsPersistence"));
+        QSettings().clear();
+    }
+
+    ~TemporarySettingsScope()
+    {
+        QSettings().clear();
+        QCoreApplication::setOrganizationName(m_previousOrganization);
+        QCoreApplication::setApplicationName(m_previousApplication);
+        QSettings::setPath(QSettings::IniFormat,
+                           QSettings::UserScope,
+                           m_previousIniUserPath);
+        QSettings::setDefaultFormat(m_previousFormat);
+    }
+
+private:
+    QSettings::Format m_previousFormat;
+    QString m_previousOrganization;
+    QString m_previousApplication;
+    QString m_previousIniUserPath;
+};
+
+} // namespace
 
 class AppFoundationTests final : public QObject
 {
@@ -131,6 +186,57 @@ private slots:
         QCOMPARE(AppSettings::sanitizedGeometry(QRect(-500, -500, 300, 200),
                                                  QRect(0, 0, 1024, 700)),
                  QRect(0, 0, 900, 620));
+    }
+
+    void qwenApiKeyPersistsNormalizedChanges()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        TemporarySettingsScope settingsScope(directory.path());
+
+        AppSettings first;
+        QSignalSpy changed(&first, &AppSettings::qwenApiKeyChanged);
+
+        QVERIFY(first.saveQwenApiKey(QStringLiteral("  sk-test  ")));
+        QCOMPARE(first.qwenApiKey(), QStringLiteral("sk-test"));
+        QVERIFY(first.hasQwenApiKey());
+        QCOMPARE(changed.count(), 1);
+
+        QVERIFY(first.saveQwenApiKey(QStringLiteral("sk-test")));
+        QCOMPARE(changed.count(), 1);
+
+        AppSettings restored;
+        QCOMPARE(restored.qwenApiKey(), QStringLiteral("sk-test"));
+        QVERIFY(restored.hasQwenApiKey());
+
+        QSignalSpy restoredChanged(&restored, &AppSettings::qwenApiKeyChanged);
+        QVERIFY(restored.saveQwenApiKey(QStringLiteral("   ")));
+        QVERIFY(restored.qwenApiKey().isEmpty());
+        QVERIFY(!restored.hasQwenApiKey());
+        QCOMPARE(restoredChanged.count(), 1);
+
+        QVERIFY(restored.clearQwenApiKey());
+        QCOMPARE(restoredChanged.count(), 1);
+    }
+
+    void qwenApiKeyClearRemovesPersistedValue()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        TemporarySettingsScope settingsScope(directory.path());
+
+        AppSettings first;
+        QVERIFY(first.saveQwenApiKey(QStringLiteral("sk-clear")));
+
+        AppSettings restored;
+        QSignalSpy changed(&restored, &AppSettings::qwenApiKeyChanged);
+        QVERIFY(restored.clearQwenApiKey());
+        QVERIFY(!restored.hasQwenApiKey());
+        QCOMPARE(changed.count(), 1);
+
+        AppSettings cleared;
+        QVERIFY(cleared.qwenApiKey().isEmpty());
+        QVERIFY(!cleared.hasQwenApiKey());
     }
 
     void queryCacheClearRemovesStoredEntries()
