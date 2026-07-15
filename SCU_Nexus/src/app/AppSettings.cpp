@@ -3,6 +3,7 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QSettings>
+#include <utility>
 
 namespace {
 constexpr int DefaultWindowWidth = 1100;
@@ -14,8 +15,15 @@ const QString QwenApiKeySetting = QStringLiteral("ai/qwen_api_key");
 
 // 构造对象并初始化依赖关系。
 AppSettings::AppSettings(QObject *parent)
+    : AppSettings(parent, {})
+{
+
+}
+
+AppSettings::AppSettings(QObject *parent, std::function<void()> syncFailureHook)
     : QObject(parent)
     , m_qwenApiKey(QSettings().value(QwenApiKeySetting).toString().trimmed())
+    , m_syncFailureHook(std::move(syncFailureHook))
 {
 
 }
@@ -71,11 +79,19 @@ bool AppSettings::saveQwenApiKey(const QString &apiKey)
     settings.sync();
 
     if (settings.status() != QSettings::NoError) {
-        if (hadPreviousValue)
-            settings.setValue(QwenApiKeySetting, previousValue);
-        else
-            settings.remove(QwenApiKeySetting);
-        settings.sync();
+        if (m_syncFailureHook)
+            m_syncFailureHook();
+        const bool attemptedStateStillCurrent = normalizedApiKey.isEmpty()
+            ? !settings.contains(QwenApiKeySetting)
+            : settings.contains(QwenApiKeySetting)
+                && settings.value(QwenApiKeySetting) == QVariant(normalizedApiKey);
+        if (attemptedStateStillCurrent) {
+            if (hadPreviousValue)
+                settings.setValue(QwenApiKeySetting, previousValue);
+            else
+                settings.remove(QwenApiKeySetting);
+            settings.sync();
+        }
         return false;
     }
 

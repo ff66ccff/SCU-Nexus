@@ -272,6 +272,13 @@ private slots:
         QVERIFY(!restoredRawSettings.contains(QStringLiteral("ai/qwen_api_key")));
         AppSettings restored;
         QVERIFY(!restored.hasQwenApiKey());
+
+        QVERIFY(settingsFile.setPermissions(originalPermissions));
+        const QString diskCopyPath = directory.filePath(QStringLiteral("save-disk-copy.ini"));
+        QVERIFY(QFile::copy(settingsFilePath, diskCopyPath));
+        QSettings diskSettings(diskCopyPath, QSettings::IniFormat);
+        QVERIFY(!diskSettings.contains(QStringLiteral("ai/qwen_api_key")));
+        QCOMPARE(diskSettings.value(QStringLiteral("test/sentinel")).toBool(), true);
     }
 
     void failedQwenApiKeyClearRetainsPersistedValue()
@@ -307,6 +314,94 @@ private slots:
         QCOMPARE(restoredRawSettings.value(QStringLiteral("ai/qwen_api_key")), originalValue);
         AppSettings restored;
         QCOMPARE(restored.qwenApiKey(), QStringLiteral("sk-original"));
+
+        QVERIFY(settingsFile.setPermissions(originalPermissions));
+        const QString diskCopyPath = directory.filePath(QStringLiteral("clear-disk-copy.ini"));
+        QVERIFY(QFile::copy(settingsFilePath, diskCopyPath));
+        QSettings diskSettings(diskCopyPath, QSettings::IniFormat);
+        QVERIFY(diskSettings.contains(QStringLiteral("ai/qwen_api_key")));
+        QCOMPARE(diskSettings.value(QStringLiteral("ai/qwen_api_key")), originalValue);
+    }
+
+    void failedQwenApiKeySavePreservesConcurrentUpdate()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        TemporarySettingsScope settingsScope(directory.path());
+
+        QSettings rawSettings;
+        rawSettings.setValue(QStringLiteral("test/sentinel"), true);
+        rawSettings.sync();
+        QCOMPARE(rawSettings.status(), QSettings::NoError);
+
+        bool interleaved = false;
+        AppSettings settings(nullptr, [&interleaved]() {
+            interleaved = true;
+            QSettings concurrentSettings;
+            concurrentSettings.setValue(QStringLiteral("ai/qwen_api_key"),
+                                        QStringLiteral("sk-newer"));
+        });
+        QVERIFY(!settings.hasQwenApiKey());
+
+        QFile settingsFile(rawSettings.fileName());
+        const QFileDevice::Permissions originalPermissions = settingsFile.permissions();
+        QVERIFY(settingsFile.setPermissions(QFileDevice::ReadOwner));
+        const auto restorePermissions = qScopeGuard([&settingsFile, originalPermissions]() {
+            settingsFile.setPermissions(originalPermissions);
+        });
+        QSignalSpy changed(&settings, &AppSettings::qwenApiKeyChanged);
+
+        QVERIFY(!settings.saveQwenApiKey(QStringLiteral("sk-attempted")));
+        QVERIFY(interleaved);
+        QVERIFY(!settings.hasQwenApiKey());
+        QCOMPARE(changed.count(), 0);
+
+        QSettings observed;
+        QCOMPARE(observed.value(QStringLiteral("ai/qwen_api_key")).toString(),
+                 QStringLiteral("sk-newer"));
+        AppSettings restored;
+        QCOMPARE(restored.qwenApiKey(), QStringLiteral("sk-newer"));
+    }
+
+    void failedQwenApiKeyClearPreservesConcurrentUpdate()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        TemporarySettingsScope settingsScope(directory.path());
+
+        QSettings rawSettings;
+        rawSettings.setValue(QStringLiteral("ai/qwen_api_key"),
+                             QStringLiteral("sk-original"));
+        rawSettings.sync();
+        QCOMPARE(rawSettings.status(), QSettings::NoError);
+
+        bool interleaved = false;
+        AppSettings settings(nullptr, [&interleaved]() {
+            interleaved = true;
+            QSettings concurrentSettings;
+            concurrentSettings.setValue(QStringLiteral("ai/qwen_api_key"),
+                                        QStringLiteral("sk-newer"));
+        });
+        QCOMPARE(settings.qwenApiKey(), QStringLiteral("sk-original"));
+
+        QFile settingsFile(rawSettings.fileName());
+        const QFileDevice::Permissions originalPermissions = settingsFile.permissions();
+        QVERIFY(settingsFile.setPermissions(QFileDevice::ReadOwner));
+        const auto restorePermissions = qScopeGuard([&settingsFile, originalPermissions]() {
+            settingsFile.setPermissions(originalPermissions);
+        });
+        QSignalSpy changed(&settings, &AppSettings::qwenApiKeyChanged);
+
+        QVERIFY(!settings.clearQwenApiKey());
+        QVERIFY(interleaved);
+        QCOMPARE(settings.qwenApiKey(), QStringLiteral("sk-original"));
+        QCOMPARE(changed.count(), 0);
+
+        QSettings observed;
+        QCOMPARE(observed.value(QStringLiteral("ai/qwen_api_key")).toString(),
+                 QStringLiteral("sk-newer"));
+        AppSettings restored;
+        QCOMPARE(restored.qwenApiKey(), QStringLiteral("sk-newer"));
     }
 
     void queryCacheClearRemovesStoredEntries()

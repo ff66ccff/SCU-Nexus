@@ -274,6 +274,14 @@ private slots:
             page, QStringLiteral("function saveQwenApiKey()"));
         const QString clearFunction = functionBlockStartingAt(
             page, QStringLiteral("function clearQwenApiKey()"));
+        const QString saveSuccessBlock = functionBlockStartingAt(
+            saveFunction, QStringLiteral("if (appSettings.saveQwenApiKey"));
+        const QString saveErrorBlock = functionBlockStartingAt(
+            saveFunction, QStringLiteral("else"));
+        const QString clearSuccessBlock = functionBlockStartingAt(
+            clearFunction, QStringLiteral("if (appSettings.clearQwenApiKey"));
+        const QString clearErrorBlock = functionBlockStartingAt(
+            clearFunction, QStringLiteral("else"));
 
         QVERIFY(page.contains(QStringLiteral("智能服务")));
         QVERIFY(page.contains(QStringLiteral("Qwen API Key")));
@@ -284,14 +292,14 @@ private slots:
         QVERIFY(clearButton.contains(QStringLiteral("onClicked: root.clearQwenApiKey()")));
         QVERIFY(saveFunction.contains(QStringLiteral(
             "appSettings.saveQwenApiKey(qwenApiKeyField.text)")));
-        QVERIFY(saveFunction.contains(QStringLiteral(
+        QVERIFY(saveSuccessBlock.contains(QStringLiteral(
             "toastManager.show(\"Qwen API Key 已保存\", \"success\")")));
-        QVERIFY(saveFunction.contains(QStringLiteral(
+        QVERIFY(saveErrorBlock.contains(QStringLiteral(
             "toastManager.show(\"Qwen API Key 保存失败\", \"error\")")));
         QVERIFY(clearFunction.contains(QStringLiteral("appSettings.clearQwenApiKey()")));
-        QVERIFY(clearFunction.contains(QStringLiteral(
+        QVERIFY(clearSuccessBlock.contains(QStringLiteral(
             "toastManager.show(\"Qwen API Key 已清除\", \"success\")")));
-        QVERIFY(clearFunction.contains(QStringLiteral(
+        QVERIFY(clearErrorBlock.contains(QStringLiteral(
             "toastManager.show(\"Qwen API Key 清除失败\", \"error\")")));
     }
 

@@ -4,6 +4,9 @@
 #include <QObject>
 #include <QRect>
 #include <QVariantMap>
+#include <functional>
+
+class AppFoundationTests;
 
 class AppSettings : public QObject
 {
@@ -27,7 +30,12 @@ signals:
     void qwenApiKeyChanged();
 
 private:
+    AppSettings(QObject *parent, std::function<void()> syncFailureHook);
+
+    friend class AppFoundationTests;
+
     QString m_qwenApiKey;
+    std::function<void()> m_syncFailureHook;
 };
 
 #endif // APPSETTINGS_H
