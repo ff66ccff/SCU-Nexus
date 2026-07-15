@@ -62,14 +62,22 @@ bool AppSettings::saveQwenApiKey(const QString &apiKey)
         return true;
 
     QSettings settings;
+    const bool hadPreviousValue = settings.contains(QwenApiKeySetting);
+    const QVariant previousValue = settings.value(QwenApiKeySetting);
     if (normalizedApiKey.isEmpty())
         settings.remove(QwenApiKeySetting);
     else
         settings.setValue(QwenApiKeySetting, normalizedApiKey);
     settings.sync();
 
-    if (settings.status() != QSettings::NoError)
+    if (settings.status() != QSettings::NoError) {
+        if (hadPreviousValue)
+            settings.setValue(QwenApiKeySetting, previousValue);
+        else
+            settings.remove(QwenApiKeySetting);
+        settings.sync();
         return false;
+    }
 
     m_qwenApiKey = normalizedApiKey;
     emit qwenApiKeyChanged();

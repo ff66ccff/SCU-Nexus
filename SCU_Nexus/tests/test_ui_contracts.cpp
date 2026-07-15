@@ -19,6 +19,40 @@ QString readUtf8(const QString &relativePath)
     return QString::fromUtf8(file.readAll());
 }
 
+QString bracedBlock(const QString &source, int openBrace)
+{
+    if (openBrace < 0)
+        return {};
+
+    int depth = 0;
+    for (int index = openBrace; index < source.size(); ++index) {
+        if (source.at(index) == QLatin1Char('{'))
+            ++depth;
+        else if (source.at(index) == QLatin1Char('}'))
+            --depth;
+
+        if (depth == 0)
+            return source.mid(openBrace, index - openBrace + 1);
+    }
+    return {};
+}
+
+QString objectBlockContaining(const QString &source, const QString &marker)
+{
+    const int markerIndex = source.indexOf(marker);
+    if (markerIndex < 0)
+        return {};
+    return bracedBlock(source, source.lastIndexOf(QLatin1Char('{'), markerIndex));
+}
+
+QString functionBlockStartingAt(const QString &source, const QString &marker)
+{
+    const int markerIndex = source.indexOf(marker);
+    if (markerIndex < 0)
+        return {};
+    return bracedBlock(source, source.indexOf(QLatin1Char('{'), markerIndex));
+}
+
 } // namespace
 
 class UiContractsTests final : public QObject
@@ -228,16 +262,56 @@ private slots:
     void settingsExposesQwenApiKeyPersistenceControls()
     {
         const QString page = readUtf8(QStringLiteral("qml/SettingsPage.qml"));
+        const QString qwenLayout = objectBlockContaining(
+            page, QStringLiteral("id: qwenLayout"));
+        const QString keyField = objectBlockContaining(
+            qwenLayout, QStringLiteral("id: qwenApiKeyField"));
+        const QString saveButton = objectBlockContaining(
+            qwenLayout, QStringLiteral("text: \"保存\""));
+        const QString clearButton = objectBlockContaining(
+            qwenLayout, QStringLiteral("text: \"清除\""));
+        const QString saveFunction = functionBlockStartingAt(
+            page, QStringLiteral("function saveQwenApiKey()"));
+        const QString clearFunction = functionBlockStartingAt(
+            page, QStringLiteral("function clearQwenApiKey()"));
 
         QVERIFY(page.contains(QStringLiteral("智能服务")));
         QVERIFY(page.contains(QStringLiteral("Qwen API Key")));
-        QVERIFY(page.contains(QStringLiteral("passwordMode: true")));
-        QVERIFY(page.contains(QStringLiteral("appSettings.qwenApiKey")));
-        QVERIFY(page.contains(QStringLiteral("saveQwenApiKey")));
-        QVERIFY(page.contains(QStringLiteral("clearQwenApiKey")));
-        QVERIFY(!page.contains(QStringLiteral("仅用于演示")));
-        QVERIFY(!page.contains(QStringLiteral("不会发送")));
-        QVERIFY(!page.contains(QStringLiteral("模拟")));
+        QVERIFY(keyField.contains(QStringLiteral("passwordMode: true")));
+        QVERIFY(keyField.contains(QStringLiteral("appSettings.qwenApiKey")));
+        QVERIFY(keyField.contains(QStringLiteral("onAccepted: root.saveQwenApiKey()")));
+        QVERIFY(saveButton.contains(QStringLiteral("onClicked: root.saveQwenApiKey()")));
+        QVERIFY(clearButton.contains(QStringLiteral("onClicked: root.clearQwenApiKey()")));
+        QVERIFY(saveFunction.contains(QStringLiteral(
+            "appSettings.saveQwenApiKey(qwenApiKeyField.text)")));
+        QVERIFY(saveFunction.contains(QStringLiteral(
+            "toastManager.show(\"Qwen API Key 已保存\", \"success\")")));
+        QVERIFY(saveFunction.contains(QStringLiteral(
+            "toastManager.show(\"Qwen API Key 保存失败\", \"error\")")));
+        QVERIFY(clearFunction.contains(QStringLiteral("appSettings.clearQwenApiKey()")));
+        QVERIFY(clearFunction.contains(QStringLiteral(
+            "toastManager.show(\"Qwen API Key 已清除\", \"success\")")));
+        QVERIFY(clearFunction.contains(QStringLiteral(
+            "toastManager.show(\"Qwen API Key 清除失败\", \"error\")")));
+    }
+
+    void productQmlContainsNoDemoDisclosure()
+    {
+        QDirIterator files(sourcePath(QStringLiteral("qml")),
+                           QStringList{QStringLiteral("*.qml")},
+                           QDir::Files,
+                           QDirIterator::Subdirectories);
+
+        while (files.hasNext()) {
+            const QString path = files.next();
+            QFile file(path);
+            QVERIFY2(file.open(QIODevice::ReadOnly | QIODevice::Text), qPrintable(path));
+            const QString source = QString::fromUtf8(file.readAll());
+
+            QVERIFY2(!source.contains(QStringLiteral("仅用于演示")), qPrintable(path));
+            QVERIFY2(!source.contains(QStringLiteral("不会发送")), qPrintable(path));
+            QVERIFY2(!source.contains(QStringLiteral("模拟")), qPrintable(path));
+        }
     }
 };
 
