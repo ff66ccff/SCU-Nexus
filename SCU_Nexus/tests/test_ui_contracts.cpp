@@ -187,6 +187,36 @@ private slots:
         QVERIFY(page.contains(QStringLiteral("ScrollView")));
     }
 
+    void structuredCalendarViewRendersCompleteSafeCalendarData()
+    {
+        const QString view = readUtf8(QStringLiteral(
+            "qml/pages/calendar/StructuredAcademicCalendarView.qml"));
+
+        QVERIFY2(!view.isEmpty(), "StructuredAcademicCalendarView.qml must exist");
+        QVERIFY(view.contains(QStringLiteral("SegmentedControl")));
+        QVERIFY(view.contains(QStringLiteral("calendarData.terms")));
+        QVERIFY(view.contains(QStringLiteral("weeks")));
+        QVERIFY(view.contains(QStringLiteral("events")));
+        QVERIFY(view.contains(QStringLiteral("notes")));
+        QVERIFY(view.contains(QStringLiteral("weekNo")));
+        QVERIFY(view.contains(QStringLiteral("startDate")));
+        QVERIFY(view.contains(QStringLiteral("endDate")));
+        QVERIFY(view.contains(QStringLiteral("查看原版")));
+        QVERIFY(view.contains(QStringLiteral("viewOriginalRequested")));
+
+        QVERIFY(view.contains(QStringLiteral("function formatDate")));
+        QVERIFY(view.contains(QStringLiteral("function phaseLabel")));
+        QVERIFY(view.contains(QStringLiteral("function eventTypeLabel")));
+        QVERIFY(view.contains(QStringLiteral("function sortedEvents")));
+        QVERIFY(view.contains(QStringLiteral("function sortedNotes")));
+        QVERIFY(view.contains(QStringLiteral("winter-break")));
+        QVERIFY(view.contains(QStringLiteral("summer-break")));
+        QVERIFY(view.contains(QStringLiteral("make-up-exam")));
+        QVERIFY(view.contains(QStringLiteral("final-exam")));
+        QVERIFY(view.contains(QStringLiteral("calendarData && calendarData.terms")));
+        QVERIFY(view.contains(QStringLiteral("Math.min")));
+    }
+
     void classroomPagePreservesMigratedQueryFlowAndAllStates()
     {
         const QString page = readUtf8(

@@ -223,6 +223,7 @@ qt_add_qml_module(SCU_Nexus
         qml/components/query/QueryStatePane.qml
         qml/pages/calendar/AcademicCalendarPage.qml
         qml/pages/calendar/CalendarImageViewer.qml
+        qml/pages/calendar/StructuredAcademicCalendarView.qml
         qml/pages/classroom/ClassroomPage.qml
         qml/pages/classroom/ClassroomRoomCard.qml
         qml/pages/classroom/ClassroomDetailDialog.qml
