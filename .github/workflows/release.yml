@@ -55,7 +55,7 @@ jobs:
           cpack --config out/build/release/CPackConfig.cmake -G NSIS -B out/packages
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SCU-Nexus-${{ github.ref_name }}-windows-x86_64
           path: |
